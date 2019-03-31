@@ -56,7 +56,7 @@ def get_network_builder(name):
     """
     If you want to register your own network outside models.py, you just need:
 
-    Usage Example:
+    Usage Examplee:
     -------------
     from baselines.common.models import register
     @register("your_network_name")

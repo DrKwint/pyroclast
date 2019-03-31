@@ -97,7 +97,7 @@ class M2VAE(snt.AbstractModule):
         kl = tfp.distributions.kl_divergence(p_z, self._prior)
         return -(logpx - kl)
 
-    def unsupervised_loss(self, x, y, p_x, p_y, p_z):
+    def unsupervised_loss(self, x, p_x, p_y, p_z):
         """Calculate $-\mathcal{U}{x}
 
         Args:
@@ -111,7 +111,7 @@ class M2VAE(snt.AbstractModule):
         Returns:
             Tensor: scalar loss value
         """
-        y_values = tf.range(tf.shape(y)[-1])
+        y_values = tf.range(tf.shape(p_y)[-1])
         supervised_component = self.supervised_loss(x, p_x, p_z)
         logqy = tfp.distributions.Categorical(
             logits=p_y.logits).log_prob(y_values)
@@ -119,7 +119,7 @@ class M2VAE(snt.AbstractModule):
         print(supervised_component.shape)
         print(logqy.shape)
         # TODO: write the rest of this function
-        pass
+        return 0.
 
     def loss(self, labeled_x, unlabeled_x, y, model_y, model_z, model_x):
         """
