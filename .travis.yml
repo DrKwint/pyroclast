@@ -2,8 +2,8 @@ language: python
 python:
   - "3.6"
 install:
-  - pip install -e .
-  - pip install yapf
+  - pip install -q -q -e .
+  - pip install -q -q yapf
 script:
   - yapf -drp pyroclast
   - pytest
