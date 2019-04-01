@@ -1,7 +1,7 @@
 language: python
 python:
   - "3.6"
+install:
+  - pip install -q yapf
 script:
-  - yapf -drp pyromania
   - yapf -drp pyroclast
-  - pytest
