@@ -5,4 +5,3 @@ install:
   - pip install -q yapf
 script:
   - yapf -drp pyroclast
-  - pytest
