@@ -1,5 +1,6 @@
 import functools
 
+import tensorflow as tf
 import tensorflow_datasets as tfds
 
 DOWNLOAD_LOCATION = '../tensorflow_datasets'
@@ -19,7 +20,7 @@ def register(name):
 def task(task, name):
     singleton = set([name])
     try:
-        tasks[task] += singleton
+        tasks[task] = tasks[task].union(singleton)
     except KeyError:
         tasks[task] = singleton
 
@@ -35,14 +36,22 @@ def mnist(**dataset_kwargs):
     return tfds.load('mnist', data_dir=DOWNLOAD_LOCATION)
 
 
+@register("cifar10")
+@task("classification", "cifar10")
+def cifar10(**dataset_kwargs):
+    return tfds.load('cifar10', data_dir=DOWNLOAD_LOCATION)
+
+
 def split_dataset(dataset, labeled_num):
     return dataset.take(labeled_num), dataset.skip(labeled_num)
 
 
-def dataset_tensor(ds, epochs, batch_size, buffer_size=10000):
-    ds = ds.repeat(epochs)
+def dataset_tensor(ds, epochs, batch_size, buffer_size=1000):
     ds = ds.shuffle(buffer_size)
-    return ds.batch(batch_size)
+    ds = ds.repeat(epochs)
+    ds = ds.batch(batch_size)
+    ds = ds.prefetch(buffer_size)
+    return tf.data.make_one_shot_iterator(ds).get_next()
 
 
 def get_dataset(name):

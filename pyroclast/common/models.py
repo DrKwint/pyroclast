@@ -14,42 +14,56 @@ def register(name):
     return _thunk
 
 
+class UpscaleBlock(snt.AbstractModule):
+    def __init__(self, num_filters, name='upscale_block'):
+        super(UpscaleBlock, self).__init__(name=name)
+        self._num_filters = num_filters
+
+    def _build(self, inputs):
+        x = inputs
+        n, w, h, c = x.get_shape().as_list()
+        net = snt.Sequential([
+            lambda x: tf.image.resize_nearest_neighbor(x, [2 * h, 2 * w]),
+            snt.Conv2D(self._num_filters, 3, padding=snt.SAME),
+            tf.nn.leaky_relu,
+            snt.Conv2D(self._num_filters, 3, padding=snt.SAME),
+            tf.nn.leaky_relu,
+        ])
+        return net(x)
+
+
+@register("upscale_conv")
+def upscale_conv(num_blocks=5, init_filter_num=256, **network_kwargs):
+    blocklist = [
+        snt.Conv2D(init_filter_num, 4, padding=snt.SAME),
+        tf.nn.leaky_relu,
+        snt.Conv2D(init_filter_num, 3, padding=snt.SAME),
+        tf.nn.leaky_relu,
+    ]
+    num_filters = init_filter_num
+    for _ in range(num_blocks):
+        blocklist.append(UpscaleBlock(num_filters))
+        num_filters /= 2
+    return snt.Sequential(blocklist)
+
+
 @register("mlp")
 def mlp(output_sizes=[64] * 2, **network_kwargs):
     return snt.nets.MLP(output_sizes, **network_kwargs)
 
 
 @register("conv_only")
-def conv_only(convs=[(32, 8, 4), (64, 4, 2), (64, 3, 1)], **conv_kwargs):
-    '''
-    convolutions-only net
-
-    Parameters:
-    ----------
-
-    conv:       list of triples (filter_number, filter_size, stride) specifying parameters for each layer.
-
-    Returns:
-
-    function that takes tensorflow tensor as input and returns the output of the last convolutional layer
-
-    '''
-
-    def network_fn(X):
-        out = tf.cast(X, tf.float32) / 255.
-        with tf.variable_scope("convnet"):
-            for num_outputs, kernel_size, stride in convs:
-                out = layers.convolution2d(
-                    out,
-                    num_outputs=num_outputs,
-                    kernel_size=kernel_size,
-                    stride=stride,
-                    activation_fn=tf.nn.relu,
-                    **conv_kwargs)
-
-        return out
-
-    return network_fn
+def conv_only(output_channels=[32, 64, 64],
+              kernel_shapes=(5, 3, 3),
+              strides=(4, 2, 1),
+              **conv_kwargs):
+    return snt.nets.ConvNet2D(
+        output_channels,
+        kernel_shapes,
+        strides,
+        paddings=[snt.SAME],
+        activation=tf.nn.relu,
+        activate_final=True)
 
 
 def get_network_builder(name):

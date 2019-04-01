@@ -15,6 +15,7 @@ class M2VAE(snt.AbstractModule):
                  prior,
                  posterior,
                  output_dist,
+                 num_classes,
                  name='m2_vae'):
         """
         Args:
@@ -30,44 +31,33 @@ class M2VAE(snt.AbstractModule):
                 takes location and scale and returns a tfp distribution
             output_dist (Tensor -> tfp.Distribution): Callable from loc to a
                 tfp distribution
+            num_classes (int): number of classes in the classification problem
         """
         super(M2VAE, self).__init__(name=name)
-
-        # TODO: put these asserts in the right places
-        # assert prior sample shape == latent shape
-        # assert loc shape == latent shape
-        # assert scale shape == latent shape
-        # assert posterior sample shape == latent shape
-
         self._classifier = classifier
         self._encoder = encoder
         self._decoder = decoder
         self._prior = prior
         self._posterior = posterior
         self._output_dist = output_dist
-
-        # TODO: add public distribution to sample (x,y,z) from this model
+        self._num_classes = num_classes
 
     def _build(self, inputs):
         """
         Args:
-            inputs (Tensor, Tensor): split into x and temperature, the first is
-                input data and the second is the temperature for the
-                RelaxedOneHotCategorical distribution used in the inferring
-                `p_y`. `temperature` should be annealed from 1 to 0 during
-                training.
+            inputs (Tensor): input data
 
         Returns:
-            (tfp.Distribution, tfp.Distribution, tfp.Distribution): output
+            (tfp.Distribution, tfp.Distribution, tfp.Distribution, Tensor): output
                 distribution `p_x`, classification `p_y`, and latent posterior
                 `p_z`
         """
-        x, temperature = inputs
+        x = inputs
 
         # calculate $q_\phi(y|x)$ and sample `y_hat`
         class_logits = self._classifier(x)
-        p_y = tfp.distributions.RelaxedOneHotCategorical(
-            temperature, logits=class_logits)
+        p_y = tfp.distributions.ExpRelaxedOneHotCategorical(
+            logits=class_logits, temperature=0.5)
         y_hat = p_y.sample()
 
         # calculate $q_\phi(z|x,y)$ and sample `z`
@@ -76,54 +66,56 @@ class M2VAE(snt.AbstractModule):
         z = p_z.sample()
 
         # calculate $p_\theta(x|y,z)$
-        output_scale = self._decoder(y_hat, z)
+        output_loc = self._decoder(y_hat, z)
         p_x = tfp.distributions.Independent(
-            self._output_dist(output_scale), reinterpreted_batch_ndims=2)
+            self._output_dist(output_loc), reinterpreted_batch_ndims=3)
 
-        return p_x, p_y, p_z
+        return p_x, p_y, p_z, z
 
-    def supervised_loss(self, x, p_x, p_z):
+    def supervised_loss(self, x, y):
         """Calculate $-\mathcal{L}(x,y)$
 
         Args:
             x (Tensor): data
-            p_x (tfp.Distribution): model output distribution
-            p_z (tfp.Distribution): model latent posterior distribution
+            y (Tensor): one hot vector labels
 
         Returns:
             Tensor: scalar loss value
         """
+        p_x, p_y, p_z, z = self._build(x)
         logpx = p_x.log_prob(x)
-        kl = tfp.distributions.kl_divergence(p_z, self._prior)
-        return -(logpx - kl)
+        logpy = p_y.log_prob(y)
+        logpz = self._prior.log_prob(z)
+        logqz = p_z.log_prob(z)
+        # reduce_sum on pz - qz here or above, not sure
+        return logpx + tf.reduce_sum(
+            logpy, axis=0) + tf.reduce_sum(
+                logpz - logqz, axis=-1)
 
-    def unsupervised_loss(self, x, p_x, p_y, p_z):
+    def unsupervised_loss(self, x):
         """Calculate $-\mathcal{U}{x}
 
         Args:
-            x (Tensor):
-            y (Tensor):
-            p_x (Tensor):
-            p_y (Tensor):
-            p_z (Tensor):
-            # TODO: finish these docs
+            x (Tensor): data
 
         Returns:
             Tensor: scalar loss value
         """
-        y_values = tf.range(tf.shape(p_y)[-1])
-        supervised_component = self.supervised_loss(x, p_x, p_z)
-        logqy = tfp.distributions.Categorical(
-            logits=p_y.logits).log_prob(y_values)
-        # TODO: figure out shapes here
-        print(supervised_component.shape)
-        print(logqy.shape)
-        # TODO: write the rest of this function
-        return 0.
+        _, p_y, _, _ = self._build(x)
+        y_values = range(self._num_classes)
+        y_losses = []
+        for y in y_values:
+            supervised_component = self.supervised_loss(
+                x, tf.one_hot(y, self._num_classes))
+            logqy = p_y.log_prob(y)
+            y_losses.append(supervised_component + logqy)
+        return sum(y_losses) + tfp.distributions.Categorical(
+            p_y.logits).entropy()
 
-    def loss(self, labeled_x, unlabeled_x, y, model_y, model_z, model_x):
+    def loss(self, x_label, y_label, x_unlabel):
+        """J^alpha from Kingma et al. 2014
         """
-        # TODO: document
-        """
-        # TODO: write this as J^alpha from the paper
-        pass
+        unsupervised_loss = self.unsupervised_loss(x_unlabel)
+        supervised_loss = self.supervised_loss(x_label, y_label)
+        _, p_y, _, _ = self._build(x_label)
+        return unsupervised_loss + supervised_loss + p_y.log_prob(y_label)

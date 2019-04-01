@@ -8,22 +8,23 @@ import tensorflow_probability as tfp
 
 def learn(train_data,
           seed,
-          latent_shape,
+          latent_dim,
+          num_classes,
           classifier_network='conv_only',
-          encoder_network='cnn',
-          decoder_network='up_cnn',
+          encoder_network='conv_only',
+          decoder_network='upscale_conv',
           prior='std_normal',
           posterior='softplus_normal',
           output_dist='bernoulli'):
-    classifier = build_classifier(classifier_network)
-    encoder = build_encoder(encoder_network)
+    classifier = build_classifier(classifier_network, num_classes)
+    encoder = build_encoder(encoder_network, latent_dim)
     decoder = build_decoder(decoder_network)
 
-    prior = tfp.distributions.Normal(
-        tf.zeros(latent_shape), tf.ones(latent_shape))
-    # TODO: posterior and output distributions
-    posterior = None
-    output_dist = None
+    prior = tfp.distributions.Normal(tf.zeros(latent_dim), tf.ones(latent_dim))
+    # TODO: make these pull from a distributions file in pyroclast.common
+    posterior = lambda loc, scale: tfp.distributions.Normal(
+        loc, tf.nn.softplus(scale))
+    output_dist = lambda loc: tfp.distributions.Bernoulli(loc)
 
     model = M2VAE(
         classifier=classifier,
@@ -32,17 +33,26 @@ def learn(train_data,
         prior=prior,
         posterior=posterior,
         output_dist=output_dist,
-    )
+        num_classes=num_classes)
 
     # build graph
     data_labeled, data_unlabeled = train_data
-    temperature_ph = tf.placeholder(tf.float32, shape=())
-    p_x_l, p_y_l, p_z_l = model((data_labeled, temperature_ph))
-    p_x_u, p_y_u, p_z_u = model((data_unlabeled, temperature_ph))
+    data_labeled['image'] = tf.cast(data_labeled['image'], tf.float32)
+    data_labeled['label'] = tf.one_hot(data_labeled['label'], num_classes)
+    data_unlabeled['image'] = tf.cast(data_unlabeled['image'], tf.float32)
 
-    # TODO: training loop
-    unsupervised_loss = model.unsupervised_loss(data_unlabeled, p_x_u, p_y_u,
-                                                p_z_u)
+    # loss calculation
+    loss = model.loss(data_labeled['image'], data_labeled['label'],
+                      data_unlabeled['image'])
 
     optimizer = tf.train.AdamOptimizer()
-    train_op = optimizer.minimize(unsupervised_loss)
+    train_op = optimizer.minimize(loss)
+
+    # training loop
+    with tf.Session() as session:
+        session.run(tf.variables_initializer(tf.global_variables()))
+        i = 0
+        while True:
+            print("step {}".format(i))
+            i += 1
+            session.run(train_op)
