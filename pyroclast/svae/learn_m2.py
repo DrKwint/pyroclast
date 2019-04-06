@@ -13,25 +13,31 @@ def learn(train_data,
           classifier_network='conv_only',
           encoder_network='conv_only',
           decoder_network='upscale_conv',
-          prior='std_normal',
-          posterior='softplus_normal',
+          latent_prior='std_normal',
+          latent_posterior='softplus_normal',
           output_dist='bernoulli'):
     classifier = build_classifier(classifier_network, num_classes)
     encoder = build_encoder(encoder_network, latent_dim)
     decoder = build_decoder(decoder_network)
 
-    prior = tfp.distributions.Normal(tf.zeros(latent_dim), tf.ones(latent_dim))
     # TODO: make these pull from a distributions file in pyroclast.common
-    posterior = lambda loc, scale: tfp.distributions.Normal(
+    latent_prior = tfp.distributions.Normal(
+        tf.zeros(latent_dim), tf.ones(latent_dim))
+    latent_posterior = lambda loc, scale: tfp.distributions.Normal(
         loc, tf.nn.softplus(scale))
+    class_prior = tfp.distributions.Bernoulli(logits=tf.ones(num_classes))
+    class_posterior = lambda logits: tfp.distributions.Independent(
+        tfp.distributions.Bernoulli(logits=logits))
     output_dist = lambda loc: tfp.distributions.Bernoulli(loc)
 
     model = M2VAE(
         classifier=classifier,
         encoder=encoder,
         decoder=decoder,
-        prior=prior,
-        posterior=posterior,
+        latent_prior=latent_prior,
+        latent_posterior=latent_posterior,
+        class_prior=class_prior,
+        class_posterior=class_posterior,
         output_dist=output_dist,
         num_classes=num_classes)
 
