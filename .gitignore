@@ -1,4 +1,5 @@
 # Custom
+docs_build/
 .vscode
 data/
 .DS_Store
