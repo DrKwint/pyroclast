@@ -16,6 +16,7 @@ def learn(train_data,
           latent_prior='std_normal',
           latent_posterior='softplus_normal',
           output_dist='bernoulli'):
+    """TODO: doc"""
     classifier = build_classifier(classifier_network, num_classes)
     encoder = build_encoder(encoder_network, latent_dim)
     decoder = build_decoder(decoder_network)
@@ -62,3 +63,5 @@ def learn(train_data,
             print("step {}".format(i))
             i += 1
             session.run(train_op)
+
+    return model
