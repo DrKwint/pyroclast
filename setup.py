@@ -16,31 +16,34 @@ for group_name in extras:
 extras['all'] = all_deps
 
 setup(
-    name='pyromania',
+    name='pyroclast',
     packages=[
         package for package in find_packages()
-        if package.startswith('pyromania')
+        if package.startswith('pyroclast')
     ],
-    install_requires=['torch', 'pyro-ppl'],
+    install_requires=[
+        'tensorflow', 'dm-sonnet', 'tensorflow_datasets',
+        'tensorflow_probability'
+    ],
     extras_require=extras,
     description=
-    'Pyromania: research project on deep learning and graphical models',
+    'Pyroclast: research project on deep learning and graphical models',
     author='Eleanor Quint',
-    url='https://github.com/drkwint/pyromania',
+    url='https://github.com/drkwint/pyroclast',
     author_email='pquint@cse.unl.edu',
     version='0.0.1')
 
 # ensure there is some tensorflow build with version above 1.4
-# import pkg_resources
-# tf_pkg = None
-# for tf_pkg_name in [
-#         'tensorflow', 'tensorflow-gpu', 'tf-nightly', 'tf-nightly-gpu'
-# ]:
-#     try:
-#         tf_pkg = pkg_resources.get_distribution(tf_pkg_name)
-#     except pkg_resources.DistributionNotFound:
-#         pass
-# assert tf_pkg is not None, 'TensorFlow needed, of version above 1.4'
-# from distutils.version import LooseVersion
-# assert LooseVersion(re.sub(r'-?rc\d+$', '',
-#                            tf_pkg.version)) >= LooseVersion('1.4.0')
+import pkg_resources
+tf_pkg = None
+for tf_pkg_name in [
+        'tensorflow', 'tensorflow-gpu', 'tf-nightly', 'tf-nightly-gpu'
+]:
+    try:
+        tf_pkg = pkg_resources.get_distribution(tf_pkg_name)
+    except pkg_resources.DistributionNotFound:
+        pass
+assert tf_pkg is not None, 'TensorFlow needed, of version above 1.4'
+from distutils.version import LooseVersion
+assert LooseVersion(re.sub(r'-?rc\d+$', '',
+                           tf_pkg.version)) >= LooseVersion('1.4.0')

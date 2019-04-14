@@ -4,9 +4,10 @@ from importlib import import_module
 
 import tensorflow as tf
 
+import pyroclast
 from pyroclast.common.tf_util import get_session
-import pyroclast.common.data_registry
-from common.cmd_util import common_arg_parser, parse_unknown_args
+from pyroclast.common.data_registry import get_dataset, split_dataset, dataset_tensor
+from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
 
 
 def get_task_type(task_id):
@@ -32,6 +33,7 @@ def get_alg_module(alg, submodule=None):
     except ImportError:
         # then from rl_algs
         # alg_module = import_module('.'.join(['rl_' + 'algs', alg, submodule]))
+        print('failed to import from {}'.format('.'.join(['pyroclast', alg])))
         assert False
 
     return alg_module
@@ -51,56 +53,51 @@ def get_learn_function_defaults(alg, env_type):
 
 
 def setup_data(args):
-    ncpu = multiprocessing.cpu_count()
-    if sys.platform == 'darwin': ncpu //= 2
-    alg = args.alg
-    seed = args.seed
+    # ncpu = multiprocessing.cpu_count()
+    # if sys.platform == 'darwin': ncpu //= 2
+    # alg = args.alg
+    # seed = args.seed
 
-    task_type, task_id = get_task_type(args.data)
+    dataset = get_dataset(args.dataset)
+    ds_t = lambda ds: dataset_tensor(ds, args.epochs, args.batch_size)
+    if args.task == 'semisupervised':
+        assert args.num_labeled is not None
+        train_data = dataset()['train']
+        labeled, unlabeled = split_dataset(train_data, args.num_labeled)
+        labeled = ds_t(labeled)
+        unlabeled = ds_t(unlabeled)
+        train_data = (labeled, unlabeled)
+    else:
+        train_data = dataset()['train']
+        train_data = ds_t(train_data)
 
-    if task_type in {'supervised_classification'}:
-        data = pyroclast.common.data_registry.load_data(
-            task_id, task_type, seed=seed)
-
-    return data
+    return train_data
 
 
 def train(args, extra_args):
     # load data
-    task_type, data_name = get_task_type(args.data)
+    task_type, data_name = get_task_type(args.dataset)
     print('task_type: {}'.format(task_type))
 
-    total_epochs = int(args.epochs)
+    epochs = int(args.epochs)
     seed = args.seed
 
-    data = setup_data(args)
+    train_data = setup_data(args)
 
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, task_type)
     alg_kwargs.update(extra_args)
 
-    # create Session
-
-    if args.network:
-        alg_kwargs['network'] = args.network
-    else:
-        if alg_kwargs.get('network') is None:
-            alg_kwargs['network'] = get_default_network(task_type)
-
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, data_name, alg_kwargs))
 
-    model = learn(
-        data=data, seed=seed, total_epochs=total_epochs, **alg_kwargs)
+    model = learn(train_data=train_data, seed=seed, **alg_kwargs)
 
     return model
 
 
 def get_default_network(task_type):
-    if task_type in {'atari', 'retro'}:
-        return 'cnn'
-    else:
-        return 'mlp'
+    return 'cnn'
 
 
 def parse_cmdline_kwargs(args):
