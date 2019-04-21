@@ -79,9 +79,7 @@ def train(args, extra_args):
     task_type, data_name = get_task_type(args.dataset)
     print('task_type: {}'.format(task_type))
 
-    epochs = int(args.epochs)
     seed = args.seed
-
     train_data = setup_data(args)
 
     learn = get_learn_function(args.alg)

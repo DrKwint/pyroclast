@@ -1,2 +1,1 @@
-from pyroclast.classification.selfboosting.telescoping_boosting import learn
-from baselines.classification.selfboosting.build_graph import build_model
+from pyroclast.selfboosting.learn_selfboosting import learn
