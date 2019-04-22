@@ -137,7 +137,7 @@ class SequentialResNet(snt.AbstractModule):
                 'base_hypothesis', shape=(class_num))
             self.boosting_modules = [
                 ResidualBoostingModule(
-                    snt.Conv2D(32, 3), HypothesisModule(class_num))
+                    snt.Conv2D(representation_channels, 3), HypothesisModule(class_num))
             ]
 
     def _build(self, x):
