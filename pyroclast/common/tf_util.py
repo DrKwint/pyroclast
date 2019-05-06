@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 
+import numpy as np
 import tensorflow as tf
 import tqdm
 
@@ -57,13 +58,19 @@ def run_epoch_ops(session,
         iterable = tqdm.tqdm(list(range(steps_per_epoch)))
     else:
         iterable = list(range(steps_per_epoch))
-
     for _ in iterable:
-        out = session.run([silent_ops, verbose_ops_dict],
-                          feed_dict=feed_dict_fn())[1]
-        verbose_vals = {
-            k: v + [np.array(out[k])]
-            for k, v in verbose_vals.items()
-        }
+        try:
+            out = session.run([silent_ops, verbose_ops_dict],
+                              feed_dict=feed_dict_fn())[1]
 
-    return {k: np.stack(v) for k, v in verbose_vals.items()}
+            verbose_vals = {
+                k: v + [np.array(out[k])]
+                for k, v in verbose_vals.items()
+            }
+        except tf.errors.OutOfRangeError:
+            break
+
+    return {
+        k: np.stack(v) if v is not None else np.array()
+        for k, v in verbose_vals.items()
+    }
