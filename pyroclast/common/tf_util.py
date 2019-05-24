@@ -6,6 +6,14 @@ import tensorflow as tf
 import tqdm
 
 
+def calculate_accuracy(logits, label):
+    """Compare argmax logits to int label, returns value in [0,1]"""
+    prediction = tf.argmax(logits, 1)
+    equality = tf.equal(prediction, label)
+    accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
+    return accuracy
+
+
 def get_session(config=None):
     """Get default session or create one with a given config"""
     sess = tf.get_default_session()
