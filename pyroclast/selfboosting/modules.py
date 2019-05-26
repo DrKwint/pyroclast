@@ -20,6 +20,11 @@ def conv_block(channels):
     ])
 
 
+@register('linear_classifier')
+def linear(classes):
+    return snt.Linear(classes)
+
+
 def get_module(name):
     """
     If you want to register your own module outside modules.py, you just need:
