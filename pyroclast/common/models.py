@@ -57,13 +57,12 @@ def conv_only(output_channels=[32, 64, 64],
               kernel_shapes=(5, 3, 3),
               strides=(4, 2, 1),
               **conv_kwargs):
-    return snt.nets.ConvNet2D(
-        output_channels,
-        kernel_shapes,
-        strides,
-        paddings=[snt.SAME],
-        activation=tf.nn.relu,
-        activate_final=True)
+    return snt.nets.ConvNet2D(output_channels,
+                              kernel_shapes,
+                              strides,
+                              paddings=[snt.SAME],
+                              activation=tf.nn.relu,
+                              activate_final=True)
 
 
 def get_network_builder(name):

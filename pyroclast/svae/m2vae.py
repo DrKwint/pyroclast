@@ -82,8 +82,8 @@ class M2VAE(snt.AbstractModule):
 
         # calculate $p_\theta(x|y,z)$
         output_loc = self._decoder(y_hat, z)
-        p_x = tfp.distributions.Independent(
-            self._output_dist(output_loc), reinterpreted_batch_ndims=3)
+        p_x = tfp.distributions.Independent(self._output_dist(output_loc),
+                                            reinterpreted_batch_ndims=3)
 
         return p_x, p_y, p_z, z
 
@@ -110,9 +110,8 @@ class M2VAE(snt.AbstractModule):
         logpz = self._latent_prior.log_prob(z)
         logqz = p_z.log_prob(z)
         # reduce_sum on pz - qz here or above, not sure
-        return logpx + tf.reduce_sum(
-            logpy, axis=0) + tf.reduce_sum(
-                logpz - logqz, axis=-1)
+        return logpx + tf.reduce_sum(logpy, axis=0) + tf.reduce_sum(
+            logpz - logqz, axis=-1)
 
     def unsupervised_loss(self, x):
         """Calculate $-\mathcal{U}{x}
