@@ -51,7 +51,9 @@ class SequentialResNet(snt.AbstractModule):
             self._base_hypothesis = tf.get_variable('base_hypothesis',
                                                     shape=(class_num))
             self._base_alpha = tf.zeros(class_num)
-            self._base_repr_module = snt.Conv2D(representation_channels, 3)
+            self._base_repr_module = snt.Conv2D(representation_channels,
+                                                3,
+                                                name='base_repr_conv2d')
             # private state variables cached for adding modules
             self._last_repr = tf.zeros(())
             self._last_alpha = self._base_alpha
@@ -96,7 +98,7 @@ class SequentialResNet(snt.AbstractModule):
 
         return final_logits, hypotheses, weak_classifiers
 
-    def add_module(self, residual_boosting_module, optimizer, session):
+    def add_module(self, residual_boosting_module):
         """
         Adds a ResidualBoostingModule to the network and initializes its
         variables. Must only be called after `build`.
@@ -112,12 +114,11 @@ class SequentialResNet(snt.AbstractModule):
             alpha (Tensor): new module's alpha variable
             hypothesis (Tensor): new module's weak classification hypothesis
             boosted_classification (Tensor): network's final classification
+
+        Raises:
+            snt.NotConnectedError: If `build` hasn't been called before this
         """
-        if not self.is_connected:
-            print(
-                "Must call `build` before calling `add_module` in SequentialResNet"
-            )
-            exit(1)
+        self._ensure_is_connected()
 
         # add a ResidualBoostingModule to module list
         self.boosting_modules.append(residual_boosting_module)
@@ -126,7 +127,6 @@ class SequentialResNet(snt.AbstractModule):
         residual_repr, hypothesis, boosted_classification = residual_boosting_module(
             self._last_repr, self._last_alpha, self._last_hypothesis)
         # residual_boosting_module.initialize_variables(session, optimizer)
-        session.run(tf.initializers.global_variables())
 
         # update cache of calculated values
         self._last_repr = residual_repr

@@ -107,8 +107,7 @@ def learn(train_data_iterator,
         module = ResidualBoostingModule(repr_module_name,
                                         hypothesis_module_name, num_channels,
                                         num_classes)
-        alpha, hypothesis, boosted_classification = model.add_module(
-            module, optimizer, session)
+        alpha, hypothesis, boosted_classification = model.add_module(module)
         module_loss = model.get_hypothesis_loss(alpha, hypothesis,
                                                 train_data['label'])
         module_train_op = module.get_train_op(optimizer, module_loss)
