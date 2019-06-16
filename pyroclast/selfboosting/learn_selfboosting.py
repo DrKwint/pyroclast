@@ -8,6 +8,9 @@ from pyroclast.selfboosting.sequential_resnet import SequentialResNet
 from pyroclast.selfboosting.residual_boosting_module import ResidualBoostingModule
 from pyroclast.common.tf_util import run_epoch_ops, calculate_accuracy
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 
 def train(session,
           train_data_iterator,
@@ -26,6 +29,7 @@ def train(session,
 
         # run a training epoch
         print("Epoch", epoch)
+        print("TRAIN")
         train_vals_dict = run_epoch_ops(session,
                                         train_batches_per_epoch,
                                         train_verbose_dict, [train_op],
@@ -33,6 +37,7 @@ def train(session,
         print({'mean ' + k: np.mean(v) for k, v in train_vals_dict.items()})
 
         # run a test epoch
+        print("TEST")
         test_vals_dict = run_epoch_ops(session,
                                        test_batches_per_epoch,
                                        test_verbose_dict,
@@ -114,24 +119,31 @@ def learn(train_data_iterator,
         train_ops.append(module_train_op)
 
         # calculate training values
-        train_final_accuracy = calculate_accuracy(boosted_classification,
-                                                  train_data['label'])
+        train_hypothesis_accuracy = calculate_accuracy(hypothesis,
+                                                       train_data['label'])
+        train_boosted_accuracy = calculate_accuracy(boosted_classification,
+                                                    train_data['label'])
         train_verbose_dict = {
             'module_loss': module_loss,
-            'final_accuracy': train_final_accuracy
+            'hypothesis accuracy': train_hypothesis_accuracy,
+            'boosted accuracy': train_boosted_accuracy
         }
         train_verbose_dicts.append(train_verbose_dict)
 
         # calculate test values
-        test_final_logits, test_hypotheses, _ = model(test_data['image'])
+        test_boosted_classification, test_hypotheses, _ = model(
+            test_data['image'])
         test_module_loss = model.get_hypothesis_loss(alpha,
                                                      test_hypotheses[-1],
                                                      test_data['label'])
-        test_accuracy = calculate_accuracy(test_final_logits,
-                                           test_data['label'])
+        test_hypothesis_accuracy = calculate_accuracy(test_hypotheses[-1],
+                                                      test_data['label'])
+        test_boosted_accuracy = calculate_accuracy(test_boosted_classification,
+                                                   test_data['label'])
         test_verbose_dict = {
             'module_loss': test_module_loss,
-            'final_accuracy': test_accuracy
+            'hypothesis accuracy': test_hypothesis_accuracy,
+            'boosted accuracy': test_boosted_accuracy
         }
         test_verbose_dicts.append(test_verbose_dict)
 
