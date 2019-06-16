@@ -6,7 +6,7 @@ import tensorflow as tf
 
 import pyroclast
 from pyroclast.common.tf_util import get_session
-from pyroclast.common.data_registry import get_dataset, split_dataset, dataset_tensor
+from pyroclast.common.data_registry import get_dataset, split_dataset, dataset_iterator
 from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
 
 
@@ -53,25 +53,24 @@ def get_learn_function_defaults(alg, env_type):
 
 
 def setup_data(args):
-    # ncpu = multiprocessing.cpu_count()
-    # if sys.platform == 'darwin': ncpu //= 2
-    # alg = args.alg
-    # seed = args.seed
-
-    dataset = get_dataset(args.dataset)
-    ds_t = lambda ds: dataset_tensor(ds, args.epochs, args.batch_size)
+    dataset_fn = get_dataset(args.dataset)
+    ds_t = lambda ds: dataset_iterator(ds, args.epochs, args.batch_size)
     if args.task == 'semisupervised':
         assert args.num_labeled is not None
-        train_data = dataset()['train']
+        train_data = dataset_fn()['train']
         labeled, unlabeled = split_dataset(train_data, args.num_labeled)
         labeled = ds_t(labeled)
         unlabeled = ds_t(unlabeled)
         train_data = (labeled, unlabeled)
     else:
-        train_data = dataset()['train']
-        train_data = ds_t(train_data)
-
-    return train_data
+        dataset_dict, info = dataset_fn()
+        train_data_iterator = ds_t(dataset_dict['train'])
+        train_batches_per_epoch = info.splits[
+            'train'].num_examples // args.batch_size
+        test_data_iterator = ds_t(dataset_dict['test'])
+        test_batches_per_epoch = info.splits[
+            'test'].num_examples // args.batch_size
+    return train_data_iterator, train_batches_per_epoch, test_data_iterator, test_batches_per_epoch
 
 
 def train(args, extra_args):
@@ -79,10 +78,9 @@ def train(args, extra_args):
     task_type, data_name = get_task_type(args.dataset)
     print('task_type: {}'.format(task_type))
 
-    epochs = int(args.epochs)
     seed = args.seed
-
-    train_data = setup_data(args)
+    train_data_iterator, train_batches_per_epoch, test_data_iterator, test_batches_per_epoch = setup_data(
+        args)
 
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, task_type)
@@ -91,7 +89,12 @@ def train(args, extra_args):
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, data_name, alg_kwargs))
 
-    model = learn(train_data=train_data, seed=seed, **alg_kwargs)
+    model = learn(train_data_iterator=train_data_iterator,
+                  train_batches_per_epoch=train_batches_per_epoch,
+                  test_data_iterator=test_data_iterator,
+                  test_batches_per_epoch=test_batches_per_epoch,
+                  seed=seed,
+                  **alg_kwargs)
 
     return model
 
