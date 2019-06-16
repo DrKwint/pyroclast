@@ -2,6 +2,16 @@ import sonnet as snt
 import tensorflow as tf
 
 
+def conv_block(channels):
+    return snt.Sequential([
+        snt.Conv2D(channels, 3), tf.nn.relu,
+        snt.Conv2D(channels, 3), tf.nn.relu
+    ])
+
+
+modules = {'conv_block': conv_block}
+
+
 class ResNet(snt.Module):
     def __init__(self, initial_trans, modules):
         self._initial_trans = initial_trans
