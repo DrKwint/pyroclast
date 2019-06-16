@@ -5,7 +5,6 @@ import numpy as np
 import tensorflow as tf
 import tqdm
 
-
 def calculate_accuracy(logits, label):
     """Compare argmax logits to int label, returns value in [0,1]"""
     prediction = tf.argmax(logits, 1)
@@ -65,19 +64,13 @@ def run_epoch_ops(session,
         iterable = tqdm.tqdm(list(range(steps_per_epoch)))
     else:
         iterable = list(range(steps_per_epoch))
+
     for _ in iterable:
-        try:
-            out = session.run([silent_ops, verbose_ops_dict],
-                              feed_dict=feed_dict_fn())[1]
+        out = session.run([silent_ops, verbose_ops_dict],
+                          feed_dict=feed_dict_fn())[1]
+        verbose_vals = {
+            k: v + [np.array(out[k])]
+            for k, v in verbose_vals.items()
+        }
 
-            verbose_vals = {
-                k: v + [np.array(out[k])]
-                for k, v in verbose_vals.items()
-            }
-        except tf.errors.OutOfRangeError:
-            break
-
-    return {
-        k: np.stack(v) if v is not None else np.array()
-        for k, v in verbose_vals.items()
-    }
+    return {k: np.stack(v) for k, v in verbose_vals.items()}
