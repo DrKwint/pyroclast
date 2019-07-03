@@ -2,6 +2,7 @@ import sonnet as snt
 import tensorflow as tf
 import numpy as np
 import functools
+import json
 
 from pyroclast import selfboosting
 from pyroclast.selfboosting.sequential_resnet import SequentialResNet
@@ -30,18 +31,20 @@ def train(session,
         # run a training epoch
         print("Epoch", epoch)
         print("TRAIN")
-        train_vals_dict = run_epoch_ops(session,
-                                        train_batches_per_epoch,
-                                        train_verbose_dict, [train_op],
-                                        verbose=verbose)
+        train_vals_dict = run_epoch_ops(
+            session,
+            train_batches_per_epoch,
+            train_verbose_dict, [train_op],
+            verbose=verbose)
         print({'mean ' + k: np.mean(v) for k, v in train_vals_dict.items()})
 
         # run a test epoch
         print("TEST")
-        test_vals_dict = run_epoch_ops(session,
-                                       test_batches_per_epoch,
-                                       test_verbose_dict,
-                                       verbose=verbose)
+        test_vals_dict = run_epoch_ops(
+            session,
+            test_batches_per_epoch,
+            test_verbose_dict,
+            verbose=verbose)
         print({'mean ' + k: np.mean(v) for k, v in test_vals_dict.items()})
 
 
@@ -133,9 +136,8 @@ def learn(train_data_iterator,
         # calculate test values
         test_boosted_classification, test_hypotheses, _ = model(
             test_data['image'])
-        test_module_loss = model.get_hypothesis_loss(alpha,
-                                                     test_hypotheses[-1],
-                                                     test_data['label'])
+        test_module_loss = model.get_hypothesis_loss(
+            alpha, test_hypotheses[-1], test_data['label'])
         test_hypothesis_accuracy = calculate_accuracy(test_hypotheses[-1],
                                                       test_data['label'])
         test_boosted_accuracy = calculate_accuracy(test_boosted_classification,
@@ -149,11 +151,35 @@ def learn(train_data_iterator,
 
     # train module loop
     session.run(tf.initializers.global_variables())
-    for module_train_op, train_verbose_dict, test_verbose_dict in zip(
-            train_ops, train_verbose_dicts, test_verbose_dicts):
+    metrics_dict = dict()
+    metrics_dict[0] = {
+        i: {
+            k: np.mean(v)
+            for k, v in run_epoch_ops(
+                session, test_batches_per_epoch, verbose_ops_dict=d).items()
+        }
+        for i, d in enumerate(test_verbose_dicts)
+    }
+
+    for i, (module_train_op, train_verbose_dict,
+            test_verbose_dict) in enumerate(
+                zip(train_ops, train_verbose_dicts, test_verbose_dicts)):
         # run module training
-        train_module(train_op=module_train_op,
-                     train_verbose_dict=train_verbose_dict,
-                     test_verbose_dict=test_verbose_dict)
+        train_module(
+            train_op=module_train_op,
+            train_verbose_dict=train_verbose_dict,
+            test_verbose_dict=test_verbose_dict)
+        metrics_dict[i] = {
+            i: {
+                k: np.mean(v)
+                for k, v in run_epoch_ops(
+                    session, test_batches_per_epoch, verbose_ops_dict=d)
+                .items()
+            }
+            for i, d in enumerate(test_verbose_dicts)
+        }
+
+    with open('metrics.json', 'w') as json_file:
+        json.dump(str(metrics_dict), json_file)
 
     return model
