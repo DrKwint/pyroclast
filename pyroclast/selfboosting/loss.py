@@ -84,12 +84,12 @@ class UpdateMulticlassDistribution(object):
 
 
 def multiclass_loss(weak_module_classifier, label, state):
-    """Calculates loss (without state)
+    """ Calculates loss (without state)
         Args:
             weak_module_classifier: h
             label: 1D int labels
             distribution: same shape as h
-        """
+    """
     # Extract vector of logits in the correct class over the batch
     batch_size = tf.cast(tf.shape(label)[0], tf.int64)
     label_num = weak_module_classifier.shape[1]

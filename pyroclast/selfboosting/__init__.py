@@ -1,2 +1,2 @@
 # exports
-from pyroclast.selfboosting.learn_selfboosting import learn
+from pyroclast.selfboosting.learn import learn
