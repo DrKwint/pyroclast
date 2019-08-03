@@ -1,9 +1,18 @@
+import os
 import sys
 from importlib import import_module
-from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
 
 import tensorflow as tf
+import tensorflow_datasets as tfds
+
+from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
+
 tf.enable_eager_execution()
+
+# getting "tensorflow/core/framework/op_kernel.cc:1502] OP_REQUIRES failed at
+# gather_nd_op.cc:47 : Invalid argument: indices[31] = [31, 6] does not index
+# into param shape [1,10]" in boost_resnet
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def parse_cmdline_kwargs(args):
@@ -51,6 +60,22 @@ def get_learn_function_defaults(alg, env_type):
     return kwargs
 
 
+def setup_data(args):
+    # load data
+    data_dict, info = tfds.load(args.dataset, with_info=True)
+    data_dict['train_bpe'] = info.splits[
+        'train'].num_examples // args.batch_size
+    data_dict['test_bpe'] = info.splits['test'].num_examples // args.batch_size
+    data_dict['shape'] = info.features['image'].shape
+    data_dict['num_classes'] = info.features['label'].num_classes
+
+    data_dict['train'] = data_dict['train'].shuffle(1024).batch(
+        args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
+        tf.data.experimental.AUTOTUNE)
+    return data_dict
+
+
 def train(args, extra_args):
     # load data
     seed = args.seed
@@ -58,11 +83,11 @@ def train(args, extra_args):
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, args.dataset)
     alg_kwargs.update(extra_args)
+    data_dict = setup_data(args)
 
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, args.dataset, alg_kwargs))
-
-    model = learn(args.dataset, seed=seed, **alg_kwargs)
+    model = learn(data_dict, seed=seed, **alg_kwargs)
 
     return model
 

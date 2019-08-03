@@ -1,10 +1,7 @@
-import argparse
 import functools
-import os
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_datasets as tfds
 from tqdm import tqdm
 
 from pyroclast.boost_resnet.graph import (ResidualBoostingModule,
@@ -13,57 +10,22 @@ from pyroclast.boost_resnet.loss import (
     UpdateMulticlassDistribution, binary_loss, calculate_binary_gamma_tilde,
     calculate_multiclass_gamma_tilde, initial_multiclass_distribution,
     multiclass_loss, update_binary_distribution)
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-
-def repr_module(channels):
-    return tf.keras.Sequential([
-        tf.keras.layers.Conv2D(
-            channels, 3, padding='same', activation=tf.nn.relu),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Conv2D(
-            channels, 3, padding='same', activation=tf.nn.relu),
-        tf.keras.layers.BatchNormalization()
-    ])
+from pyroclast.boost_resnet.models import repr_module, classification_module
 
 
-def classification_module(num_classes):
-    if num_classes == 1:
-        activation = tf.nn.tanh
-    else:
-        activation = None
-    return tf.keras.layers.Dense(
-        num_classes,
-        kernel_initializer=tf.keras.initializers.RandomNormal(),
-        activation=activation)
-
-
-def prepare_data(dataset, batch_size):
-    # load data
-    data, info = tfds.load(dataset, with_info=True)
-    train_batches_per_epoch = info.splits['train'].num_examples // batch_size
-    test_batches_per_epoch = info.splits['test'].num_examples // batch_size
-    data_shape = info.features['image'].shape
-    dataset_train = data['train']
-    dataset_test = data['test']
-
-    dataset_train = dataset_train.shuffle(1024).batch(batch_size).prefetch(
-        tf.data.experimental.AUTOTUNE)
-    dataset_test = dataset_test.batch(batch_size).prefetch(
-        tf.data.experimental.AUTOTUNE)
-    return dataset_train, train_batches_per_epoch, dataset_test, test_batches_per_epoch
-
-
-def learn(dataset,
+def learn(data_dict,
           seed=None,
           batch_size=32,
           learning_rate=1e-3,
           num_classes=10,
           num_channels=8,
-          epochs_per_module=1,
+          epochs_per_module=5,
+          num_modules=10,
           tb_dir='./tb/'):
     del seed  # currently unused
+    num_classes = data_dict['num_classes']
+
+    # binary or multiclass
     if num_classes == 1:
         distribution_update_fn = update_binary_distribution
         loss_fn = binary_loss
@@ -79,21 +41,21 @@ def learn(dataset,
         classification_fn = lambda x: tf.argmax(x, axis=1)
         gamma_tilde_calculation_fn = calculate_multiclass_gamma_tilde
 
+    # setup model
     model = SequentialResNet(num_classes, num_channels,
                              initial_distribution_fn, distribution_update_fn,
                              gamma_tilde_calculation_fn)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    dataset_train, train_batches_per_epoch, dataset_test, test_batches_per_epoch = prepare_data(
-        dataset, batch_size)
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
     writer = tf.contrib.summary.create_file_writer(tb_dir)
     writer.set_as_default()
 
-    for num_module in range(10):
+    # training loop
+    for num_module in range(num_modules):
         # add module
-        alpha = tf.ones(10)
+        alpha = tf.ones(num_classes)
         module = ResidualBoostingModule(
             repr_module(num_channels),
             classification_module(num_classes),
@@ -104,7 +66,8 @@ def learn(dataset,
         for epoch in range(epochs_per_module):
             print("Module: {} Epoch: {}".format(num_module, epoch))
             print("TRAIN")
-            for batch in tqdm(dataset_train, total=train_batches_per_epoch):
+            for batch in tqdm(
+                    data_dict['train'], total=data_dict['train_bpe']):
                 global_step.assign_add(1)
                 x = tf.cast(batch['image'], tf.float32) / 255.
                 label = batch['label']
@@ -173,7 +136,7 @@ def learn(dataset,
                     ]
             print("TEST")
             batch_accuracies = []
-            for batch in tqdm(dataset_test, total=test_batches_per_epoch):
+            for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
                 x = tf.cast(batch['image'], tf.float32) / 255.
                 label = batch['label']
                 if type(distribution_update_fn) is UpdateMulticlassDistribution:
@@ -202,11 +165,3 @@ def learn(dataset,
                         family='test/accuracy')
                     for (i, a) in enumerate(mean_epoch_accuracies)
                 ]
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--dataset', default='mnist', type=str)
-    parser.add_argument('--epochs_per_module', default=1, type=int)
-    args = parser.parse_args()
-    learn(dataset=args.dataset, epochs_per_module=args.epochs_per_module)

@@ -98,6 +98,7 @@ def multiclass_loss(weak_module_classifier, label, state):
     label_prediction_vals = tf.gather_nd(weak_module_classifier, label_idxs)
     label_prediction_vals = tf.tile(
         tf.expand_dims(label_prediction_vals, 1), [1, label_num])
+
     try:
         state_label_vals = tf.gather_nd(state, label_idxs)
         state_label_vals = tf.tile(
