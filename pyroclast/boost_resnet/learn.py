@@ -5,12 +5,11 @@ import os
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import tensorwatch as tw
 from tqdm import tqdm
 
-from pyroclast.selfboosting.graph import (ResidualBoostingModule,
+from pyroclast.boost_resnet.graph import (ResidualBoostingModule,
                                           SequentialResNet)
-from pyroclast.selfboosting.loss import (
+from pyroclast.boost_resnet.loss import (
     UpdateMulticlassDistribution, binary_loss, calculate_binary_gamma_tilde,
     calculate_multiclass_gamma_tilde, initial_multiclass_distribution,
     multiclass_loss, update_binary_distribution)

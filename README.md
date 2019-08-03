@@ -6,5 +6,5 @@ A deep learning library by and for the Nebraska AI Research (NEAR) Lab
 
 - common
 - qualia
-- selfboosting
+- boost_resnet
 - svae
