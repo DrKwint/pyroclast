@@ -1,7 +1,10 @@
 # pyroclast
 
-A deep learning library for our lab
+A deep learning library by and for the Nebraska AI Research (NEAR) Lab
 
-### Manuscripts
+## sub-packages
 
-- [Self-boosting](https://www.overleaf.com/project/5c6ae0135122806dbee3da55)
+- common
+- qualia
+- selfboosting
+- svae

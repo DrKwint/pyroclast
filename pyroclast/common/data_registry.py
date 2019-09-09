@@ -33,7 +33,7 @@ def task(task, name):
 @register("mnist")
 @task("classification", "mnist")
 def mnist(**dataset_kwargs):
-    return tfds.load('mnist', data_dir=DOWNLOAD_LOCATION)
+    return tfds.load('mnist', data_dir=DOWNLOAD_LOCATION, with_info=True)
 
 
 @register("cifar10")
@@ -46,12 +46,13 @@ def split_dataset(dataset, labeled_num):
     return dataset.take(labeled_num), dataset.skip(labeled_num)
 
 
-def dataset_tensor(ds, epochs, batch_size, buffer_size=1000):
+def dataset_iterator(ds, batch_size, buffer_size=1000, scale=1.):
+    if scale != 1.:
+        ds.map(lambda x: x * scale)
     ds = ds.shuffle(buffer_size)
-    ds = ds.repeat(epochs)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(buffer_size)
-    return tf.data.make_one_shot_iterator(ds).get_next()
+    return tf.data.make_initializable_iterator(ds)
 
 
 def get_dataset(name):
