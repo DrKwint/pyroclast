@@ -27,9 +27,10 @@ def make_session(config=None, num_cpu=None, make_default=False, graph=None):
     if num_cpu is None:
         num_cpu = int(os.getenv('RCALL_NUM_CPU', multiprocessing.cpu_count()))
     if config is None:
-        config = tf.ConfigProto(allow_soft_placement=True,
-                                inter_op_parallelism_threads=num_cpu,
-                                intra_op_parallelism_threads=num_cpu)
+        config = tf.ConfigProto(
+            allow_soft_placement=True,
+            inter_op_parallelism_threads=num_cpu,
+            intra_op_parallelism_threads=num_cpu)
         config.gpu_options.allow_growth = True
 
     if make_default:
@@ -67,8 +68,8 @@ def run_epoch_ops(session,
         iterable = list(range(steps_per_epoch))
     for _ in iterable:
         try:
-            out = session.run([silent_ops, verbose_ops_dict],
-                              feed_dict=feed_dict_fn())[1]
+            out = session.run(
+                [silent_ops, verbose_ops_dict], feed_dict=feed_dict_fn())[1]
 
             verbose_vals = {
                 k: v + [np.array(out[k])]

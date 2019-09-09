@@ -31,7 +31,7 @@ def common_arg_parser():
     parser.add_argument('--task', help='', type=str, default='supervised')
     parser.add_argument('--dataset', help='dataset', type=str, default='mnist')
     parser.add_argument(
-        '--alg', help='algorithm', type=str, default='boost_resnet')
+        '--alg', help='algorithm', type=str, default='selfboosting')
     parser.add_argument('--network', help='network', type=str, default=None)
     parser.add_argument(
         '--no_cuda', help='flag to prevent GPU use', action='store_true')
