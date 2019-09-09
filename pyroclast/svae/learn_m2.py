@@ -16,13 +16,14 @@ def learn(train_data,
           latent_prior='std_normal',
           latent_posterior='softplus_normal',
           output_dist='bernoulli'):
+    """TODO: doc"""
     classifier = build_classifier(classifier_network, num_classes)
     encoder = build_encoder(encoder_network, latent_dim)
     decoder = build_decoder(decoder_network)
 
     # TODO: make these pull from a distributions file in pyroclast.common
-    latent_prior = tfp.distributions.Normal(tf.zeros(latent_dim),
-                                            tf.ones(latent_dim))
+    latent_prior = tfp.distributions.Normal(
+        tf.zeros(latent_dim), tf.ones(latent_dim))
     latent_posterior = lambda loc, scale: tfp.distributions.Normal(
         loc, tf.nn.softplus(scale))
     class_prior = tfp.distributions.Bernoulli(logits=tf.ones(num_classes))
@@ -30,15 +31,16 @@ def learn(train_data,
         tfp.distributions.Bernoulli(logits=logits))
     output_dist = lambda loc: tfp.distributions.Bernoulli(loc)
 
-    model = M2VAE(classifier=classifier,
-                  encoder=encoder,
-                  decoder=decoder,
-                  latent_prior=latent_prior,
-                  latent_posterior=latent_posterior,
-                  class_prior=class_prior,
-                  class_posterior=class_posterior,
-                  output_dist=output_dist,
-                  num_classes=num_classes)
+    model = M2VAE(
+        classifier=classifier,
+        encoder=encoder,
+        decoder=decoder,
+        latent_prior=latent_prior,
+        latent_posterior=latent_posterior,
+        class_prior=class_prior,
+        class_posterior=class_posterior,
+        output_dist=output_dist,
+        num_classes=num_classes)
 
     # build graph
     data_labeled, data_unlabeled = train_data
@@ -63,4 +65,3 @@ def learn(train_data,
             session.run(train_op)
 
     return model
-
