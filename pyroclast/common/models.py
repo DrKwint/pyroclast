@@ -33,7 +33,7 @@ class UpscaleBlock(snt.AbstractModule):
 
 
 @register("upscale_conv")
-def upscale_conv(num_blocks=5, init_filter_num=256, **network_kwargs):
+def upscale_conv(num_blocks=8, init_filter_num=256, **network_kwargs):
     blocklist = [
         snt.Conv2D(init_filter_num, 4, padding=snt.SAME),
         tf.nn.leaky_relu,
@@ -53,9 +53,9 @@ def mlp(output_sizes=[64] * 2, **network_kwargs):
 
 
 @register("conv_only")
-def conv_only(output_channels=[32, 64, 64],
-              kernel_shapes=(5, 3, 3),
-              strides=(4, 2, 1),
+def conv_only(output_channels=[32, 64, 64, 128, 128],
+              kernel_shapes=(5, 3, 3, 3, 3),
+              strides=(4, 2, 1, 1, 1),
               **conv_kwargs):
     return snt.nets.ConvNet2D(
         output_channels,
