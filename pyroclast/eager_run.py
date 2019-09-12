@@ -62,7 +62,8 @@ def get_learn_function_defaults(alg, env_type):
 
 def setup_data(args):
     # load data
-    data_dict, info = tfds.load(args.dataset, with_info=True)
+    data_dict, info = tfds.load(
+        args.dataset, with_info=True, data_dir='./data/')
     data_dict['train_bpe'] = info.splits[
         'train'].num_examples // args.batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // args.batch_size

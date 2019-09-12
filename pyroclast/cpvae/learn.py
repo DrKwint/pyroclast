@@ -19,7 +19,7 @@ DATA_SIZE_LIMIT = 100
 
 def setup_celeba_data(batch_size):
     # load data
-    data_dict, info = tfds.load('celeb_a', with_info=True)
+    data_dict, info = tfds.load('celeb_a', with_info=True, data_dir='./data/')
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
     data_dict['shape'] = info.features['image'].shape
@@ -71,24 +71,22 @@ def fit_and_calculate_dt_boxes(decision_tree, z, label, class_num,
     return lower_, upper_, values_
 
 
-def calculate_latent_params_by_class(loc, scale_diag, class_num,
+def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
                                      latent_dimension):
     # update class stats
     if len(labels.shape) > 1: labels = np.argmax(labels, axis=1)
-    class_locs = np.empty([class_num, latent_dimension])
-    class_scales = np.empty([class_num, latent_dimension])
-    loc_sq = np.square(loc)
-    scale_sq = np.square(scale_diag)
-    sum_sq = scale_sq + loc_sq
+    class_locs = np.zeros([class_num, latent_dimension])
+    class_scales = np.zeros([class_num, latent_dimension])
+    sum_sq = tf.square(scale_diag) + tf.square(loc)
     for l in range(class_num):
-        idxs = np.nonzero(labels == l)[0]
-        class_locs[l] = np.mean(loc[idxs], axis=0)
+        class_locs[l] = np.mean(tf.gather(loc, tf.where(tf.equal(labels, l))))
         class_scales[l] = np.mean(
-            sum_sq[idxs], axis=0) - np.square(class_locs[l])
+            tf.gather(sum_sq, tf.where(tf.equal(labels, l))),
+            axis=0) - np.square(class_locs[l])
     return class_locs, class_scales
 
 
-def update_model_tree(ds, model):
+def update_model_tree(ds, model, epoch):
     locs, scales, samples, labels = calculate_latent_values(ds, model)
     labels = tf.cast(labels, tf.int32)
     lower_, upper_, values_ = fit_and_calculate_dt_boxes(
@@ -96,10 +94,14 @@ def update_model_tree(ds, model):
     model.lower = lower_
     model.upper = upper_
     model.values = values_
-    # until the fn is working
-    #class_locs, class_scales = calculate_latent_params_by_class(
-    #    locs, scales, 2, samples.shape[-1])
-    #return class_locs, class_scales
+    class_locs, class_scales = calculate_latent_params_by_class(
+        labels, locs, scales, 2, samples.shape[-1])
+    sklearn.tree.export_graphviz(
+        model.decision_tree,
+        out_file=os.path.join('.', 'ddt_epoch{}.dot'.format(epoch)),
+        filled=True,
+        rounded=True)
+    return class_locs, class_scales
 
 
 def learn(data_dict,
@@ -142,7 +144,8 @@ def learn(data_dict,
     writer.set_as_default()
 
     # training loop
-    update_model_tree(data_dict['train'].take(DATA_SIZE_LIMIT), model)
+    update_model_tree(
+        data_dict['train'].take(DATA_SIZE_LIMIT), model, epoch='init')
     for epoch in range(epochs):
         print("TRAIN")
         from pympler.tracker import SummaryTracker
@@ -187,7 +190,8 @@ def learn(data_dict,
                 """
 
         print("UPDATE")
-        update_model_tree(data_dict['train'].take(DATA_SIZE_LIMIT), model)
+        update_model_tree(data_dict['train'].take(DATA_SIZE_LIMIT), model,
+                          epoch)
 
         print("SAMPLE")
         sample = ((np.squeeze(model.sample()) * 128) + 128).astype(np.uint8)
