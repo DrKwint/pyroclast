@@ -1,6 +1,6 @@
 import numpy as np
-import sonnet as snt
 import tensorflow as tf
+import tensorflow_probability as tfp
 from sklearn import tree
 
 
@@ -8,11 +8,11 @@ def get_decision_tree_boundaries(tree,
                                  feature_num,
                                  class_num,
                                  boundary_val=100):
-    """ 
+    """
     Args:
         tree (sklearn.tree.DecisionTree):
         feature_num (int):
-        class_num (int): 
+        class_num (int):
 
     The way this is written expects that the classes continuously count
     from zero
@@ -39,9 +39,9 @@ def get_decision_tree_boundaries(tree,
             upper=[boundary_val] * feature_num):
         """
         Args:
-            idx: 
-            lower: 
-            upper: 
+            idx:
+            lower:
+            upper:
         """
         # -1 is the magic number used by scikit-learn to signal a leaf
         if children_left[idx] != -1:
@@ -74,6 +74,10 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
     - lower_bounds, upper_bounds (Tensor): shape [box_num, latent_dimension]
     - values (Tensor): shape [box_num, class_num] proportion of each class in the membership of the box
     """
+    mu = tf.cast(mu, tf.float64)
+    sigma = tf.cast(sigma, tf.float64)
+    if tf.reduce_min(sigma) < 0.:
+        sigma = tf.nn.softplus(sigma)
     # broadcast mu, sigma, and bounds to
     # shape [batch_size, box_num, latent_dimension]
     mu = tf.tile(tf.expand_dims(mu, 1), [1, tf.shape(lower_bounds)[0], 1])
@@ -86,7 +90,8 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
 
     # integral over CDF between bounds per dimension, rectifying for numerical error
     # in the tails of the CDF
-    dist = tf.contrib.distributions.Normal(mu, sigma, True, False)
+    dist = tfp.distributions.Normal(mu, sigma, True, False)
+    upper_bounds = tf.cast(upper_bounds, tf.double)
     dim_probs = tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds))
 
     # for each box, calculate probability that a sample falls in
