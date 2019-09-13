@@ -76,8 +76,6 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
     """
     mu = tf.cast(mu, tf.float64)
     sigma = tf.cast(sigma, tf.float64)
-    if tf.reduce_min(sigma) < 0.:
-        sigma = tf.nn.softplus(sigma)
     # broadcast mu, sigma, and bounds to
     # shape [batch_size, box_num, latent_dimension]
     mu = tf.tile(tf.expand_dims(mu, 1), [1, tf.shape(lower_bounds)[0], 1])

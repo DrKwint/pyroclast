@@ -45,7 +45,7 @@ class CpVAE(tf.Module):
     def __call__(self, x):
         loc, scale_diag = self._encode(x)
         z_posterior = tfp.distributions.MultivariateNormalDiag(
-            loc=loc, scale_diag=tf.nn.softplus(scale_diag))
+            loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         x_hat = self._decode(z)
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,

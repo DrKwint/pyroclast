@@ -14,12 +14,13 @@ from pyroclast.cpvae.models import build_decoder, build_encoder
 from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-DATA_SIZE_LIMIT = 10000
+DATA_SIZE_LIMIT = 1
 
 
 def setup_celeba_data(batch_size):
     # load data
-    data_dict, info = tfds.load('celeb_a', with_info=True, data_dir='./data/')
+    data_dict, info = tfds.load(
+        'celeb_a', with_info=True)  #, data_dir='./data/')
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
     data_dict['shape'] = info.features['image'].shape
@@ -51,7 +52,7 @@ def calculate_latent_values(ds, model):
         locs.append(loc)
         scales.append(scale_diag)
         z_posterior = tfp.distributions.MultivariateNormalDiag(
-            loc=loc, scale_diag=tf.nn.softplus(scale_diag))
+            loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         samples.append(z)
         attrs.append(batch['attributes']['No_Beard'])
