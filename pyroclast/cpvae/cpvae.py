@@ -5,6 +5,8 @@ from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_bo
 import sklearn.tree
 import tensorflow_datasets as tfds
 
+from pyroclast.common.tf_util import DiscretizedLogistic
+
 
 class CpVAE(tf.Module):
     def __init__(self,
@@ -69,15 +71,9 @@ class CpVAE(tf.Module):
         return self._decode(z)
 
     def vae_loss(self, x, x_hat, z_posterior):
-        distortion = tf.losses.mean_squared_error(labels=x, predictions=x_hat)
+        output_distribution = tfp.distributions.Independent(
+            DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
+        distortion = -output_distribution.log_prob(x)
+        # distortion = tf.losses.mean_squared_error(labels=x, predictions=x_hat)
         rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
         return distortion, rate
-
-
-"""
-    tree.export_graphviz(
-        self._decision_tree,
-        out_file=os.path.join(output_dir, 'ddt_epoch{}.dot'.format(epoch)),
-        filled=True,
-        rounded=True)
-"""

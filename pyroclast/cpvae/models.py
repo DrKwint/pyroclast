@@ -31,6 +31,6 @@ def build_decoder(network, num_channels=3, **network_kwargs):
         output = network(latent, **network_kwargs)
         output = tf.keras.layers.Conv2D(
             num_channels, 1, padding="same")(output)
-        return tf.nn.tanh(output)
+        return output  #tf.nn.tanh(output)
 
     return decoder_builder

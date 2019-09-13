@@ -148,7 +148,6 @@ def learn(data_dict,
         data_dict['train'].take(DATA_SIZE_LIMIT), model, epoch='init')
     for epoch in range(epochs):
         print("TRAIN")
-        from pympler.tracker import SummaryTracker
         for batch in tqdm(data_dict['train'], total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
@@ -159,7 +158,9 @@ def learn(data_dict,
                 distortion, rate = model.vae_loss(x, x_hat, z_posterior)
                 y_hat = tf.cast(y_hat, tf.float32)
                 labels = tf.cast(batch['attributes']['No_Beard'], tf.int32)
-                loss = distortion + rate + tf.nn.sparse_softmax_cross_entropy_with_logits(
+                loss = tf.reduce_mean(
+                    distortion + rate
+                ) + tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=labels, logits=y_hat)
             # calculate gradients for current loss
             gradients = tape.gradient(loss, model.trainable_variables)
@@ -173,7 +174,7 @@ def learn(data_dict,
 
         print("TEST")
         for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = tf.cast(batch['image'], tf.float32) / 255.
+            x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
             # label = batch['label']
             x_hat, y_hat, z_posterior = model(x)
             distortion, rate = model.vae_loss(x, x_hat, z_posterior)
@@ -194,8 +195,6 @@ def learn(data_dict,
                           epoch)
 
         print("SAMPLE")
-        sample = ((np.squeeze(model.sample()) * 128) + 128).astype(np.uint8)
-        print(np.min(sample), np.max(sample))
-        print(sample.shape)
-        im = Image.fromarray(sample)
+        sample = ((np.squeeze(model.sample()) * 128) + 128)
+        im = Image.fromarray(sample.astype(np.uint8))
         im.save("epoch_{}_sample.png".format(epoch))
