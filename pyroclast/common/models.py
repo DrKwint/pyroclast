@@ -26,16 +26,13 @@ class Upscale(tf.keras.layers.Layer):
 
 
 @register("upscale_conv")
-def upscale_conv(num_blocks=8, init_filter_num=256, **network_kwargs):
+def upscale_conv(num_blocks=5, init_filter_num=256, **network_kwargs):
     blocklist = [
-        tf.keras.layers.Conv2D(
-            init_filter_num, 3, padding='same', activation=tf.nn.leaky_relu),
         tf.keras.layers.Conv2D(
             init_filter_num, 3, padding='same', activation=tf.nn.leaky_relu),
     ]
     upscale_block = lambda num_filters: [
         tf.keras.layers.UpSampling2D(),
-        tf.keras.layers.Conv2D(num_filters, 3, padding='same', activation=tf.nn.leaky_relu),
         tf.keras.layers.Conv2D(num_filters, 3, padding='same', activation=tf.nn.leaky_relu)]
     num_filters = init_filter_num
     for _ in range(num_blocks):
@@ -52,9 +49,9 @@ def mlp(output_sizes=[64] * 2, **network_kwargs):
 
 
 @register("conv_only")
-def conv_only(output_channels=[32, 64, 64, 128, 128],
-              kernel_shapes=(5, 3, 3, 3, 3),
-              strides=(4, 2, 1, 1, 1),
+def conv_only(output_channels=[32, 64, 64, 128],
+              kernel_shapes=(5, 3, 3, 3),
+              strides=(4, 2, 1, 1),
               **conv_kwargs):
     return tf.keras.Sequential([
         tf.keras.layers.Conv2D(

@@ -25,9 +25,8 @@ def build_decoder(network, num_channels=3, **network_kwargs):
     def decoder_builder(z):
         # TODO: remove the linear layer
         # `n` is local parameter for size of internal linear layer
-        n = 32
-        latent = tf.keras.layers.Dense(n)(z)
-        latent = tf.reshape(latent, [-1, 1, 1, n])
+        n, d = z.shape.as_list()
+        latent = tf.reshape(z, [n, 8, 8, 1])
         output = network(latent, **network_kwargs)
         output = tf.keras.layers.Conv2D(
             num_channels, 1, padding="same")(output)

@@ -14,7 +14,7 @@ from pyroclast.cpvae.models import build_decoder, build_encoder
 from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-DATA_SIZE_LIMIT = 100
+DATA_SIZE_LIMIT = 10000
 
 
 def setup_celeba_data(batch_size):
@@ -106,7 +106,7 @@ def update_model_tree(ds, model, epoch):
 
 def learn(data_dict,
           seed=None,
-          latent_dim=32,
+          latent_dim=64,
           epochs=100,
           batch_size=32,
           learning_rate=1e-3,
@@ -121,8 +121,9 @@ def learn(data_dict,
     num_classes = 1
 
     # setup model
-    encoder = build_encoder("conv_only", latent_dim)
-    decoder = build_decoder("upscale_conv")
+    from pyroclast.cpvae.tf_models import Encoder, Decoder
+    encoder = Encoder(64)
+    decoder = Decoder()
     decision_tree = sklearn.tree.DecisionTreeClassifier(
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,
@@ -136,7 +137,7 @@ def learn(data_dict,
         latent_dimension=latent_dim,
         class_num=num_classes,
         box_num=max_tree_leaf_nodes)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    optimizer = tf.keras.optimizers.Adam()
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
