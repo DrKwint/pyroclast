@@ -90,7 +90,7 @@ class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
         super(DiscretizedLogistic, self).__init__(name=name)
         self._name = name
         self._dtype = tf.float32
-        self._reparameterization_type = tfp.NOT_REPARAMETERIZED
+        self._reparameterization_type = tfp.distributions.NOT_REPARAMETERIZED
         self._allow_nan_stats = False
         self._graph_parents = []
         self._loc = loc
