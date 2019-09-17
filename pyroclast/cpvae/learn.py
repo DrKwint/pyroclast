@@ -14,13 +14,17 @@ from pyroclast.cpvae.models import build_decoder, build_encoder
 from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-DATA_SIZE_LIMIT = 1
+CRANE = os.environ['HOSTNAME'] == "login.crane.hcc.unl.edu"
+if CRANE:
+    DATA_SIZE_LIMIT = 1000000
+else:
+    DATA_SIZE_LIMIT = 1
 
 
 def setup_celeba_data(batch_size):
     # load data
-    data_dict, info = tfds.load(
-        'celeb_a', with_info=True)  #, data_dir='./data/')
+    data_dir = './data/' if CRANE else None
+    data_dict, info = tfds.load('celeb_a', with_info=True, data_dir=data_dir)
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
     data_dict['shape'] = info.features['image'].shape
