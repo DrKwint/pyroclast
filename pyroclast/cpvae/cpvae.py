@@ -31,16 +31,6 @@ class CpVAE(tf.Module):
         self.lower = None
         self.upper = None
         self.values = None
-        """
-        self._lower = tf.Variable(
-            np.empty([box_num, latent_dimension], dtype=np.float32),
-            trainable=False)
-        self._upper = tf.Variable(
-            np.empty([box_num, latent_dimension], dtype=np.float32),
-            trainable=False)
-        self._values = tf.Variable(
-            np.empty([box_num, class_num], dtype=np.float32), trainable=False)
-        """
 
     def __call__(self, x):
         loc, scale_diag = self._encode(x)

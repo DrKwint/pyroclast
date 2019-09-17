@@ -13,18 +13,20 @@ class Encoder(tf.keras.Model):
         n, _, _, _ = x.shape
         embed = self.net(x)
         embed = tf.reshape(embed, [n, -1])
-        return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-4
+        return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-6
 
 
 class Decoder(tf.keras.Model):
     def __init__(self, name='dec'):
         super(Decoder, self).__init__(name=name)
+        self.initial = tf.keras.layers.Dense(64)
         self.net = get_network_builder('upscale_conv')()
         self.final = tf.keras.layers.Conv2D(3, 1, padding="same")
 
     def call(self, z):
         n, d = z.shape.as_list()
-        latent = tf.reshape(z, [n, 8, 8, 1])
-        output = self.net(latent)
-        output = self.final(output)
+        initial = self.initial(z)
+        initial = tf.reshape(initial, [n, 4, 4, 4])
+        latent = self.net(initial)
+        output = self.final(latent)
         return tf.nn.tanh(output)
