@@ -13,7 +13,7 @@ class Encoder(tf.keras.Model):
         n, _, _, _ = x.shape
         embed = self.net(x)
         embed = tf.reshape(embed, [n, -1])
-        return self.loc(embed), tf.nn.softplus(self.scale(embed))
+        return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-4
 
 
 class Decoder(tf.keras.Model):

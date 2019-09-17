@@ -71,9 +71,9 @@ class CpVAE(tf.Module):
         return self._decode(z)
 
     def vae_loss(self, x, x_hat, z_posterior):
-        output_distribution = tfp.distributions.Independent(
-            DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
-        distortion = -output_distribution.log_prob(x)
-        # distortion = tf.losses.mean_squared_error(labels=x, predictions=x_hat)
+        #output_distribution = tfp.distributions.Independent(
+        #    DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
+        #distortion = -output_distribution.log_prob(x)
+        distortion = tf.losses.mean_squared_error(labels=x, predictions=x_hat)
         rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
         return distortion, rate

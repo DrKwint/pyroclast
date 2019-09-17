@@ -158,12 +158,12 @@ def learn(data_dict,
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
                 distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-                y_hat = tf.cast(y_hat, tf.float32)
-                labels = tf.cast(batch['attributes']['No_Beard'], tf.int32)
+                # y_hat = tf.cast(y_hat, tf.float32)
+                # labels = tf.cast(batch['attributes']['No_Beard'], tf.int32)
                 loss = tf.reduce_mean(
-                    distortion + rate
-                ) + tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    labels=labels, logits=y_hat)
+                    distortion +
+                    rate)  # + tf.nn.sparse_softmax_cross_entropy_with_logits(
+                #    labels=labels, logits=y_hat)
             # calculate gradients for current loss
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(
