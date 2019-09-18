@@ -64,6 +64,6 @@ class CpVAE(tf.Module):
         #output_distribution = tfp.distributions.Independent(
         #    DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
         #distortion = -output_distribution.log_prob(x)
-        distortion = tf.losses.mean_squared_error(labels=x, predictions=x_hat)
+        distortion = tf.reduce_sum(tf.square(x - x_hat), axis=[1, 2, 3])
         rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
         return distortion, rate

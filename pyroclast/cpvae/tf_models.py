@@ -6,8 +6,9 @@ class Encoder(tf.keras.Model):
     def __init__(self, latent_dim, name='enc'):
         super(Encoder, self).__init__(name=name)
         self.net = get_network_builder('conv_only')({})
-        self.loc = tf.keras.layers.Dense(latent_dim)
-        self.scale = tf.keras.layers.Dense(latent_dim)
+        self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
+        self.scale = tf.keras.layers.Dense(
+            latent_dim, name='encoder_scale_diag_raw')
 
     def call(self, x):
         n, _, _, _ = x.shape

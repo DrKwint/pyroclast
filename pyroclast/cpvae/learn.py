@@ -112,9 +112,8 @@ def update_model_tree(ds, model, epoch):
 def learn(data_dict,
           seed=None,
           latent_dim=64,
-          epochs=100,
+          epochs=1000,
           batch_size=32,
-          learning_rate=1e-3,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
           tb_dir='./tb/'):
