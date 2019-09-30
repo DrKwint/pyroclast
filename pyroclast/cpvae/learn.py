@@ -156,7 +156,8 @@ def learn(data_dict,
         for batch in tqdm(data_dict['train'], total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
-            x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
+            # x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
+            x = tf.cast(batch['image'], tf.float32) / 255.
 
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
@@ -172,6 +173,12 @@ def learn(data_dict,
             optimizer.apply_gradients(
                 zip(gradients, model.trainable_variables))
 
+            # XTRA JUNK
+            #print("x stats", tf.reduce_min(x), tf.reduce_mean(x), tf.reduce_max(x))
+            #print("x_hat stats", tf.reduce_min(x_hat), tf.reduce_mean(x_hat), tf.reduce_max(x_hat))
+            #sample = model.sample()
+            #print("sample stats", tf.reduce_min(sample), tf.reduce_mean(sample), tf.reduce_max(sample))
+
             with tf.contrib.summary.always_record_summaries():
                 tf.contrib.summary.scalar("train_distortion", distortion)
                 tf.contrib.summary.scalar("train_rate", rate)
@@ -179,7 +186,8 @@ def learn(data_dict,
 
         print("TEST")
         for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
+            #x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
+            x = tf.cast(batch['image'], tf.float32)
             # label = batch['label']
             x_hat, y_hat, z_posterior = model(x)
             distortion, rate = model.vae_loss(x, x_hat, z_posterior)
@@ -200,6 +208,9 @@ def learn(data_dict,
                           epoch)
 
         print("SAMPLE")
-        sample = ((np.squeeze(model.sample()) * 128) + 128)
-        im = Image.fromarray(sample.astype(np.uint8))
+        #sample = ((np.squeeze(model.sample()) * 128) + 128)
+        sample = np.squeeze(model.sample())
+        print("sample stats:", np.min(sample), np.mean(sample), np.max(sample))
+        im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
+        #im = Image.fromarray(sample)
         im.save("epoch_{}_sample.png".format(epoch))

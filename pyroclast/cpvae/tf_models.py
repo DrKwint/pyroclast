@@ -30,4 +30,4 @@ class Decoder(tf.keras.Model):
         initial = tf.reshape(initial, [n, 4, 4, 4])
         latent = self.net(initial)
         output = self.final(latent)
-        return tf.nn.tanh(output)
+        return tf.nn.sigmoid(output)
