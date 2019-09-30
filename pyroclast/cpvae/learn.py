@@ -153,7 +153,8 @@ def learn(data_dict,
         data_dict['train'].take(DATA_SIZE_LIMIT), model, epoch='init')
     for epoch in range(epochs):
         print("TRAIN")
-        for batch in tqdm(data_dict['train'], total=data_dict['train_bpe']):
+        for i, batch in tqdm(
+                enumerate(data_dict['train']), total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
             # x = (tf.cast(batch['image'], tf.float32) - 128) / 128.
@@ -161,6 +162,9 @@ def learn(data_dict,
 
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
+                print("x stats:", np.min(x), np.mean(x), np.max(x))
+                print("x_hat stats", np.min(x_hat), np.mean(x_hat),
+                      np.max(x_hat))
                 distortion, rate = model.vae_loss(x, x_hat, z_posterior)
                 # y_hat = tf.cast(y_hat, tf.float32)
                 # labels = tf.cast(batch['attributes']['No_Beard'], tf.int32)
@@ -168,6 +172,12 @@ def learn(data_dict,
                     distortion +
                     rate)  # + tf.nn.sparse_softmax_cross_entropy_with_logits(
                 #    labels=labels, logits=y_hat)
+
+            #DEBUG
+            sample = np.squeeze(model.sample())
+            print("sample stats:", np.min(sample), np.mean(sample),
+                  np.max(sample))
+
             # calculate gradients for current loss
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(
@@ -178,6 +188,12 @@ def learn(data_dict,
             #print("x_hat stats", tf.reduce_min(x_hat), tf.reduce_mean(x_hat), tf.reduce_max(x_hat))
             #sample = model.sample()
             #print("sample stats", tf.reduce_min(sample), tf.reduce_mean(sample), tf.reduce_max(sample))
+            print("SAMPLE")
+            sample = np.squeeze(model.sample())
+            print("sample stats:", np.min(sample * 255.), np.mean(
+                sample * 255.), np.max(sample * 255.))
+            im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
+            im.save("epoch_{}_step{}_sample.png".format(epoch, i))
 
             with tf.contrib.summary.always_record_summaries():
                 tf.contrib.summary.scalar("train_distortion", distortion)
@@ -208,9 +224,8 @@ def learn(data_dict,
                           epoch)
 
         print("SAMPLE")
-        #sample = ((np.squeeze(model.sample()) * 128) + 128)
         sample = np.squeeze(model.sample())
-        print("sample stats:", np.min(sample), np.mean(sample), np.max(sample))
+        print("sample stats:", np.min(sample * 255.), np.mean(sample * 255.),
+              np.max(sample * 255.))
         im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
-        #im = Image.fromarray(sample)
         im.save("epoch_{}_sample.png".format(epoch))
