@@ -5,6 +5,7 @@ mapping = {}
 
 
 def register(name):
+
     def _thunk(func):
         mapping[name] = func
         return func

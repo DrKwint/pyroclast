@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import tqdm
 
 
@@ -27,10 +28,9 @@ def make_session(config=None, num_cpu=None, make_default=False, graph=None):
     if num_cpu is None:
         num_cpu = int(os.getenv('RCALL_NUM_CPU', multiprocessing.cpu_count()))
     if config is None:
-        config = tf.ConfigProto(
-            allow_soft_placement=True,
-            inter_op_parallelism_threads=num_cpu,
-            intra_op_parallelism_threads=num_cpu)
+        config = tf.ConfigProto(allow_soft_placement=True,
+                                inter_op_parallelism_threads=num_cpu,
+                                intra_op_parallelism_threads=num_cpu)
         config.gpu_options.allow_growth = True
 
     if make_default:
@@ -68,12 +68,11 @@ def run_epoch_ops(session,
         iterable = list(range(steps_per_epoch))
     for _ in iterable:
         try:
-            out = session.run(
-                [silent_ops, verbose_ops_dict], feed_dict=feed_dict_fn())[1]
+            out = session.run([silent_ops, verbose_ops_dict],
+                              feed_dict=feed_dict_fn())[1]
 
             verbose_vals = {
-                k: v + [np.array(out[k])]
-                for k, v in verbose_vals.items()
+                k: v + [np.array(out[k])] for k, v in verbose_vals.items()
             }
         except tf.errors.OutOfRangeError:
             break
@@ -82,3 +81,35 @@ def run_epoch_ops(session,
         k: np.stack(v) if v is not None else np.array()
         for k, v in verbose_vals.items()
     }
+
+
+class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
+
+    def __init__(self, loc, batch_dims=3, name="discretized_logistic"):
+        super(DiscretizedLogistic, self).__init__(name=name)
+        self._name = name
+        self._dtype = tf.float32
+        self._reparameterization_type = tfp.distributions.NOT_REPARAMETERIZED
+        self._allow_nan_stats = False
+        self._graph_parents = []
+        self._loc = loc
+        self._batch_dims = batch_dims
+        self._log_scale = tf.get_variable(
+            "log_scale",
+            initializer=tf.zeros(loc.get_shape().as_list()[-batch_dims:]),
+            dtype=tf.float32)
+
+    def mean(self):
+        return self._loc
+
+    @property
+    def scale(self):
+        return tf.exp(self._log_scale)
+
+    def log_prob(self, sample, binsize=1 / 256.0):
+        scale = tf.exp(self._log_scale)
+        mean = self._loc
+        sample = (tf.floor(sample / binsize) * binsize - mean) / scale
+        logp = tf.log(
+            tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
+        return logp  # tf.reduce_sum(logp, [2, 3, 4])

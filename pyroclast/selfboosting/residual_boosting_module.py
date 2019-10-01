@@ -9,6 +9,7 @@ from pyroclast.selfboosting.modules import get_module
 
 
 class ResidualBoostingModule(snt.AbstractModule):
+
     def __init__(self,
                  repr_module_name,
                  classification_module_name,

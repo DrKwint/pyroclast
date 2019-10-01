@@ -133,8 +133,7 @@ def learn(train_data_iterator,
         # calculate test values
         test_boosted_classification, test_hypotheses, _ = model(
             test_data['image'])
-        test_module_loss = model.get_hypothesis_loss(alpha,
-                                                     test_hypotheses[-1],
+        test_module_loss = model.get_hypothesis_loss(alpha, test_hypotheses[-1],
                                                      test_data['label'])
         test_hypothesis_accuracy = calculate_accuracy(test_hypotheses[-1],
                                                       test_data['label'])

@@ -150,9 +150,8 @@ class SequentialResNet(snt.AbstractModule):
         outer_loss_term = tf.exp(-alpha * label_prediction_vals)
 
         # for the inner, sum everything and subtract the term for correct labels
-        inner_loss_term = tf.reduce_sum(tf.exp(alpha * hypothesis),
-                                        axis=1) - tf.exp(
-                                            alpha * label_prediction_vals)
+        inner_loss_term = tf.reduce_sum(tf.exp(
+            alpha * hypothesis), axis=1) - tf.exp(alpha * label_prediction_vals)
         batch_loss = outer_loss_term * inner_loss_term
         loss = tf.reduce_sum(batch_loss, axis=0)
         return loss
