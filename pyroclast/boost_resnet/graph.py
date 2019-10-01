@@ -4,6 +4,7 @@ EPS = 1e-10
 
 
 class ResidualBoostingModule(tf.Module):
+
     def __init__(self,
                  residual_repr_module,
                  classification_module,
@@ -19,10 +20,9 @@ class ResidualBoostingModule(tf.Module):
         self.residual_module = residual_repr_module
         self.hypothesis_module = classification_module
         if alpha is None:
-            self.alpha = tf.Variable(
-                tf.random.normal(shape=()),
-                name="alpha_{}".format(name),
-                shape=())
+            self.alpha = tf.Variable(tf.random.normal(shape=()),
+                                     name="alpha_{}".format(name),
+                                     shape=())
         else:
             self.alpha = tf.Variable(alpha, name="alpha_{}".format(name))
 
@@ -41,8 +41,8 @@ class ResidualBoostingModule(tf.Module):
         residual_repr = self.residual_module(data)
         hypothesis = self.hypothesis_module(
             tf.keras.layers.Flatten()(residual_repr))
-        weak_module_classifier = (self.alpha * hypothesis) - (
-            prev_alpha - prev_hypothesis)
+        weak_module_classifier = (self.alpha * hypothesis) - (prev_alpha -
+                                                              prev_hypothesis)
         return residual_repr, hypothesis, weak_module_classifier
 
 
@@ -90,11 +90,10 @@ class SequentialResNet(tf.Module):
         super(SequentialResNet, self).__init__(name=name)
         self.class_num = class_num
         self.boosting_modules = []
-        self._base_repr_module = tf.keras.layers.Conv2D(
-            representation_channels,
-            3,
-            padding='same',
-            name='base_repr_conv2d')
+        self._base_repr_module = tf.keras.layers.Conv2D(representation_channels,
+                                                        3,
+                                                        padding='same',
+                                                        name='base_repr_conv2d')
         self.initial_distribution_fn = initial_distribution_fn
         self.distribution_update_fn = distribution_update_fn
         self.gamma_tilde_calculation_fn = gamma_tilde_calculation_fn
@@ -122,18 +121,19 @@ class SequentialResNet(tf.Module):
         # build network
         x = self._base_repr_module(x)
         for module in self.boosting_modules:
-            x, hypothesis, weak_module_classifier = module(
-                x, alpha, hypothesis)
+            x, hypothesis, weak_module_classifier = module(x, alpha, hypothesis)
             alpha = module.alpha
 
             if y is not None:
                 gamma_tildes.append(
-                    self.gamma_tilde_calculation_fn(
-                        y, hypothesis, hypotheses[-1], distributions[-1],
-                        boosted_classifiers[-1]))
+                    self.gamma_tilde_calculation_fn(y, hypothesis,
+                                                    hypotheses[-1],
+                                                    distributions[-1],
+                                                    boosted_classifiers[-1]))
                 gammas.append(
-                    tf.sqrt((tf.square(gamma_tildes[-1]) - tf.square(
-                        gamma_tildes[-2])) / 1. - tf.square(gamma_tildes[-2])))
+                    tf.sqrt((tf.square(gamma_tildes[-1]) -
+                             tf.square(gamma_tildes[-2])) / 1. -
+                            tf.square(gamma_tildes[-2])))
                 distribution = self.distribution_update_fn(
                     weak_module_classifier, y, distribution)
                 distributions.append(distribution)
@@ -142,8 +142,8 @@ class SequentialResNet(tf.Module):
             weak_module_classifiers.append(weak_module_classifier)
             alphas.append(alpha)
             try:
-                boosted_classifiers.append(
-                    boosted_classifiers[-1] + weak_module_classifier)
+                boosted_classifiers.append(boosted_classifiers[-1] +
+                                           weak_module_classifier)
             except IndexError:
                 boosted_classifiers.append(0.)
 

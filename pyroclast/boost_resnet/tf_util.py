@@ -36,13 +36,13 @@ def fixed_padding(inputs, kernel_size, data_format):
     pad_end = pad_total - pad_beg
 
     if data_format == 'channels_first':
-        padded_inputs = tf.pad(
-            tensor=inputs,
-            paddings=[[0, 0], [0, 0], [pad_beg, pad_end], [pad_beg, pad_end]])
+        padded_inputs = tf.pad(tensor=inputs,
+                               paddings=[[0, 0], [0, 0], [pad_beg, pad_end],
+                                         [pad_beg, pad_end]])
     else:
-        padded_inputs = tf.pad(
-            tensor=inputs,
-            paddings=[[0, 0], [pad_beg, pad_end], [pad_beg, pad_end], [0, 0]])
+        padded_inputs = tf.pad(tensor=inputs,
+                               paddings=[[0, 0], [pad_beg, pad_end],
+                                         [pad_beg, pad_end], [0, 0]])
     return padded_inputs
 
 
@@ -94,20 +94,18 @@ def _building_block_v2(inputs, filters, training, projection_shortcut, strides,
     if projection_shortcut is not None:
         shortcut = projection_shortcut(inputs)
 
-    inputs = conv2d_fixed_padding(
-        inputs=inputs,
-        filters=filters,
-        kernel_size=3,
-        strides=strides,
-        data_format=data_format)
+    inputs = conv2d_fixed_padding(inputs=inputs,
+                                  filters=filters,
+                                  kernel_size=3,
+                                  strides=strides,
+                                  data_format=data_format)
 
     inputs = batch_norm(inputs, training, data_format)
     inputs = tf.nn.relu(inputs)
-    inputs = conv2d_fixed_padding(
-        inputs=inputs,
-        filters=filters,
-        kernel_size=3,
-        strides=1,
-        data_format=data_format)
+    inputs = conv2d_fixed_padding(inputs=inputs,
+                                  filters=filters,
+                                  kernel_size=3,
+                                  strides=1,
+                                  data_format=data_format)
 
     return inputs + shortcut
