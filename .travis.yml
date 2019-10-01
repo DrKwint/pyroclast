@@ -4,4 +4,5 @@ python:
 install:
   - pip install -q yapf
 script:
+  - yapf --style-help | diff .style.yapf -
   - yapf -drp pyroclast
