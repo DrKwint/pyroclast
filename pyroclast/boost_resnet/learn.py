@@ -29,9 +29,8 @@ def learn(data_dict,
     if num_classes == 1:
         distribution_update_fn = update_binary_distribution
         loss_fn = binary_loss
-        classification_fn = lambda x: tf.cast(
-                            tf.math.sign(tf.squeeze(x), 0.5),
-                            tf.int64)
+        classification_fn = lambda x: tf.cast(tf.math.sign(tf.squeeze(x), 0.5),
+                                              tf.int64)
         gamma_tilde_calculation_fn = calculate_binary_gamma_tilde
     else:
         initial_distribution_fn = functools.partial(
@@ -55,11 +54,10 @@ def learn(data_dict,
     for num_module in range(num_modules):
         # add module
         alpha = tf.ones(num_classes)
-        module = ResidualBoostingModule(
-            repr_module(num_channels),
-            classification_module(num_classes),
-            alpha=alpha,
-            name='module_{}'.format(num_module))
+        module = ResidualBoostingModule(repr_module(num_channels),
+                                        classification_module(num_classes),
+                                        alpha=alpha,
+                                        name='module_{}'.format(num_module))
         model.add_module(module)
 
         for epoch in range(epochs_per_module):
@@ -127,10 +125,11 @@ def learn(data_dict,
                         for (i, a) in enumerate(gamma_tildes)
                     ]
                     [
-                        tf.contrib.summary.scalar(
-                            "train_gamma_{}-{}".format(i, i + 1),
-                            a,
-                            family='gamma') for (i, a) in enumerate(gammas)
+                        tf.contrib.summary.scalar("train_gamma_{}-{}".format(
+                            i, i + 1),
+                                                  a,
+                                                  family='gamma')
+                        for (i, a) in enumerate(gammas)
                     ]
             print("TEST")
             batch_accuracies = []
@@ -150,8 +149,9 @@ def learn(data_dict,
                     for cp in correct_predictions
                 ]
                 batch_accuracies.append(accuracies)
-            mean_epoch_accuracies = np.mean(
-                np.squeeze(np.array(list(zip(batch_accuracies)))), axis=0)
+            mean_epoch_accuracies = np.mean(np.squeeze(
+                np.array(list(zip(batch_accuracies)))),
+                                            axis=0)
             print("Test accuracy per boosted classifier:",
                   mean_epoch_accuracies)
             with tf.contrib.summary.always_record_summaries():
