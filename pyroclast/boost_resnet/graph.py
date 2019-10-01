@@ -4,6 +4,7 @@ EPS = 1e-10
 
 
 class ResidualBoostingModule(tf.Module):
+
     def __init__(self,
                  residual_repr_module,
                  classification_module,
@@ -91,10 +92,7 @@ class SequentialResNet(tf.Module):
         self.class_num = class_num
         self.boosting_modules = []
         self._base_repr_module = tf.keras.layers.Conv2D(
-            representation_channels,
-            3,
-            padding='same',
-            name='base_repr_conv2d')
+            representation_channels, 3, padding='same', name='base_repr_conv2d')
         self.initial_distribution_fn = initial_distribution_fn
         self.distribution_update_fn = distribution_update_fn
         self.gamma_tilde_calculation_fn = gamma_tilde_calculation_fn
@@ -122,8 +120,7 @@ class SequentialResNet(tf.Module):
         # build network
         x = self._base_repr_module(x)
         for module in self.boosting_modules:
-            x, hypothesis, weak_module_classifier = module(
-                x, alpha, hypothesis)
+            x, hypothesis, weak_module_classifier = module(x, alpha, hypothesis)
             alpha = module.alpha
 
             if y is not None:

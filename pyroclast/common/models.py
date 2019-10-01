@@ -6,6 +6,7 @@ mapping = {}
 
 
 def register(name):
+
     def _thunk(func):
         mapping[name] = func
         return func
@@ -14,6 +15,7 @@ def register(name):
 
 
 class Upscale(tf.keras.layers.Layer):
+
     def __init__(self, num_outputs):
         super(Upscale, self).__init__()
 

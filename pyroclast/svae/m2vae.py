@@ -127,8 +127,10 @@ class M2VAE(snt.AbstractModule):
         y_values = range(self._num_classes)
         y_losses = []
         for y in y_values:
-            supervised_component = self.supervised_loss(
-                x, tf.one_hot(y, self._num_classes))
+            supervised_component = self.supervised_loss(x,
+                                                        tf.one_hot(
+                                                            y,
+                                                            self._num_classes))
             logqy = p_y.log_prob(y)
             y_losses.append(supervised_component + logqy)
         return sum(y_losses) + p_y.entropy()

@@ -54,10 +54,8 @@ class TestSequentialResNet(object):
             module = self.setup_residual_boosting_module()
             alpha, hypothesis, _ = model.add_module(module)
             module_variables.append(module.get_all_variables())
-            module_loss = model.get_hypothesis_loss(alpha, hypothesis,
-                                                    label_ph)
-            module_train_ops.append(
-                module.get_train_op(optimizer, module_loss))
+            module_loss = model.get_hypothesis_loss(alpha, hypothesis, label_ph)
+            module_train_ops.append(module.get_train_op(optimizer, module_loss))
 
         session.run(tf.initializers.global_variables())
         stable_model_values = session.run(model_variables)

@@ -40,10 +40,7 @@ def train(session,
         # run a test epoch
         print("TEST")
         test_vals_dict = run_epoch_ops(
-            session,
-            test_batches_per_epoch,
-            test_verbose_dict,
-            verbose=verbose)
+            session, test_batches_per_epoch, test_verbose_dict, verbose=verbose)
         print({'mean ' + k: np.mean(v) for k, v in test_vals_dict.items()})
 
 
@@ -111,9 +108,8 @@ def learn(train_data_iterator,
     test_verbose_dicts = []
     for _ in range(module_num):
         # add module and get train_op
-        module = ResidualBoostingModule(repr_module_name,
-                                        hypothesis_module_name, num_channels,
-                                        num_classes)
+        module = ResidualBoostingModule(
+            repr_module_name, hypothesis_module_name, num_channels, num_classes)
         alpha, hypothesis, boosted_classification = model.add_module(module)
         module_loss = model.get_hypothesis_loss(alpha, hypothesis,
                                                 train_data['label'])
@@ -135,8 +131,8 @@ def learn(train_data_iterator,
         # calculate test values
         test_boosted_classification, test_hypotheses, _ = model(
             test_data['image'])
-        test_module_loss = model.get_hypothesis_loss(
-            alpha, test_hypotheses[-1], test_data['label'])
+        test_module_loss = model.get_hypothesis_loss(alpha, test_hypotheses[-1],
+                                                     test_data['label'])
         test_hypothesis_accuracy = calculate_accuracy(test_hypotheses[-1],
                                                       test_data['label'])
         test_boosted_accuracy = calculate_accuracy(test_boosted_classification,

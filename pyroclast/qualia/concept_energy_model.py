@@ -27,8 +27,7 @@ class ConceptEnergyModel(snt.AbstractModule):
         super(ConceptEnergyModel, self).__init__(name=name)
         self._entity_model = entity_model
         self._attention_model = attention_model
-        self._optimizer = tfp.optimizer.StochasticGradientLangevinDynamics(
-            1e-4)
+        self._optimizer = tfp.optimizer.StochasticGradientLangevinDynamics(1e-4)
 
     def _build(self, data, attention, concept):
         """Calculates $E_\theta(x, a, w)$

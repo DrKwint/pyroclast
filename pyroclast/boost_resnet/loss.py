@@ -9,7 +9,7 @@ def calculate_binary_gamma_tilde(label, hypothesis, prev_hypothesis,
     gamma_tilde = distribution * label * hypothesis
     prev_gamma_tilde = distribution * label * prev_hypothesis
     gamma = tf.sqrt((tf.square(gamma_tilde) - tf.square(prev_gamma_tilde)
-                     ) / 1 - tf.square(prev_gamma_tilde))
+                    ) / 1 - tf.square(prev_gamma_tilde))
     return gamma
 
 

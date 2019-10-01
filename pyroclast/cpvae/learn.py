@@ -165,8 +165,7 @@ def learn(data_dict,
                 loss = tf.reduce_mean(distortion + rate + classification_loss)
             # calculate gradients for current loss
             gradients = tape.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(
-                zip(gradients, model.trainable_variables))
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
             with tf.contrib.summary.always_record_summaries():
                 tf.contrib.summary.scalar(
@@ -194,8 +193,7 @@ def learn(data_dict,
                 tf.contrib.summary.scalar("rate", rate, family='test')
                 tf.contrib.summary.scalar(
                     "classification_loss", classification_loss, family='test')
-                tf.contrib.summary.scalar(
-                    "mean_test_loss", loss, family='test')
+                tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
         print("UPDATE")
         update_model_tree(data_dict['train'], model, epoch, label_attr)

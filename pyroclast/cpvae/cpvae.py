@@ -9,6 +9,7 @@ from pyroclast.common.tf_util import DiscretizedLogistic
 
 
 class CpVAE(tf.Module):
+
     def __init__(self,
                  encoder,
                  decoder,

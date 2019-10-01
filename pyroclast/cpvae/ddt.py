@@ -4,9 +4,7 @@ import tensorflow_probability as tfp
 from sklearn import tree
 
 
-def get_decision_tree_boundaries(tree,
-                                 feature_num,
-                                 class_num,
+def get_decision_tree_boundaries(tree, feature_num, class_num,
                                  boundary_val=100):
     """
     Args:
@@ -79,8 +77,7 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
     # broadcast mu, sigma, and bounds to
     # shape [batch_size, box_num, latent_dimension]
     mu = tf.tile(tf.expand_dims(mu, 1), [1, tf.shape(lower_bounds)[0], 1])
-    sigma = tf.tile(
-        tf.expand_dims(sigma, 1), [1, tf.shape(lower_bounds)[0], 1])
+    sigma = tf.tile(tf.expand_dims(sigma, 1), [1, tf.shape(lower_bounds)[0], 1])
     lower_bounds = tf.tile(
         tf.expand_dims(lower_bounds, 0), [tf.shape(mu)[0], 1, 1])
     upper_bounds = tf.tile(

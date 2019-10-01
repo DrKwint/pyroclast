@@ -3,6 +3,7 @@ from pyroclast.common.models import get_network_builder
 
 
 class Encoder(tf.keras.Model):
+
     def __init__(self, latent_dim, name='enc'):
         super(Encoder, self).__init__(name=name)
         self.net = get_network_builder('conv_only')({})
@@ -18,6 +19,7 @@ class Encoder(tf.keras.Model):
 
 
 class Decoder(tf.keras.Model):
+
     def __init__(self, name='dec'):
         super(Decoder, self).__init__(name=name)
         self.initial = tf.keras.layers.Dense(64)

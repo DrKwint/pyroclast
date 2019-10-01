@@ -86,6 +86,7 @@ def run_epoch_ops(session,
 
 
 class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
+
     def __init__(self, loc, batch_dims=3, name="discretized_logistic"):
         super(DiscretizedLogistic, self).__init__(name=name)
         self._name = name

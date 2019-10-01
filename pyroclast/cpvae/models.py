@@ -28,8 +28,7 @@ def build_decoder(network, num_channels=3, **network_kwargs):
         n, d = z.shape.as_list()
         latent = tf.reshape(z, [n, 8, 8, 1])
         output = network(latent, **network_kwargs)
-        output = tf.keras.layers.Conv2D(
-            num_channels, 1, padding="same")(output)
+        output = tf.keras.layers.Conv2D(num_channels, 1, padding="same")(output)
         return output  #tf.nn.tanh(output)
 
     return decoder_builder

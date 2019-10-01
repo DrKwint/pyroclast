@@ -42,9 +42,8 @@ def learn(data_dict,
         gamma_tilde_calculation_fn = calculate_multiclass_gamma_tilde
 
     # setup model
-    model = SequentialResNet(num_classes, num_channels,
-                             initial_distribution_fn, distribution_update_fn,
-                             gamma_tilde_calculation_fn)
+    model = SequentialResNet(num_classes, num_channels, initial_distribution_fn,
+                             distribution_update_fn, gamma_tilde_calculation_fn)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
     # tensorboard
@@ -66,8 +65,7 @@ def learn(data_dict,
         for epoch in range(epochs_per_module):
             print("Module: {} Epoch: {}".format(num_module, epoch))
             print("TRAIN")
-            for batch in tqdm(
-                    data_dict['train'], total=data_dict['train_bpe']):
+            for batch in tqdm(data_dict['train'], total=data_dict['train_bpe']):
                 global_step.assign_add(1)
                 x = tf.cast(batch['image'], tf.float32) / 255.
                 label = batch['label']
