@@ -2,6 +2,6 @@ language: python
 python:
   - "3.6"
 install:
-  - pip install -q yapf
+  - pip install -q yapf==0.28.0
 script:
   - yapf -drp pyroclast --style=".style.yapf"
