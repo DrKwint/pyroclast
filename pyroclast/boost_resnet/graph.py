@@ -4,7 +4,10 @@ EPS = 1e-10
 
 
 class ResidualBoostingModule(tf.Module):
+<<<<<<< HEAD
+=======
 
+>>>>>>> master
     def __init__(self,
                  residual_repr_module,
                  classification_module,
