@@ -40,7 +40,7 @@ def concat_dicts(list_of_dicts):
     return concat_dict
 
 
-def calculate_latent_values(ds, model):
+def calculate_latent_values(ds, model, label_attr):
     locs = []
     scales = []
     samples = []
@@ -85,8 +85,9 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
     return class_locs, class_scales
 
 
-def update_model_tree(ds, model, epoch):
-    locs, scales, samples, labels = calculate_latent_values(ds, model)
+def update_model_tree(ds, model, epoch, label_attr):
+    locs, scales, samples, labels = calculate_latent_values(
+        ds, model, label_attr)
     labels = tf.cast(labels, tf.int32)
     lower_, upper_, values_ = fit_and_calculate_dt_boxes(
         model.decision_tree, samples, labels, 2, samples.shape[-1])
@@ -144,7 +145,8 @@ def learn(data_dict,
     writer.set_as_default()
 
     # training loop
-    update_model_tree(data_dict['train'], model, epoch='init')
+    update_model_tree(
+        data_dict['train'], model, epoch='init', label_attr=label_attr)
     for epoch in range(epochs):
         print("TRAIN")
         for i, batch in tqdm(
@@ -196,7 +198,7 @@ def learn(data_dict,
                     "mean_test_loss", loss, family='test')
 
         print("UPDATE")
-        update_model_tree(data_dict['train'], model, epoch)
+        update_model_tree(data_dict['train'], model, epoch, label_attr)
 
         print("SAMPLE")
         sample = np.squeeze(model.sample())
