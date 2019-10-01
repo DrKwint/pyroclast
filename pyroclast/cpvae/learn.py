@@ -16,6 +16,7 @@ from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_bo
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
 
+
 def setup_celeba_data(batch_size):
     # load data
     data_dir = './data/' if CRANE else None
@@ -25,8 +26,7 @@ def setup_celeba_data(batch_size):
     data_dict['shape'] = info.features['image'].shape
 
     data_dict['all_train'] = data_dict['train']
-    data_dict['train'] = data_dict['train'].shuffle(1024).batch(
-        batch_size)
+    data_dict['train'] = data_dict['train'].shuffle(1024).batch(batch_size)
     data_dict['all_test'] = data_dict['test']
     data_dict['test'] = data_dict['test'].batch(batch_size)
     return data_dict
@@ -53,7 +53,7 @@ def calculate_latent_values(ds, model):
             loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         samples.append(z)
-        attrs.append(batch['attributes']['No_Beard'])
+        attrs.append(batch['attributes'][label_attr])
     locs = tf.concat(locs, 0)
     scales = tf.concat(scales, 0)
     samples = tf.concat(samples, 0)
@@ -110,7 +110,8 @@ def learn(data_dict,
           batch_size=32,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
-          tb_dir='./tb/'):
+          tb_dir='./tb/',
+          label_attr='No_Beard'):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
 
@@ -143,8 +144,7 @@ def learn(data_dict,
     writer.set_as_default()
 
     # training loop
-    update_model_tree(
-        data_dict['train'], model, epoch='init')
+    update_model_tree(data_dict['train'], model, epoch='init')
     for epoch in range(epochs):
         print("TRAIN")
         for i, batch in tqdm(
@@ -152,59 +152,59 @@ def learn(data_dict,
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
             x = tf.cast(batch['image'], tf.float32) / 255.
+            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
+                y_hat = tf.cast(y_hat, tf.float32)
                 distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-                # y_hat = tf.cast(y_hat, tf.float32)
-                # labels = tf.cast(batch['attributes']['No_Beard'], tf.int32)
-                loss = tf.reduce_mean(
-                    distortion +
-                    rate)  # + tf.nn.sparse_softmax_cross_entropy_with_logits(
-                #    labels=labels, logits=y_hat)
-
+                classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    labels=labels, logits=y_hat)
+                loss = tf.reduce_mean(distortion + rate + classification_loss)
             # calculate gradients for current loss
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(
                 zip(gradients, model.trainable_variables))
 
             with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("train_distortion", distortion)
-                tf.contrib.summary.scalar("train_rate", rate)
-                tf.contrib.summary.scalar("train_loss", loss)
+                tf.contrib.summary.scalar(
+                    "distortion", distortion, family='train')
+                tf.contrib.summary.scalar("rate", rate, family='train')
+                tf.contrib.summary.scalar(
+                    "classification_loss", classification_loss, family='train')
+                tf.contrib.summary.scalar("sum_loss", loss, family='train')
 
-        """
         print("TEST")
         for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = tf.cast(batch['image'], tf.float32)
+            x = tf.cast(batch['image'], tf.float32) / 255.
+            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
+
             x_hat, y_hat, z_posterior = model(x)
+            y_hat = tf.cast(y_hat, tf.float32)
             distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-            loss = distortion + rate
+            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=y_hat)
+            loss = tf.reduce_mean(distortion + rate + classification_loss)
+
             with tf.contrib.summary.always_record_summaries():
                 tf.contrib.summary.scalar(
-                    "mean_test_loss", loss, family='loss')
-                """
-        """
-                accuracy = tf.reduce_mean(
-                    tf.cast(
-                        tf.equal(tf.argmax(y_hat, axis=1), label), tf.float32))
+                    "distortion", distortion, family='test')
+                tf.contrib.summary.scalar("rate", rate, family='test')
                 tf.contrib.summary.scalar(
-                    "mean_test_accuracy", accuracy, family='accuracy')
-                """
+                    "classification_loss", classification_loss, family='test')
+                tf.contrib.summary.scalar(
+                    "mean_test_loss", loss, family='test')
 
-        #print("UPDATE")
-        #update_model_tree(data_dict['train']), model,
-        #                  epoch)
+        print("UPDATE")
+        update_model_tree(data_dict['train'], model, epoch)
 
         print("SAMPLE")
         sample = np.squeeze(model.sample())
-        print("sample stats:", np.min(sample * 255.), np.mean(sample * 255.),
-              np.max(sample * 255.))
-        print("sample stats:", np.min(sample[:,:,0] * 255.), np.mean(sample[:,:,0] * 255.),
-              np.max(sample[:,:,0] * 255.))
-        print("sample stats:", np.min(sample[:,:,1] * 255.), np.mean(sample[:,:,1] * 255.),
-              np.max(sample[:,:,1] * 255.))
-        print("sample stats:", np.min(sample[:,:,2] * 255.), np.mean(sample[:,:,2] * 255.),
-              np.max(sample[:,:,2] * 255.))
+        print("sample stats:", np.min(sample[:, :, 0] * 255.),
+              np.mean(sample[:, :, 0] * 255.), np.max(sample[:, :, 0] * 255.))
+        print("sample stats:", np.min(sample[:, :, 1] * 255.),
+              np.mean(sample[:, :, 1] * 255.), np.max(sample[:, :, 1] * 255.))
+        print("sample stats:", np.min(sample[:, :, 2] * 255.),
+              np.mean(sample[:, :, 2] * 255.), np.max(sample[:, :, 2] * 255.))
         im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
         im.save("epoch_{}_sample.png".format(epoch))
