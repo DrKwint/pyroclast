@@ -4,5 +4,4 @@ python:
 install:
   - pip install -q yapf
 script:
-  - yapf --style-help | diff .style.yapf -
-  - yapf -drp pyroclast
+  - yapf -drp pyroclast --style='{based_on_style: google, indent_width: 4}'
