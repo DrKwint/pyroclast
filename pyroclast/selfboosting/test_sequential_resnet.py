@@ -17,12 +17,12 @@ class TestSequentialResNet(object):
     def setup_tf_env(self):
         tf.reset_default_graph()
         session = tf.Session()
-        data_ph = tf.placeholder(shape=[self.batch_size] + self.data_shape,
-                                 dtype=tf.float32,
-                                 name='data_placeholder')
-        label_ph = tf.placeholder(shape=[self.batch_size],
-                                  dtype=tf.int64,
-                                  name='label_placeholder')
+        data_ph = tf.placeholder(
+            shape=[self.batch_size] + self.data_shape,
+            dtype=tf.float32,
+            name='data_placeholder')
+        label_ph = tf.placeholder(
+            shape=[self.batch_size], dtype=tf.int64, name='label_placeholder')
         model = SequentialResNet(self.num_classes, self.num_channels)
         return session, model, data_ph, label_ph
 
@@ -56,8 +56,8 @@ class TestSequentialResNet(object):
             module_variables.append(module.get_all_variables())
             module_loss = model.get_hypothesis_loss(alpha, hypothesis,
                                                     label_ph)
-            module_train_ops.append(module.get_train_op(
-                optimizer, module_loss))
+            module_train_ops.append(
+                module.get_train_op(optimizer, module_loss))
 
         session.run(tf.initializers.global_variables())
         stable_model_values = session.run(model_variables)
