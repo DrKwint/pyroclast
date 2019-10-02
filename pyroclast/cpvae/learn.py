@@ -15,6 +15,7 @@ from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_bo
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
+GAMMA = 1000.
 
 
 def setup_celeba_data(batch_size):
@@ -136,7 +137,7 @@ def learn(data_dict,
                   latent_dimension=latent_dim,
                   class_num=num_classes,
                   box_num=max_tree_leaf_nodes)
-    optimizer = tf.keras.optimizers.RMSprop(1e-4)
+    optimizer = tf.keras.optimizers.RMSprop(1e-3)
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
@@ -161,7 +162,7 @@ def learn(data_dict,
                 x_hat, y_hat, z_posterior = model(x)
                 y_hat = tf.cast(y_hat, tf.float32)
                 distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-                classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                classification_loss = GAMMA * tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=labels, logits=y_hat)
                 loss = tf.reduce_mean(distortion + rate + classification_loss)
             # calculate gradients for current loss
@@ -186,7 +187,7 @@ def learn(data_dict,
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)
             distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            classification_loss = GAMMA * tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(distortion + rate + classification_loss)
 
