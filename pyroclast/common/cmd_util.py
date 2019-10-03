@@ -46,6 +46,7 @@ def common_arg_parser():
     parser.add_argument('--epochs', type=int, default=1)
     parser.add_argument('--log_interval', type=int, default=1)
     parser.add_argument('--data_dir', type=str, default='./data')
+    parser.add_argument('--output_dir', type=str, default='./')
     return parser
 
 

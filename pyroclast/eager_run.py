@@ -89,7 +89,10 @@ def train(args, extra_args):
 
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, args.dataset, alg_kwargs))
-    model = learn(data_dict, seed=seed, **alg_kwargs)
+    model = learn(data_dict,
+                  seed=seed,
+                  output_dir=args.output_dir,
+                  **alg_kwargs)
 
     return model
 

@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
 from pyroclast.cpvae.cpvae import CpVAE
-from pyroclast.cpvae.models import build_decoder, build_encoder
 from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
+from pyroclast.cpvae.tf_models import Encoder, Decoder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
@@ -86,7 +86,7 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
     return class_locs, class_scales
 
 
-def update_model_tree(ds, model, epoch, label_attr):
+def update_model_tree(ds, model, epoch, label_attr, output_dir):
     locs, scales, samples, labels = calculate_latent_values(
         ds, model, label_attr)
     labels = tf.cast(labels, tf.int32)
@@ -99,7 +99,8 @@ def update_model_tree(ds, model, epoch, label_attr):
         labels, locs, scales, 2, samples.shape[-1])
     sklearn.tree.export_graphviz(model.decision_tree,
                                  out_file=os.path.join(
-                                     '.', 'ddt_epoch{}.dot'.format(epoch)),
+                                     output_dir,
+                                     'ddt_epoch{}.dot'.format(epoch)),
                                  filled=True,
                                  rounded=True)
     return class_locs, class_scales
@@ -112,8 +113,8 @@ def learn(data_dict,
           batch_size=32,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
-          tb_dir='./tb/',
-          label_attr='No_Beard'):
+          label_attr='No_Beard',
+          output_dir='./'):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
 
@@ -122,7 +123,6 @@ def learn(data_dict,
     num_classes = 1
 
     # setup model
-    from pyroclast.cpvae.tf_models import Encoder, Decoder
     encoder = Encoder(64)
     decoder = Decoder()
     decision_tree = sklearn.tree.DecisionTreeClassifier(
@@ -141,14 +141,15 @@ def learn(data_dict,
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
-    writer = tf.contrib.summary.create_file_writer(tb_dir)
+    writer = tf.contrib.summary.create_file_writer(output_dir)
     writer.set_as_default()
 
     # training loop
     update_model_tree(data_dict['train'],
                       model,
                       epoch='init',
-                      label_attr=label_attr)
+                      label_attr=label_attr,
+                      output_dir=output_dir)
     for epoch in range(epochs):
         print("TRAIN")
         for i, batch in tqdm(enumerate(data_dict['train']),
@@ -202,7 +203,8 @@ def learn(data_dict,
                 tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
         print("UPDATE")
-        update_model_tree(data_dict['train'], model, epoch, label_attr)
+        update_model_tree(data_dict['train'], model, epoch, label_attr,
+                          output_dir)
 
         print("SAMPLE")
         sample = np.squeeze(model.sample())
