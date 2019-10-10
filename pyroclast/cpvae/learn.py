@@ -106,6 +106,16 @@ def update_model_tree(ds, model, epoch, label_attr, output_dir):
     return class_locs, class_scales
 
 
+def center_crop(x, crop_h, crop_w=None):
+    # crop the images to [crop_h,crop_w,3] then resize to [resize_h,resize_w,3]
+    if crop_w is None:
+        crop_w = crop_h  # the width and height after cropped
+    h, w = x.shape[1:3]
+    j = int(round((h - crop_h) / 2.))
+    i = int(round((w - crop_w) / 2.))
+    return x[:, j:j + crop_h, i:i + crop_w, :]
+
+
 def learn(data_dict,
           seed=None,
           latent_dim=64,
@@ -123,8 +133,8 @@ def learn(data_dict,
     num_classes = 1
 
     # setup model
-    encoder = Encoder(64)
-    decoder = Decoder()
+    encoder = Encoder('celeba_enc', 64)
+    decoder = Decoder('celeba_dec')
     decision_tree = sklearn.tree.DecisionTreeClassifier(
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,
@@ -156,7 +166,10 @@ def learn(data_dict,
                              total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
-            x = tf.cast(batch['image'], tf.float32) / 255.
+            x = (tf.cast(batch['image'], tf.float32) / 127.5) - 1
+            x = center_crop(x)
+            print(x.shape)
+            exit()
             labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
             with tf.GradientTape() as tape:
@@ -182,7 +195,7 @@ def learn(data_dict,
 
         print("TEST")
         for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = tf.cast(batch['image'], tf.float32) / 255.
+            x = (tf.cast(batch['image'], tf.float32) / 127.5) - 1
             labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
             x_hat, y_hat, z_posterior = model(x)
@@ -207,12 +220,8 @@ def learn(data_dict,
                           output_dir)
 
         print("SAMPLE")
-        sample = np.squeeze(model.sample())
-        print("sample stats:", np.min(sample[:, :, 0] * 255.),
-              np.mean(sample[:, :, 0] * 255.), np.max(sample[:, :, 0] * 255.))
-        print("sample stats:", np.min(sample[:, :, 1] * 255.),
-              np.mean(sample[:, :, 1] * 255.), np.max(sample[:, :, 1] * 255.))
-        print("sample stats:", np.min(sample[:, :, 2] * 255.),
-              np.mean(sample[:, :, 2] * 255.), np.max(sample[:, :, 2] * 255.))
-        im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
-        im.save("epoch_{}_sample.png".format(epoch))
+        for i in range(5):
+            sample = np.squeeze(model.sample())
+            im = Image.fromarray(((sample + 1) * 127.5).astype('uint8'),
+                                 mode='RGB')
+            im.save("epoch_{}_sample_{}.png".format(epoch, i))

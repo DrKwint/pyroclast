@@ -4,9 +4,9 @@ from pyroclast.common.models import get_network_builder
 
 class Encoder(tf.keras.Model):
 
-    def __init__(self, latent_dim, name='enc'):
+    def __init__(self, network_name, latent_dim, name='enc'):
         super(Encoder, self).__init__(name=name)
-        self.net = get_network_builder('conv_only')({})
+        self.net = get_network_builder(network_name)({})
         self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
         self.scale = tf.keras.layers.Dense(latent_dim,
                                            name='encoder_scale_diag_raw')
@@ -20,16 +20,12 @@ class Encoder(tf.keras.Model):
 
 class Decoder(tf.keras.Model):
 
-    def __init__(self, name='dec'):
+    def __init__(self, network_name, name='dec'):
         super(Decoder, self).__init__(name=name)
-        self.initial = tf.keras.layers.Dense(64)
-        self.net = get_network_builder('upscale_conv')()
-        self.final = tf.keras.layers.Conv2D(3, 1, padding="same")
+        self.net = get_network_builder(network_name)
+        self.final = tf.keras.layers.Conv2D(3, 3, padding="same")
 
     def call(self, z):
-        n, d = z.shape.as_list()
-        initial = self.initial(z)
-        initial = tf.reshape(initial, [n, 4, 4, 4])
-        latent = self.net(initial)
+        latent = self.net(z)
         output = self.final(latent)
-        return tf.nn.sigmoid(output)
+        return tf.nn.tanh(output)
