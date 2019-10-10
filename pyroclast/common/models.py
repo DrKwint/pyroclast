@@ -51,16 +51,10 @@ def upscale_conv(num_blocks=6, init_filter_num=256, **network_kwargs):
     return net
 
 
-@register("mlp")
-def mlp(output_sizes=[64] * 2, **network_kwargs):
-    net = snt.nets.MLP(output_sizes, **network_kwargs)
-    return lambda x: net(x)
-
-
 @register("conv_only")
 def conv_only(output_channels=[32, 64, 64, 128],
               kernel_shapes=(5, 3, 3, 3),
-              strides=(4, 2, 1, 1),
+              strides=(2, 2, 1, 1),
               **conv_kwargs):
     return tf.keras.Sequential([
         tf.keras.layers.Conv2D(oc,
@@ -70,6 +64,121 @@ def conv_only(output_channels=[32, 64, 64, 128],
                                padding='same')
         for (oc, ks, strides) in zip(output_channels, kernel_shapes, strides)
     ])
+
+
+@register("celeba_enc")
+def celeba_conv(is_train=True):
+    layers = []
+    ef_dim = 64
+    w_init = tf.random_normal_initializer(stddev=0.02)
+    gamma_init = tf.random_normal_initializer(1., 0.02)
+    # input.shape = (b_size,64,64,3)
+    layers.append(
+        tf.keras.layers.Conv2D(ef_dim, (5, 5), (2, 2),
+                               padding='SAME',
+                               kernel_initializer=w_init,
+                               name='h0/conv2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='h0/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # net_h0.outputs._shape = (b_size,32,32,64)
+    layers.append(
+        tf.keras.layers.Conv2D(ef_dim * 2, (5, 5), (2, 2),
+                               padding='SAME',
+                               kernel_initializer=w_init,
+                               name='h1/conv2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='h1/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # net_h1.outputs._shape = (b_size,16,16,128)
+    layers.append(
+        tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
+                               padding='SAME',
+                               kernel_initializer=w_init,
+                               name='h2/conv2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='h2/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # net_h2.outputs._shape = (b_size,8,8,256)
+    layers.append(
+        tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
+                               padding='SAME',
+                               kernel_initializer=w_init,
+                               name='h3/conv2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='h3/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # net_h2.outputs._shape = (b_size,4,4,512)
+
+    layers.append(tf.keras.layers.Flatten(name='h4/flatten'))
+    return tf.keras.Sequential(layers)
+
+
+@register('celeba_dec')
+def celeba_gen(is_train=True):
+    layers = []
+    gf_dim = 64
+    image_size = 128
+    s2, s4, s8, s16, s32 = int(image_size / 2), int(
+        image_size / 4), int(image_size / 8), int(image_size / 16), int(
+            image_size / 32)  # 64,32,16,8,4
+    w_init = tf.random_normal_initializer(stddev=0.02)
+    gamma_init = tf.random_normal_initializer(1., 0.02)
+
+    layers.append(
+        tf.keras.layers.Dense(units=gf_dim * 4 * s16 * s16,
+                              kernel_initializer=w_init,
+                              act=tf.identity,
+                              name='o0/lin'))
+    layers.append(
+        tf.keras.layers.Reshape(target_shape=[-1, s16, s16, gf_dim * 4],
+                                name='o0/reshape'))
+    # 16, 16 = s16
+
+    layers.append(
+        tf.keras.layers.Conv2DTranspose(filters=gf_dim * 4,
+                                        kernel_size=(5, 5),
+                                        strides=(2, 2),
+                                        padding='SAME',
+                                        kernel_initializer=w_init,
+                                        name='o1/decon2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='o1/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # 32, 32 = s8
+
+    layers.append(
+        tf.keras.layers.Conv2DTranspose(filters=gf_dim * 2,
+                                        kernel_size=(5, 5),
+                                        strides=(2, 2),
+                                        padding='SAME',
+                                        kernel_initializer=w_init,
+                                        name='o1/decon2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='o1/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # 64, 64 = s4
+
+    layers.append(
+        tf.keras.layers.Conv2DTranspose(filters=gf_dim,
+                                        kernel_size=(5, 5),
+                                        strides=(2, 2),
+                                        padding='SAME',
+                                        kernel_initializer=w_init,
+                                        name='o1/decon2d'))
+    layers.append(
+        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+                                           name='o1/batch_norm'))
+    layers.append(tf.keras.layers.ReLU())
+    # 128, 128 = s2
+
+    return tf.keras.Sequential(layers)
 
 
 def get_network_builder(name):
