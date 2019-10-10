@@ -108,13 +108,14 @@ def update_model_tree(ds, model, epoch, label_attr, output_dir):
 
 def learn(data_dict,
           seed=None,
-          latent_dim=64,
+          latent_dim=128,
           epochs=1000,
-          batch_size=32,
+          batch_size=64,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
           label_attr='No_Beard',
-          output_dir='./'):
+          output_dir='./',
+          load_dir=None):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
 
@@ -143,6 +144,12 @@ def learn(data_dict,
     global_step = tf.compat.v1.train.get_or_create_global_step()
     writer = tf.contrib.summary.create_file_writer(output_dir)
     writer.set_as_default()
+    
+    # reload if data exists
+    if load_dir:
+        new_root = tf.train.Checkpoint(optimizer=optimizer, model=model)
+        status = new_root.restore(tf.train.latest_checkpoint(str(load_dir)))
+        print("load: ", status.assert_existing_objects_matched())
 
     # training loop
     update_model_tree(data_dict['train'],
@@ -202,6 +209,14 @@ def learn(data_dict,
                                           family='test')
                 tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
+        print("SAVE CHECKPOINT")
+        checkpoint_prefix = os.path.join(output_dir, "ckpt")
+        root = tf.train.Checkpoint(optimizer=optimizer,
+                                   model=model,
+                                   step=global_step)
+
+        root.save(checkpoint_prefix)
+
         print("UPDATE")
         update_model_tree(data_dict['train'], model, epoch, label_attr,
                           output_dir)
@@ -215,4 +230,4 @@ def learn(data_dict,
         print("sample stats:", np.min(sample[:, :, 2] * 255.),
               np.mean(sample[:, :, 2] * 255.), np.max(sample[:, :, 2] * 255.))
         im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
-        im.save("epoch_{}_sample.png".format(epoch))
+        im.save(os.path.join(output_dir, "epoch_{}_sample.png".format(epoch)))
