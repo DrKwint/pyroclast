@@ -7,12 +7,14 @@ import tensorflow_datasets as tfds
 
 from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
 
-tf.enable_eager_execution()
+from tensorflow.python.client import device_lib
+print(device_lib.list_local_devices())
+tf.compat.v1.enable_eager_execution()
 
 # getting "tensorflow/core/framework/op_kernel.cc:1502] OP_REQUIRES failed at
 # gather_nd_op.cc:47 : Invalid argument: indices[31] = [31, 6] does not index
 # into param shape [1,10]" in boost_resnet
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def parse_cmdline_kwargs(args):

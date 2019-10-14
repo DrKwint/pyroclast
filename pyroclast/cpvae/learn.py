@@ -15,10 +15,20 @@ from pyroclast.cpvae.tf_models import Encoder, Decoder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
-GAMMA = 1000.
 
+def center_crop(x, crop_size):
+    # crop the images to [crop_h,crop_w,3] then resize to [resize_h,resize_w,3]
+    h, w = x.shape.as_list()[:2]
+    j = int(round((h - crop_size) / 2.))
+    i = int(round((w - crop_size) / 2.))
+    return x[j:j + crop_size, i:i + crop_size]
 
-def setup_celeba_data(batch_size):
+def celeba_dataset_preprocess(d, crop_size):
+    x = center_crop(d['image'], crop_size)
+    d['image'] = (tf.cast(x, tf.float32) / 127.5) - 1
+    return d
+
+def setup_celeba_data(batch_size, image_size):
     # load data
     data_dir = './data/' if CRANE else None
     data_dict, info = tfds.load('celeb_a', with_info=True, data_dir=data_dir)
@@ -27,9 +37,9 @@ def setup_celeba_data(batch_size):
     data_dict['shape'] = info.features['image'].shape
 
     data_dict['all_train'] = data_dict['train']
-    data_dict['train'] = data_dict['train'].shuffle(1024).batch(batch_size)
+    data_dict['train'] = data_dict['train'].map(lambda x: celeba_dataset_preprocess(x, image_size)).shuffle(1024).batch(batch_size)
     data_dict['all_test'] = data_dict['test']
-    data_dict['test'] = data_dict['test'].batch(batch_size)
+    data_dict['test'] = data_dict['test'].map(lambda x: celeba_dataset_preprocess(x, image_size)).batch(batch_size)
     return data_dict
 
 
@@ -106,36 +116,31 @@ def update_model_tree(ds, model, epoch, label_attr, output_dir):
     return class_locs, class_scales
 
 
-def center_crop(x, crop_h, crop_w=None):
-    # crop the images to [crop_h,crop_w,3] then resize to [resize_h,resize_w,3]
-    if crop_w is None:
-        crop_w = crop_h  # the width and height after cropped
-    h, w = x.shape[1:3]
-    j = int(round((h - crop_h) / 2.))
-    i = int(round((w - crop_w) / 2.))
-    return x[:, j:j + crop_h, i:i + crop_w, :]
-
-
 def learn(data_dict,
           seed=None,
           latent_dim=128,
           epochs=1000,
           batch_size=64,
+          image_size=128,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
           label_attr='No_Beard',
+          optimizer='adam', # adam or rmsprop
+          learning_rate=1e-3,
+          classification_coeff=1.,
+          distortion_fn='disc_logistic' # disc_logistic or l2
           output_dir='./',
           load_dir=None):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
 
     # CELEB_A
-    data_dict = setup_celeba_data(batch_size)
+    data_dict = setup_celeba_data(batch_size, image_size)
     num_classes = 1
 
     # setup model
-    encoder = Encoder('celeba_enc', 64)
-    decoder = Decoder('celeba_dec')
+    encoder = Encoder('celeba_enc', latent_dim)
+    decoder = Decoder('celeba_dec', image_size)
     decision_tree = sklearn.tree.DecisionTreeClassifier(
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,
@@ -143,12 +148,16 @@ def learn(data_dict,
     model = CpVAE(encoder,
                   decoder,
                   decision_tree,
-                  img_height=218,
-                  img_width=178,
                   latent_dimension=latent_dim,
                   class_num=num_classes,
                   box_num=max_tree_leaf_nodes)
-    optimizer = tf.keras.optimizers.RMSprop(1e-3)
+    if optimizer == 'adam':
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, beta_1=0.5, epsilon=0.01)
+    elif optimizer == 'rmsprop':
+        optimizer = tf.keras.optimizers.RMSprop(learning_rate)
+    else:
+        print("OPTIMIMIZER NOT PROPERLY SPECIFIED")
+        exit()
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
@@ -173,17 +182,14 @@ def learn(data_dict,
                              total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
-            x = (tf.cast(batch['image'], tf.float32) / 127.5) - 1
-            x = center_crop(x)
-            print(x.shape)
-            exit()
+            x = batch['image']
             labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
                 y_hat = tf.cast(y_hat, tf.float32)
-                distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-                classification_loss = GAMMA * tf.nn.sparse_softmax_cross_entropy_with_logits(
+                distortion, rate = model.vae_loss(x, x_hat, z_posterior, distortion_fn=distortion_fn)
+                classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=labels, logits=y_hat)
                 loss = tf.reduce_mean(distortion + rate + classification_loss)
             # calculate gradients for current loss
@@ -202,13 +208,13 @@ def learn(data_dict,
 
         print("TEST")
         for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = (tf.cast(batch['image'], tf.float32) / 127.5) - 1
+            x = batch['image']
             labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)
-            distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-            classification_loss = GAMMA * tf.nn.sparse_softmax_cross_entropy_with_logits(
+            distortion, rate = model.vae_loss(x, x_hat, z_posterior, distortion_fn=distortion_fn)
+            classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(distortion + rate + classification_loss)
 
@@ -239,4 +245,4 @@ def learn(data_dict,
             sample = np.squeeze(model.sample())
             im = Image.fromarray(((sample + 1) * 127.5).astype('uint8'),
                                  mode='RGB')
-            im.save("epoch_{}_sample_{}.png".format(epoch, i))
+            im.save(os.path.join(output_dir, "epoch_{}_sample_{}.png".format(epoch, i)))

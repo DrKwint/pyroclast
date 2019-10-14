@@ -14,8 +14,6 @@ class CpVAE(tf.Module):
                  encoder,
                  decoder,
                  decision_tree,
-                 img_height,
-                 img_width,
                  latent_dimension,
                  class_num,
                  box_num,
@@ -24,8 +22,6 @@ class CpVAE(tf.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.decision_tree = decision_tree
-        self.img_height = img_height
-        self.img_width = img_width
         self.z_prior = None
 
         # tree_stuff
@@ -53,18 +49,22 @@ class CpVAE(tf.Module):
         return loc, scale_diag
 
     def _decode(self, z):
-        return tf.image.resize(self.decoder(z),
-                               (self.img_height, self.img_width))
+        return self.decoder(z)
 
     def sample(self, sample_shape=(1), z=None):
         if z is None:
             z = self.z_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, z_posterior):
-        output_distribution = tfp.distributions.Independent(
-            DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
-        distortion = -output_distribution.log_prob(x)
-        #distortion = tf.reduce_sum(tf.square(x - x_hat), axis=[1, 2, 3])
-        rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
+    def vae_loss(self, x, x_hat, z_posterior, distortion_fn):
+        if distortion_fn == 'disc_logistic':
+            output_distribution = tfp.distributions.Independent(
+                DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
+            distortion = -output_distribution.log_prob(x)
+        elif distortion_fn == 'l2':
+            distortion = 500. * tf.reduce_mean(tf.reduce_mean(tf.square(x - x_hat), axis=[1, 2, 3]))
+        else:
+            print('DISTORTION_FN NOT PROPERLY SPECIFIED')
+            exit()
+        rate = tf.reduce_mean(tfp.distributions.kl_divergence(z_posterior, self.z_prior))
         return distortion, rate

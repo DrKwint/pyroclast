@@ -83,6 +83,7 @@ def celeba_conv(is_train=True):
                                            name='h0/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h0.outputs._shape = (b_size,32,32,64)
+
     layers.append(
         tf.keras.layers.Conv2D(ef_dim * 2, (5, 5), (2, 2),
                                padding='SAME',
@@ -93,6 +94,7 @@ def celeba_conv(is_train=True):
                                            name='h1/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h1.outputs._shape = (b_size,16,16,128)
+
     layers.append(
         tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
                                padding='SAME',
@@ -103,6 +105,7 @@ def celeba_conv(is_train=True):
                                            name='h2/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h2.outputs._shape = (b_size,8,8,256)
+
     layers.append(
         tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
                                padding='SAME',
@@ -122,20 +125,15 @@ def celeba_conv(is_train=True):
 def celeba_gen(is_train=True):
     layers = []
     gf_dim = 64
-    image_size = 128
-    s2, s4, s8, s16, s32 = int(image_size / 2), int(
-        image_size / 4), int(image_size / 8), int(image_size / 16), int(
-            image_size / 32)  # 64,32,16,8,4
     w_init = tf.random_normal_initializer(stddev=0.02)
     gamma_init = tf.random_normal_initializer(1., 0.02)
 
     layers.append(
-        tf.keras.layers.Dense(units=gf_dim * 4 * s16 * s16,
+        tf.keras.layers.Dense(units=gf_dim * 4 * 16 * 16,
                               kernel_initializer=w_init,
-                              act=tf.identity,
                               name='o0/lin'))
     layers.append(
-        tf.keras.layers.Reshape(target_shape=[-1, s16, s16, gf_dim * 4],
+        tf.keras.layers.Reshape(target_shape=[16, 16, gf_dim * 4],
                                 name='o0/reshape'))
     # 16, 16 = s16
 
@@ -158,10 +156,10 @@ def celeba_gen(is_train=True):
                                         strides=(2, 2),
                                         padding='SAME',
                                         kernel_initializer=w_init,
-                                        name='o1/decon2d'))
+                                        name='o2/decon2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o1/batch_norm'))
+                                           name='o2/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # 64, 64 = s4
 
@@ -171,10 +169,10 @@ def celeba_gen(is_train=True):
                                         strides=(2, 2),
                                         padding='SAME',
                                         kernel_initializer=w_init,
-                                        name='o1/decon2d'))
+                                        name='o3/decon2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o1/batch_norm'))
+                                           name='o3/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # 128, 128 = s2
 

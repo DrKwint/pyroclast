@@ -94,7 +94,7 @@ class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
         self._graph_parents = []
         self._loc = loc
         self._batch_dims = batch_dims
-        self._log_scale = tf.get_variable(
+        self._log_scale = tf.compat.v1.get_variable(
             "log_scale",
             initializer=tf.zeros(loc.get_shape().as_list()[-batch_dims:]),
             dtype=tf.float32)
@@ -110,6 +110,6 @@ class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
         scale = tf.exp(self._log_scale)
         mean = self._loc
         sample = (tf.floor(sample / binsize) * binsize - mean) / scale
-        logp = tf.log(
+        logp = tf.math.log(
             tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
         return logp  # tf.reduce_sum(logp, [2, 3, 4])
