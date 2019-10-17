@@ -1,4 +1,5 @@
 import os
+import json
 
 import numpy as np
 import sklearn.tree
@@ -128,11 +129,17 @@ def learn(data_dict,
           optimizer='adam', # adam or rmsprop
           learning_rate=1e-3,
           classification_coeff=1.,
-          distortion_fn='disc_logistic' # disc_logistic or l2
+          distortion_fn='disc_logistic', # disc_logistic or l2
           output_dir='./',
           load_dir=None):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
+
+    # save the parameters
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    with open(os.path.join(output_dir, 'parameters.log'), 'w') as p_file:
+        json.dump({k: str(v) for (k, v) in locals(), p_file)
 
     # CELEB_A
     data_dict = setup_celeba_data(batch_size, image_size)

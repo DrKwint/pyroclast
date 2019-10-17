@@ -62,9 +62,9 @@ class CpVAE(tf.Module):
                 DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
             distortion = -output_distribution.log_prob(x)
         elif distortion_fn == 'l2':
-            distortion = 500. * tf.reduce_mean(tf.reduce_mean(tf.square(x - x_hat), axis=[1, 2, 3]))
+            distortion = 500. * tf.reduce_mean(tf.square(x - x_hat), axis=[1, 2, 3])
         else:
             print('DISTORTION_FN NOT PROPERLY SPECIFIED')
             exit()
-        rate = tf.reduce_mean(tfp.distributions.kl_divergence(z_posterior, self.z_prior))
+        rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
         return distortion, rate
