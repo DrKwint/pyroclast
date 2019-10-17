@@ -17,6 +17,7 @@ from pyroclast.cpvae.tf_models import Encoder, Decoder
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
 
+
 def center_crop(x, crop_size):
     # crop the images to [crop_h,crop_w,3] then resize to [resize_h,resize_w,3]
     h, w = x.shape.as_list()[:2]
@@ -24,10 +25,12 @@ def center_crop(x, crop_size):
     i = int(round((w - crop_size) / 2.))
     return x[j:j + crop_size, i:i + crop_size]
 
+
 def celeba_dataset_preprocess(d, crop_size):
     x = center_crop(d['image'], crop_size)
     d['image'] = (tf.cast(x, tf.float32) / 127.5) - 1
     return d
+
 
 def setup_celeba_data(batch_size, image_size):
     # load data
@@ -38,9 +41,12 @@ def setup_celeba_data(batch_size, image_size):
     data_dict['shape'] = info.features['image'].shape
 
     data_dict['all_train'] = data_dict['train']
-    data_dict['train'] = data_dict['train'].map(lambda x: celeba_dataset_preprocess(x, image_size)).shuffle(1024).batch(batch_size)
+    data_dict['train'] = data_dict['train'].map(
+        lambda x: celeba_dataset_preprocess(x, image_size)).shuffle(1024).batch(
+            batch_size)
     data_dict['all_test'] = data_dict['test']
-    data_dict['test'] = data_dict['test'].map(lambda x: celeba_dataset_preprocess(x, image_size)).batch(batch_size)
+    data_dict['test'] = data_dict['test'].map(
+        lambda x: celeba_dataset_preprocess(x, image_size)).batch(batch_size)
     return data_dict
 
 
@@ -117,22 +123,23 @@ def update_model_tree(ds, model, epoch, label_attr, output_dir):
     return class_locs, class_scales
 
 
-def learn(data_dict,
-          seed=None,
-          latent_dim=128,
-          epochs=1000,
-          batch_size=64,
-          image_size=128,
-          max_tree_depth=5,
-          max_tree_leaf_nodes=16,
-          tree_update_period=10,
-          label_attr='No_Beard',
-          optimizer='adam', # adam or rmsprop
-          learning_rate=1e-3,
-          classification_coeff=1.,
-          distortion_fn='disc_logistic', # disc_logistic or l2
-          output_dir='./',
-          load_dir=None):
+def learn(
+        data_dict,
+        seed=None,
+        latent_dim=128,
+        epochs=1000,
+        batch_size=64,
+        image_size=128,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=10,
+        label_attr='No_Beard',
+        optimizer='adam',  # adam or rmsprop
+        learning_rate=1e-3,
+        classification_coeff=1.,
+        distortion_fn='disc_logistic',  # disc_logistic or l2
+        output_dir='./',
+        load_dir=None):
     del seed  # currently unused
     num_classes = data_dict['num_classes']
 
@@ -140,7 +147,7 @@ def learn(data_dict,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     with open(os.path.join(output_dir, 'parameters.log'), 'w') as p_file:
-        json.dump({k: str(v) for (k, v) in locals(), p_file)
+        json.dump({k: str(v) for (k, v) in locals().items()}, p_file)
 
     # CELEB_A
     data_dict = setup_celeba_data(batch_size, image_size)
@@ -160,7 +167,9 @@ def learn(data_dict,
                   class_num=num_classes,
                   box_num=max_tree_leaf_nodes)
     if optimizer == 'adam':
-        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, beta_1=0.5, epsilon=0.01)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
+                                             beta_1=0.5,
+                                             epsilon=0.01)
     elif optimizer == 'rmsprop':
         optimizer = tf.keras.optimizers.RMSprop(learning_rate)
     else:
@@ -196,7 +205,10 @@ def learn(data_dict,
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
                 y_hat = tf.cast(y_hat, tf.float32)
-                distortion, rate = model.vae_loss(x, x_hat, z_posterior, distortion_fn=distortion_fn)
+                distortion, rate = model.vae_loss(x,
+                                                  x_hat,
+                                                  z_posterior,
+                                                  distortion_fn=distortion_fn)
                 classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=labels, logits=y_hat)
                 loss = tf.reduce_mean(distortion + rate + classification_loss)
@@ -221,7 +233,10 @@ def learn(data_dict,
 
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)
-            distortion, rate = model.vae_loss(x, x_hat, z_posterior, distortion_fn=distortion_fn)
+            distortion, rate = model.vae_loss(x,
+                                              x_hat,
+                                              z_posterior,
+                                              distortion_fn=distortion_fn)
             classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(distortion + rate + classification_loss)
@@ -247,11 +262,13 @@ def learn(data_dict,
         print("UPDATE")
         if epoch % tree_update_period == 0:
             update_model_tree(data_dict['train'], model, epoch, label_attr,
-                            output_dir)
+                              output_dir)
 
         print("SAMPLE")
         for i in range(5):
             sample = np.squeeze(model.sample())
             im = Image.fromarray(((sample + 1) * 127.5).astype('uint8'),
                                  mode='RGB')
-            im.save(os.path.join(output_dir, "epoch_{}_sample_{}.png".format(epoch, i)))
+            im.save(
+                os.path.join(output_dir,
+                             "epoch_{}_sample_{}.png".format(epoch, i)))
