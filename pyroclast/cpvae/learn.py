@@ -125,6 +125,7 @@ def learn(data_dict,
           image_size=128,
           max_tree_depth=5,
           max_tree_leaf_nodes=16,
+          tree_update_period=10,
           label_attr='No_Beard',
           optimizer='adam', # adam or rmsprop
           learning_rate=1e-3,
@@ -170,7 +171,7 @@ def learn(data_dict,
     global_step = tf.compat.v1.train.get_or_create_global_step()
     writer = tf.contrib.summary.create_file_writer(output_dir)
     writer.set_as_default()
-    
+
     # reload if data exists
     if load_dir:
         new_root = tf.train.Checkpoint(optimizer=optimizer, model=model)
@@ -244,8 +245,9 @@ def learn(data_dict,
         root.save(checkpoint_prefix)
 
         print("UPDATE")
-        update_model_tree(data_dict['train'], model, epoch, label_attr,
-                          output_dir)
+        if epoch % tree_update_period == 0:
+            update_model_tree(data_dict['train'], model, epoch, label_attr,
+                            output_dir)
 
         print("SAMPLE")
         for i in range(5):
