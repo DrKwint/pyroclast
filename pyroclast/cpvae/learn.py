@@ -181,13 +181,19 @@ def learn(
     writer = tf.contrib.summary.create_file_writer(output_dir)
     writer.set_as_default()
 
+    #checkpointing
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+                                     model=model,
+                                     global_step=global_step)
+    ckpt_manager = tf.contrib.checkpoint.CheckpointManager(
+        checkpoint,
+        directory=os.path.join(output_dir, 'model'),
+        max_to_keep=3,
+        keep_checkpoint_every_n_hours=0.5)
     # reload if data exists
     if load_dir:
-        new_root = tf.train.Checkpoint(optimizer=optimizer,
-                                       model=model,
-                                       global_step=global_step)
-        status = new_root.restore(tf.train.latest_checkpoint(str(load_dir)))
-        print("load: ", status.assert_existing_objects_matched())
+        status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
+        # print("load: ", status.assert_existing_objects_matched())
 
     # training loop
     update_model_tree(data_dict['train'],
@@ -195,7 +201,7 @@ def learn(
                       epoch='init',
                       label_attr=label_attr,
                       output_dir=output_dir)
-    for epoch in range(epochs):
+    for epoch in range():
         print("TRAIN")
         for i, batch in tqdm(enumerate(data_dict['train']),
                              total=data_dict['train_bpe']):
@@ -264,12 +270,7 @@ def learn(
                 tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
         print("SAVE CHECKPOINT")
-        checkpoint_prefix = os.path.join(output_dir, "ckpt")
-        root = tf.train.Checkpoint(optimizer=optimizer,
-                                   model=model,
-                                   step=global_step)
-
-        root.save(checkpoint_prefix)
+        ckpt_manager.save(checkpoint_number=epoch)
 
         print("UPDATE")
         if epoch % tree_update_period == 0:
