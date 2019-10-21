@@ -58,7 +58,7 @@ def concat_dicts(list_of_dicts):
     return concat_dict
 
 
-def calculate_latent_values(ds, model, label_attr):
+def calculate_celeba_latent_values(ds, model, label_attr):
     locs = []
     scales = []
     samples = []
@@ -104,7 +104,7 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
 
 
 def update_model_tree(ds, model, epoch, label_attr, output_dir):
-    locs, scales, samples, labels = calculate_latent_values(
+    locs, scales, samples, labels = calculate_celeba_latent_values(
         ds, model, label_attr)
     labels = tf.cast(labels, tf.int32)
     lower_, upper_, values_ = fit_and_calculate_dt_boxes(
@@ -183,7 +183,9 @@ def learn(
 
     # reload if data exists
     if load_dir:
-        new_root = tf.train.Checkpoint(optimizer=optimizer, model=model)
+        new_root = tf.train.Checkpoint(optimizer=optimizer,
+                                       model=model,
+                                       global_step=global_step)
         status = new_root.restore(tf.train.latest_checkpoint(str(load_dir)))
         print("load: ", status.assert_existing_objects_matched())
 
@@ -204,6 +206,8 @@ def learn(
 
             with tf.GradientTape() as tape:
                 x_hat, y_hat, z_posterior = model(x)
+                classification_rate = tf.reduce_mean(
+                    tf.cast(tf.equal(y_hat, labels), tf.float32))
                 y_hat = tf.cast(y_hat, tf.float32)
                 distortion, rate = model.vae_loss(x,
                                                   x_hat,
@@ -224,6 +228,9 @@ def learn(
                 tf.contrib.summary.scalar("classification_loss",
                                           classification_loss,
                                           family='train')
+                tf.contrib.summary.scalar("classification_rate",
+                                          classification_rate,
+                                          family='train')
                 tf.contrib.summary.scalar("sum_loss", loss, family='train')
 
         print("TEST")
@@ -233,6 +240,8 @@ def learn(
 
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(y_hat, labels), tf.float32))
             distortion, rate = model.vae_loss(x,
                                               x_hat,
                                               z_posterior,
@@ -249,6 +258,9 @@ def learn(
                 tf.contrib.summary.scalar("classification_loss",
                                           classification_loss,
                                           family='test')
+                tf.contrib.summary.scalar("classification_rate",
+                                          classification_rate,
+                                          family='train')
                 tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
         print("SAVE CHECKPOINT")

@@ -12,9 +12,7 @@ class Encoder(tf.keras.Model):
                                            name='encoder_scale_diag_raw')
 
     def call(self, x):
-        n, _, _, _ = x.shape
-        embed = self.net(x)
-        embed = tf.reshape(embed, [n, -1])
+        embed = tf.reshape(self.net(x), [x.shape[0], -1])
         return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-6
 
 
