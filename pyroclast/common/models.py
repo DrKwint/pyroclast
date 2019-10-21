@@ -31,10 +31,8 @@ class Upscale(tf.keras.layers.Layer):
 @register("upscale_conv")
 def upscale_conv(num_blocks=6, init_filter_num=256, **network_kwargs):
     blocklist = [
-        tf.keras.layers.Conv2D(init_filter_num,
-                               3,
-                               padding='same',
-                               activation=tf.nn.leaky_relu),
+        tf.keras.layers.Conv2D(
+            init_filter_num, 3, padding='same', activation=tf.nn.leaky_relu),
     ]
     upscale_block = lambda num_filters: [
         tf.keras.layers.UpSampling2D(),
@@ -57,11 +55,8 @@ def conv_only(output_channels=[32, 64, 64, 128],
               strides=(2, 2, 1, 1),
               **conv_kwargs):
     return tf.keras.Sequential([
-        tf.keras.layers.Conv2D(oc,
-                               ks,
-                               strides,
-                               activation=tf.nn.leaky_relu,
-                               padding='same')
+        tf.keras.layers.Conv2D(
+            oc, ks, strides, activation=tf.nn.leaky_relu, padding='same')
         for (oc, ks, strides) in zip(output_channels, kernel_shapes, strides)
     ])
 
@@ -74,46 +69,50 @@ def celeba_conv(is_train=True):
     gamma_init = tf.random_normal_initializer(1., 0.02)
     # input.shape = (b_size,64,64,3)
     layers.append(
-        tf.keras.layers.Conv2D(ef_dim, (5, 5), (2, 2),
-                               padding='SAME',
-                               kernel_initializer=w_init,
-                               name='h0/conv2d'))
+        tf.keras.layers.Conv2D(
+            ef_dim, (5, 5), (2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='h0/conv2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h0/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='h0/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h0.outputs._shape = (b_size,32,32,64)
 
     layers.append(
-        tf.keras.layers.Conv2D(ef_dim * 2, (5, 5), (2, 2),
-                               padding='SAME',
-                               kernel_initializer=w_init,
-                               name='h1/conv2d'))
+        tf.keras.layers.Conv2D(
+            ef_dim * 2, (5, 5), (2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='h1/conv2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h1/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='h1/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h1.outputs._shape = (b_size,16,16,128)
 
     layers.append(
-        tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
-                               padding='SAME',
-                               kernel_initializer=w_init,
-                               name='h2/conv2d'))
+        tf.keras.layers.Conv2D(
+            ef_dim * 4, (5, 5), (2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='h2/conv2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h2/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='h2/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h2.outputs._shape = (b_size,8,8,256)
 
     layers.append(
-        tf.keras.layers.Conv2D(ef_dim * 4, (5, 5), (2, 2),
-                               padding='SAME',
-                               kernel_initializer=w_init,
-                               name='h3/conv2d'))
+        tf.keras.layers.Conv2D(
+            ef_dim * 4, (5, 5), (2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='h3/conv2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h3/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='h3/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # net_h2.outputs._shape = (b_size,4,4,512)
 
@@ -129,50 +128,54 @@ def celeba_gen(is_train=True):
     gamma_init = tf.random_normal_initializer(1., 0.02)
 
     layers.append(
-        tf.keras.layers.Dense(units=gf_dim * 4 * 16 * 16,
-                              kernel_initializer=w_init,
-                              name='o0/lin'))
+        tf.keras.layers.Dense(
+            units=gf_dim * 4 * 16 * 16,
+            kernel_initializer=w_init,
+            name='o0/lin'))
     layers.append(
-        tf.keras.layers.Reshape(target_shape=[16, 16, gf_dim * 4],
-                                name='o0/reshape'))
+        tf.keras.layers.Reshape(
+            target_shape=[16, 16, gf_dim * 4], name='o0/reshape'))
     # 16, 16 = s16
 
     layers.append(
-        tf.keras.layers.Conv2DTranspose(filters=gf_dim * 4,
-                                        kernel_size=(5, 5),
-                                        strides=(2, 2),
-                                        padding='SAME',
-                                        kernel_initializer=w_init,
-                                        name='o1/decon2d'))
+        tf.keras.layers.Conv2DTranspose(
+            filters=gf_dim * 4,
+            kernel_size=(5, 5),
+            strides=(2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='o1/decon2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o1/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='o1/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # 32, 32 = s8
 
     layers.append(
-        tf.keras.layers.Conv2DTranspose(filters=gf_dim * 2,
-                                        kernel_size=(5, 5),
-                                        strides=(2, 2),
-                                        padding='SAME',
-                                        kernel_initializer=w_init,
-                                        name='o2/decon2d'))
+        tf.keras.layers.Conv2DTranspose(
+            filters=gf_dim * 2,
+            kernel_size=(5, 5),
+            strides=(2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='o2/decon2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o2/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='o2/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # 64, 64 = s4
 
     layers.append(
-        tf.keras.layers.Conv2DTranspose(filters=gf_dim,
-                                        kernel_size=(5, 5),
-                                        strides=(2, 2),
-                                        padding='SAME',
-                                        kernel_initializer=w_init,
-                                        name='o3/decon2d'))
+        tf.keras.layers.Conv2DTranspose(
+            filters=gf_dim,
+            kernel_size=(5, 5),
+            strides=(2, 2),
+            padding='SAME',
+            kernel_initializer=w_init,
+            name='o3/decon2d'))
     layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o3/batch_norm'))
+        tf.keras.layers.BatchNormalization(
+            gamma_initializer=gamma_init, name='o3/batch_norm'))
     layers.append(tf.keras.layers.ReLU())
     # 128, 128 = s2
 
