@@ -78,10 +78,10 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
     # shape [batch_size, box_num, latent_dimension]
     mu = tf.tile(tf.expand_dims(mu, 1), [1, tf.shape(lower_bounds)[0], 1])
     sigma = tf.tile(tf.expand_dims(sigma, 1), [1, tf.shape(lower_bounds)[0], 1])
-    lower_bounds = tf.tile(
-        tf.expand_dims(lower_bounds, 0), [tf.shape(mu)[0], 1, 1])
-    upper_bounds = tf.tile(
-        tf.expand_dims(upper_bounds, 0), [tf.shape(mu)[0], 1, 1])
+    lower_bounds = tf.tile(tf.expand_dims(lower_bounds, 0),
+                           [tf.shape(mu)[0], 1, 1])
+    upper_bounds = tf.tile(tf.expand_dims(upper_bounds, 0),
+                           [tf.shape(mu)[0], 1, 1])
 
     # integral over CDF between bounds per dimension, rectifying for numerical error
     # in the tails of the CDF

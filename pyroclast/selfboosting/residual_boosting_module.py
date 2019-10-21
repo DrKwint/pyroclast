@@ -45,8 +45,8 @@ class ResidualBoostingModule(snt.AbstractModule):
         """
         residual_repr = self.residual_module(data)
         hypothesis = self.hypothesis_module(snt.BatchFlatten()(residual_repr))
-        boosted_classification = (self.alpha * hypothesis) - (
-            prev_alpha - prev_hypothesis)
+        boosted_classification = (self.alpha * hypothesis) - (prev_alpha -
+                                                              prev_hypothesis)
         return residual_repr, hypothesis, boosted_classification
 
     def initialize_variables(self, session, optimizer):
