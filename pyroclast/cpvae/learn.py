@@ -13,6 +13,7 @@ from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
 from pyroclast.cpvae.cpvae import CpVAE
 from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
 from pyroclast.cpvae.tf_models import Encoder, Decoder
+from pyroclast.common.util import dummy_context_mgr
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 CRANE = os.environ['HOME'] == "/home/scott/equint"
@@ -195,59 +196,14 @@ def learn(
         status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
         # print("load: ", status.assert_existing_objects_matched())
 
-    # training loop
-    update_model_tree(data_dict['train'],
-                      model,
-                      epoch='init',
-                      label_attr=label_attr,
-                      output_dir=output_dir)
-    for epoch in range(epochs):
-        print("TRAIN")
-        for i, batch in tqdm(enumerate(data_dict['train']),
-                             total=data_dict['train_bpe']):
-            global_step.assign_add(1)
-            # move data from [0,255] to [-1,1]
-            x = batch['image']
-            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
+    def run_minibatch(epoch, batch, is_train=True):
+        # move data from [0,255] to [-1,1]
+        x = batch['image']
+        labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
-            with tf.GradientTape() as tape:
-                x_hat, y_hat, z_posterior = model(x)
-                classification_rate = tf.reduce_mean(
-                    tf.cast(tf.equal(y_hat, labels), tf.float32))
-                y_hat = tf.cast(y_hat, tf.float32)
-                distortion, rate = model.vae_loss(x,
-                                                  x_hat,
-                                                  z_posterior,
-                                                  distortion_fn=distortion_fn)
-                classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    labels=labels, logits=y_hat)
-                loss = tf.reduce_mean(distortion + rate + classification_loss)
-            # calculate gradients for current loss
-            gradients = tape.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-            with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='train')
-                tf.contrib.summary.scalar("rate", rate, family='train')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='train')
-                tf.contrib.summary.scalar("classification_rate",
-                                          classification_rate,
-                                          family='train')
-                tf.contrib.summary.scalar("sum_loss", loss, family='train')
-
-        print("TEST")
-        for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = batch['image']
-            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
-
+        with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             x_hat, y_hat, z_posterior = model(x)
-            y_hat = tf.cast(y_hat, tf.float32)
-            classification_rate = tf.reduce_mean(
-                tf.cast(tf.equal(y_hat, labels), tf.float32))
+            y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x,
                                               x_hat,
                                               z_posterior,
@@ -256,18 +212,41 @@ def learn(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(distortion + rate + classification_loss)
 
-            with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='test')
-                tf.contrib.summary.scalar("rate", rate, family='test')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='test')
-                tf.contrib.summary.scalar("classification_rate",
-                                          classification_rate,
-                                          family='train')
-                tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
+        # calculate gradients for current loss
+        if is_train:
+            global_step.assign_add(1)
+            gradients = tape.gradient(loss, model.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        with tf.contrib.summary.always_record_summaries():
+            prediction = tf.math.argmax(y_hat, output_type=tf.int32)
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(prediction, labels), tf.float32))
+            tf.contrib.summary.scalar("distortion", distortion, family='train')
+            tf.contrib.summary.scalar("rate", rate, family='train')
+            tf.contrib.summary.scalar("classification_loss",
+                                      classification_loss,
+                                      family='train')
+            tf.contrib.summary.scalar("classification_rate",
+                                      classification_rate,
+                                      family='train')
+            tf.contrib.summary.scalar("sum_loss", loss, family='train')
+
+    # training loop
+    update_model_tree(data_dict['train'],
+                      model,
+                      epoch='init',
+                      label_attr=label_attr,
+                      output_dir=output_dir)
+    for epoch in range(epochs):
+        print("TRAIN")
+        for batch in tqdm(enumerate(data_dict['train']),
+                          total=data_dict['train_bpe']):
+            run_minibatch(epoch, batch, is_train=True)
+
+        print("TEST")
+        for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
+            run_minibatch(epoch, batch, is_train=False)
 
         print("SAVE CHECKPOINT")
         ckpt_manager.save(checkpoint_number=epoch)
