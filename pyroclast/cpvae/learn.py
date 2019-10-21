@@ -240,8 +240,7 @@ def learn(
                       output_dir=output_dir)
     for epoch in range(epochs):
         print("TRAIN")
-        for batch in tqdm(enumerate(data_dict['train']),
-                          total=data_dict['train_bpe']):
+        for batch in tqdm(data_dict['train'], total=data_dict['train_bpe']):
             run_minibatch(epoch, batch, is_train=True)
 
         print("TEST")
