@@ -6,9 +6,8 @@ from pyroclast.qualia.models import build_attention_model, build_entity_model
 
 def build_learn_from_demonstration(model, data_tensor, attention_tensor,
                                    concept_shape):
-    concept_var = tf.get_variable('concept_learning',
-                                  dtype=tf.float32,
-                                  shape=concept_shape)
+    concept_var = tf.get_variable(
+        'concept_learning', dtype=tf.float32, shape=concept_shape)
     energy = model(data_tensor, attention_tensor, concept_var)
     k_placeholder = tf.placeholder(tf.float32, shape=())
     alpha_placeholder = tf.placeholder(tf.float32, shape=())
@@ -49,19 +48,15 @@ def learn(train_data,
     model = ConceptEnergyModel(entity_model_fn, attention_model_fn)
 
     # build graph
-    data_var = tf.get_variable(name='data',
-                               shape=[1] + data_shape,
-                               dtype=tf.float32)
-    attention_var = tf.get_variable(name='attention',
-                                    shape=[1] + attention_shape,
-                                    dtype=tf.float32)
-    learn_concept_fn = build_learn_from_demonstration(model, data_var,
-                                                      attention_var,
-                                                      concept_shape)
+    data_var = tf.get_variable(
+        name='data', shape=[1] + data_shape, dtype=tf.float32)
+    attention_var = tf.get_variable(
+        name='attention', shape=[1] + attention_shape, dtype=tf.float32)
+    learn_concept_fn = build_learn_from_demonstration(
+        model, data_var, attention_var, concept_shape)
 
-    concept_var = tf.get_variable(name='concept',
-                                  shape=concept_shape,
-                                  dtype=tf.float32)
+    concept_var = tf.get_variable(
+        name='concept', shape=concept_shape, dtype=tf.float32)
 
     energy = model(data_var, attention_var, concept_var)
 

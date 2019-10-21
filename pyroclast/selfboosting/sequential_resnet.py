@@ -48,12 +48,11 @@ class SequentialResNet(snt.AbstractModule):
         self.boosting_modules = []
         with self._enter_variable_scope():
             # trainable base hypothesis, maybe update if we get spooky action
-            self._base_hypothesis = tf.get_variable('base_hypothesis',
-                                                    shape=(class_num))
+            self._base_hypothesis = tf.get_variable(
+                'base_hypothesis', shape=(class_num))
             self._base_alpha = tf.zeros(class_num)
-            self._base_repr_module = snt.Conv2D(representation_channels,
-                                                3,
-                                                name='base_repr_conv2d')
+            self._base_repr_module = snt.Conv2D(
+                representation_channels, 3, name='base_repr_conv2d')
             # private state variables cached for adding modules
             self._last_repr = tf.zeros(())
             self._last_alpha = self._base_alpha
@@ -150,8 +149,9 @@ class SequentialResNet(snt.AbstractModule):
         outer_loss_term = tf.exp(-alpha * label_prediction_vals)
 
         # for the inner, sum everything and subtract the term for correct labels
-        inner_loss_term = tf.reduce_sum(tf.exp(
-            alpha * hypothesis), axis=1) - tf.exp(alpha * label_prediction_vals)
+        inner_loss_term = tf.reduce_sum(
+            tf.exp(alpha * hypothesis), axis=1) - tf.exp(
+                alpha * label_prediction_vals)
         batch_loss = outer_loss_term * inner_loss_term
         loss = tf.reduce_sum(batch_loss, axis=0)
         return loss

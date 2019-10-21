@@ -35,8 +35,8 @@ def setup_celeba_data(batch_size):
 def concat_dicts(list_of_dicts):
     concat_dict = dict()
     for key in list_of_dicts[0].keys():
-        concat_dict[key] = tf.concat(values=[d[key] for d in list_of_dicts],
-                                     axis=0)
+        concat_dict[key] = tf.concat(
+            values=[d[key] for d in list_of_dicts], axis=0)
     return concat_dict
 
 
@@ -79,9 +79,9 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
     sum_sq = tf.square(scale_diag) + tf.square(loc)
     for l in range(class_num):
         class_locs[l] = np.mean(tf.gather(loc, tf.where(tf.equal(labels, l))))
-        class_scales[l] = np.mean(tf.gather(sum_sq, tf.where(tf.equal(
-            labels, l))),
-                                  axis=0) - np.square(class_locs[l])
+        class_scales[l] = np.mean(
+            tf.gather(sum_sq, tf.where(tf.equal(labels, l))),
+            axis=0) - np.square(class_locs[l])
     return class_locs, class_scales
 
 
@@ -96,11 +96,11 @@ def update_model_tree(ds, model, epoch, label_attr):
     model.values = values_
     class_locs, class_scales = calculate_latent_params_by_class(
         labels, locs, scales, 2, samples.shape[-1])
-    sklearn.tree.export_graphviz(model.decision_tree,
-                                 out_file=os.path.join(
-                                     '.', 'ddt_epoch{}.dot'.format(epoch)),
-                                 filled=True,
-                                 rounded=True)
+    sklearn.tree.export_graphviz(
+        model.decision_tree,
+        out_file=os.path.join('.', 'ddt_epoch{}.dot'.format(epoch)),
+        filled=True,
+        rounded=True)
     return class_locs, class_scales
 
 
@@ -128,14 +128,15 @@ def learn(data_dict,
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,
         max_leaf_nodes=max_tree_leaf_nodes)
-    model = CpVAE(encoder,
-                  decoder,
-                  decision_tree,
-                  img_height=218,
-                  img_width=178,
-                  latent_dimension=latent_dim,
-                  class_num=num_classes,
-                  box_num=max_tree_leaf_nodes)
+    model = CpVAE(
+        encoder,
+        decoder,
+        decision_tree,
+        img_height=218,
+        img_width=178,
+        latent_dimension=latent_dim,
+        class_num=num_classes,
+        box_num=max_tree_leaf_nodes)
     optimizer = tf.keras.optimizers.RMSprop(1e-4)
 
     # tensorboard
@@ -144,14 +145,12 @@ def learn(data_dict,
     writer.set_as_default()
 
     # training loop
-    update_model_tree(data_dict['train'],
-                      model,
-                      epoch='init',
-                      label_attr=label_attr)
+    update_model_tree(
+        data_dict['train'], model, epoch='init', label_attr=label_attr)
     for epoch in range(epochs):
         print("TRAIN")
-        for i, batch in tqdm(enumerate(data_dict['train']),
-                             total=data_dict['train_bpe']):
+        for i, batch in tqdm(
+                enumerate(data_dict['train']), total=data_dict['train_bpe']):
             global_step.assign_add(1)
             # move data from [0,255] to [-1,1]
             x = tf.cast(batch['image'], tf.float32) / 255.
@@ -169,13 +168,11 @@ def learn(data_dict,
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
             with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='train')
+                tf.contrib.summary.scalar(
+                    "distortion", distortion, family='train')
                 tf.contrib.summary.scalar("rate", rate, family='train')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='train')
+                tf.contrib.summary.scalar(
+                    "classification_loss", classification_loss, family='train')
                 tf.contrib.summary.scalar("sum_loss", loss, family='train')
 
         print("TEST")
@@ -191,13 +188,11 @@ def learn(data_dict,
             loss = tf.reduce_mean(distortion + rate + classification_loss)
 
             with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='test')
+                tf.contrib.summary.scalar(
+                    "distortion", distortion, family='test')
                 tf.contrib.summary.scalar("rate", rate, family='test')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='test')
+                tf.contrib.summary.scalar(
+                    "classification_loss", classification_loss, family='test')
                 tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
 
         print("UPDATE")

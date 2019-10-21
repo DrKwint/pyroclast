@@ -89,12 +89,13 @@ def train(args, extra_args):
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, data_name, alg_kwargs))
 
-    model = learn(train_data_iterator=train_data_iterator,
-                  train_batches_per_epoch=train_batches_per_epoch,
-                  test_data_iterator=test_data_iterator,
-                  test_batches_per_epoch=test_batches_per_epoch,
-                  seed=seed,
-                  **alg_kwargs)
+    model = learn(
+        train_data_iterator=train_data_iterator,
+        train_batches_per_epoch=train_batches_per_epoch,
+        test_data_iterator=test_data_iterator,
+        test_batches_per_epoch=test_batches_per_epoch,
+        seed=seed,
+        **alg_kwargs)
 
     return model
 

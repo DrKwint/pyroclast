@@ -53,8 +53,8 @@ class CpVAE(tf.Module):
         return loc, scale_diag
 
     def _decode(self, z):
-        return tf.image.resize_with_crop_or_pad(self.decoder(z),
-                                                self.img_height, self.img_width)
+        return tf.image.resize_with_crop_or_pad(
+            self.decoder(z), self.img_height, self.img_width)
 
     def sample(self, sample_shape=(1), z=None):
         if z is None:

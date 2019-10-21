@@ -30,18 +30,17 @@ def train(session,
         # run a training epoch
         print("Epoch", epoch)
         print("TRAIN")
-        train_vals_dict = run_epoch_ops(session,
-                                        train_batches_per_epoch,
-                                        train_verbose_dict, [train_op],
-                                        verbose=verbose)
+        train_vals_dict = run_epoch_ops(
+            session,
+            train_batches_per_epoch,
+            train_verbose_dict, [train_op],
+            verbose=verbose)
         print({'mean ' + k: np.mean(v) for k, v in train_vals_dict.items()})
 
         # run a test epoch
         print("TEST")
-        test_vals_dict = run_epoch_ops(session,
-                                       test_batches_per_epoch,
-                                       test_verbose_dict,
-                                       verbose=verbose)
+        test_vals_dict = run_epoch_ops(
+            session, test_batches_per_epoch, test_verbose_dict, verbose=verbose)
         print({'mean ' + k: np.mean(v) for k, v in test_vals_dict.items()})
 
 
@@ -109,9 +108,8 @@ def learn(train_data_iterator,
     test_verbose_dicts = []
     for _ in range(module_num):
         # add module and get train_op
-        module = ResidualBoostingModule(repr_module_name,
-                                        hypothesis_module_name, num_channels,
-                                        num_classes)
+        module = ResidualBoostingModule(
+            repr_module_name, hypothesis_module_name, num_channels, num_classes)
         alpha, hypothesis, boosted_classification = model.add_module(module)
         module_loss = model.get_hypothesis_loss(alpha, hypothesis,
                                                 train_data['label'])
@@ -151,8 +149,9 @@ def learn(train_data_iterator,
     for module_train_op, train_verbose_dict, test_verbose_dict in zip(
             train_ops, train_verbose_dicts, test_verbose_dicts):
         # run module training
-        train_module(train_op=module_train_op,
-                     train_verbose_dict=train_verbose_dict,
-                     test_verbose_dict=test_verbose_dict)
+        train_module(
+            train_op=module_train_op,
+            train_verbose_dict=train_verbose_dict,
+            test_verbose_dict=test_verbose_dict)
 
     return model
