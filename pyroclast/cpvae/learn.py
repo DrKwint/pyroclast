@@ -201,7 +201,7 @@ def learn(
                       epoch='init',
                       label_attr=label_attr,
                       output_dir=output_dir)
-    for epoch in range():
+    for epoch in range(epochs):
         print("TRAIN")
         for i, batch in tqdm(enumerate(data_dict['train']),
                              total=data_dict['train_bpe']):
