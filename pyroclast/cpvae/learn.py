@@ -218,19 +218,20 @@ def learn(
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
+        family = 'train' if is_train else 'validation'
         with tf.contrib.summary.always_record_summaries():
             prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
             classification_rate = tf.reduce_mean(
                 tf.cast(tf.equal(prediction, labels), tf.float32))
-            tf.contrib.summary.scalar("distortion", distortion, family='train')
-            tf.contrib.summary.scalar("rate", rate, family='train')
+            tf.contrib.summary.scalar("distortion", distortion, family=family)
+            tf.contrib.summary.scalar("rate", rate, family=family)
             tf.contrib.summary.scalar("classification_loss",
                                       classification_loss,
-                                      family='train')
+                                      family=family)
             tf.contrib.summary.scalar("classification_rate",
                                       classification_rate,
-                                      family='train')
-            tf.contrib.summary.scalar("sum_loss", loss, family='train')
+                                      family=family)
+            tf.contrib.summary.scalar("sum_loss", loss, family=family)
 
     # training loop
     update_model_tree(data_dict['train'],
