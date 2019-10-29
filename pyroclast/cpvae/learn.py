@@ -220,7 +220,7 @@ def learn(
 
         family = 'train' if is_train else 'validation'
         with tf.contrib.summary.always_record_summaries():
-            prediction = tf.math.argmax(y_hat, output_type=tf.int32)
+            prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
             classification_rate = tf.reduce_mean(
                 tf.cast(tf.equal(prediction, labels), tf.float32))
             tf.contrib.summary.scalar("distortion", distortion, family=family)
