@@ -74,7 +74,7 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
     - mu, sigma (Tensor): shape [batch_size, latent_dimension]
     - lower_bounds, upper_bounds (Tensor): shape [num_boxes, latent_dimension]
         defines the lower and upper bounds of each box in each dimension
-    - class_prob (Tensor): shape [num_boxes, class_num] weight of each class per box
+    - conditional_class_prob (Tensor): shape [num_boxes, class_num] weight of each class per box
     """
     # Infer dimensions and make sure data types are set as needed
     batch_size = tf.shape(mu)[0]

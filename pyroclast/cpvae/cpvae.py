@@ -22,14 +22,28 @@ class CpVAE(tf.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.decision_tree = decision_tree
-        self.z_prior = None
 
         # tree_stuff
         self.lower = None
         self.upper = None
         self.values = None
 
-    def __call__(self, x):
+        # multi-gaussian prior
+        self.default_prior = tfp.distributions.MultivariateNormalDiag(
+            loc=tf.zeros(latent_dimension),
+            scale_diag=tf.ones(latent_dimension))
+        self.class_priors = [
+            tfp.distributions.MultivariateNormalDiag(
+                loc=tf.Variable(np.zeros(latent_dimension, dtype=np.float32),
+                                name='class_{}_loc'.format(i)),
+                scale_diag=tfp.util.DeferredTensor(
+                    tf.math.softplus,
+                    tf.Variable(np.zeros(latent_dimension, dtype=np.float32),
+                                name='class_{}_scale_diag'.format(i))))
+            for i in range(class_num)
+        ]
+
+    def __call__(self, x, y=None):
         loc, scale_diag = self._encode(x)
         z_posterior = tfp.distributions.MultivariateNormalDiag(
             loc=loc, scale_diag=scale_diag)
@@ -37,11 +51,6 @@ class CpVAE(tf.Module):
         x_hat = self._decode(z)
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,
                                            self.upper, self.values)
-
-        if self.z_prior is None:
-            self.z_prior = tfp.distributions.MultivariateNormalDiag(
-                tf.zeros(z_posterior.event_shape),
-                tf.ones(z_posterior.event_shape))
         return x_hat, y_hat, z_posterior
 
     def _encode(self, x):
@@ -53,10 +62,10 @@ class CpVAE(tf.Module):
 
     def sample(self, sample_shape=(1), z=None):
         if z is None:
-            z = self.z_prior.sample(sample_shape)
+            z = self.default_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, z_posterior, distortion_fn):
+    def vae_loss(self, x, x_hat, z_posterior, distortion_fn, y=None):
         if distortion_fn == 'disc_logistic':
             output_distribution = tfp.distributions.Independent(
                 DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
@@ -67,5 +76,16 @@ class CpVAE(tf.Module):
         else:
             print('DISTORTION_FN NOT PROPERLY SPECIFIED')
             exit()
-        rate = tfp.distributions.kl_divergence(z_posterior, self.z_prior)
+        if y is not None:
+            if len(y.shape) == 1:
+                y = tf.one_hot(y, len(self.class_priors))
+            class_divergences = tf.stack([
+                tfp.distributions.kl_divergence(z_posterior, prior)
+                for prior in self.class_priors
+            ],
+                                         axis=1)  # batch_size x class_num
+            rate = tf.reduce_sum(tf.squeeze(y * class_divergences), axis=1)
+        else:
+            rate = tfp.distributions.kl_divergence(z_posterior,
+                                                   self.default_prior)
         return distortion, rate

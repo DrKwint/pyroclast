@@ -1,20 +1,17 @@
+import json
 import os
 import sys
 from importlib import import_module
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from tensorflow.python.client import device_lib
 
 from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
+from pyroclast.common.util import img_preprocess
 
-from tensorflow.python.client import device_lib
 print(device_lib.list_local_devices())
 tf.compat.v1.enable_eager_execution()
-
-# getting "tensorflow/core/framework/op_kernel.cc:1502] OP_REQUIRES failed at
-# gather_nd_op.cc:47 : Invalid argument: indices[31] = [31, 6] does not index
-# into param shape [1,10]" in boost_resnet
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def parse_cmdline_kwargs(args):
@@ -63,20 +60,43 @@ def get_learn_function_defaults(alg, env_type):
 
 
 def setup_data(args):
-    # load data
-    data_dict, info = tfds.load(args.dataset,
-                                with_info=True,
-                                data_dir='./data/')
-    data_dict[
-        'train_bpe'] = info.splits['train'].num_examples // args.batch_size
-    data_dict['test_bpe'] = info.splits['test'].num_examples // args.batch_size
-    data_dict['shape'] = info.features['image'].shape
-    data_dict['num_classes'] = info.features['label'].num_classes
+    if args.dataset.startswith('tfds_'):
+        # load data
+        data_dict, info = tfds.load(args.dataset,
+                                    with_info=True,
+                                    data_dir='./data/')
+        data_dict[
+            'train_bpe'] = info.splits['train'].num_examples // args.batch_size
+        data_dict[
+            'test_bpe'] = info.splits['test'].num_examples // args.batch_size
+        data_dict['shape'] = info.features['image'].shape
+        data_dict['num_classes'] = info.features['label'].num_classes
 
-    data_dict['train'] = data_dict['train'].shuffle(1024).batch(
-        args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-    data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
-        tf.data.experimental.AUTOTUNE)
+        data_dict['train'] = data_dict['train'].shuffle(1024).batch(
+            args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
+            tf.data.experimental.AUTOTUNE)
+    elif args.dataset == 'celeba':
+        # load data
+        #data_dir = './data/' if CRANE else None
+        data_dict, info = tfds.load('celeb_a',
+                                    with_info=True,
+                                    data_dir=args.data_dir)
+        data_dict['num_classes'] = 2
+        data_dict[
+            'train_bpe'] = info.splits['train'].num_examples // args.batch_size
+        data_dict[
+            'test_bpe'] = info.splits['test'].num_examples // args.batch_size
+        data_dict['shape'] = info.features['image'].shape
+
+        data_dict['all_train'] = data_dict['train']
+        data_dict['train'] = data_dict['train'].map(
+            lambda x: img_preprocess(x, args.image_size)).shuffle(1024).batch(
+                args.batch_size)
+        data_dict['all_test'] = data_dict['test']
+        data_dict['test'] = data_dict['test'].map(
+            lambda x: img_preprocess(x, args.image_size)).batch(args.batch_size)
+
     return data_dict
 
 
@@ -103,6 +123,17 @@ def main(args):
     arg_parser = common_arg_parser()
     args, unknown_args = arg_parser.parse_known_args(args)
     extra_args = parse_cmdline_kwargs(unknown_args)
+
+    # save the parameters
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    with open(os.path.join(args.output_dir, 'parameters.log'), 'w') as p_file:
+        json.dump(
+            {
+                'args': args.__dict__,
+                'unknown_args': unknown_args,
+                'extra_args': extra_args
+            }, p_file)
 
     model = train(args, extra_args)
 
