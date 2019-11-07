@@ -71,6 +71,16 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
     return class_locs, class_scales
 
 
+def get_node_members(ds, model, node_id):
+
+    def member_fn(batch):
+        loc, _ = model._encode(tf.dtypes.cast(batch['image'], tf.float32))
+        membership = model.decision_tree.decision_path(loc)
+        return membership[node_id]
+
+    return ds.filter(member_fn)
+
+
 def calculate_celeba_latent_values(ds, model, label_attr, limit=None):
     locs = []
     scales = []

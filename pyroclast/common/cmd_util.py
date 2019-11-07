@@ -38,8 +38,6 @@ def common_arg_parser():
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--epochs', type=int, default=1)
-    parser.add_argument('--log_interval', type=int, default=1)
     parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--image_size', type=int, default=None)
     parser.add_argument('--output_dir', type=str, default='./')

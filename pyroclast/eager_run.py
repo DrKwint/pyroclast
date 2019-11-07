@@ -78,7 +78,6 @@ def setup_data(args):
             tf.data.experimental.AUTOTUNE)
     elif args.dataset == 'celeba':
         # load data
-        #data_dir = './data/' if CRANE else None
         data_dict, info = tfds.load('celeb_a',
                                     with_info=True,
                                     data_dir=args.data_dir)
