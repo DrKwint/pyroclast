@@ -15,8 +15,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
-          max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
-          label_attr):
+          output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
+          output_dir, label_attr):
     num_classes = data_dict['num_classes']
 
     # setup model vars
@@ -26,6 +26,7 @@ def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
         num_classes=num_classes,
         latent_dim=latent_dim,
         image_size=image_size,
+        output_dist=output_dist,
         max_tree_depth=max_tree_depth,
         max_tree_leaf_nodes=max_tree_leaf_nodes)
 
@@ -60,7 +61,6 @@ def learn(
         seed=None,
         latent_dim=128,
         epochs=1000,
-        batch_size=64,
         image_size=128,
         max_tree_depth=5,
         max_tree_leaf_nodes=16,
@@ -69,30 +69,24 @@ def learn(
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
         classification_coeff=1.,
-        distortion_fn='disc_logistic',  # disc_logistic or l2
+        output_dist='disc_logistic',  # disc_logistic or l2
         output_dir='./',
         load_dir=None,
         num_samples=5):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, learning_rate, latent_dim, image_size,
-        max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir, label_attr)
+        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
+        label_attr)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
-        x = batch['image']
+        x = tf.cast(batch['image'], tf.float32)
         labels = tf.cast(batch['attributes'][label_attr], tf.int32)
-
-        # custom distortion loss choice
-        timed_distortion_fn = 'l2' if epoch < 20 else distortion_fn
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
-            distortion, rate = model.vae_loss(x,
-                                              x_hat,
-                                              z_posterior,
-                                              distortion_fn=timed_distortion_fn,
-                                              y=labels)
+            distortion, rate = model.vae_loss(x, x_hat, z_posterior, y=labels)
             classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(distortion + rate + classification_loss)

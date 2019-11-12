@@ -13,7 +13,7 @@ from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_bo
 
 
 def build_model(optimizer_name, learning_rate, num_classes, latent_dim,
-                image_size, max_tree_depth, max_tree_leaf_nodes):
+                image_size, output_dist, max_tree_depth, max_tree_leaf_nodes):
     tfvar_objs = dict()
 
     # model
@@ -28,7 +28,8 @@ def build_model(optimizer_name, learning_rate, num_classes, latent_dim,
                   decision_tree,
                   latent_dimension=latent_dim,
                   class_num=num_classes,
-                  box_num=max_tree_leaf_nodes)
+                  box_num=max_tree_leaf_nodes,
+                  output_dist=output_dist)
 
     # optimizer
     if optimizer_name == 'adam':

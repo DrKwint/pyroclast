@@ -83,33 +83,49 @@ def run_epoch_ops(session,
     }
 
 
-class DiscretizedLogistic(tf.keras.Model, tfp.distributions.Distribution):
+class DiscretizedLogistic(tfp.distributions.Distribution):
 
-    def __init__(self, loc, batch_dims=3, name="discretized_logistic"):
-        super(DiscretizedLogistic, self).__init__(name=name)
-        self._name = name
-        self._dtype = tf.float32
-        self._reparameterization_type = tfp.distributions.NOT_REPARAMETERIZED
-        self._allow_nan_stats = False
-        self._graph_parents = []
+    def __init__(self,
+                 loc,
+                 log_scale=None,
+                 event_dims=3,
+                 dtype=tf.float32,
+                 validate_args=True,
+                 allow_nan_stats=False,
+                 name="DiscretizedLogistic"):
+        super(DiscretizedLogistic,
+              self).__init__(dtype, tfp.distributions.NOT_REPARAMETERIZED,
+                             validate_args, allow_nan_stats)
+        self._dtype = dtype
         self._loc = loc
-        self._batch_dims = batch_dims
-        self._log_scale = tf.compat.v1.get_variable(
-            "log_scale",
-            initializer=tf.zeros(loc.get_shape().as_list()[-batch_dims:]),
-            dtype=tf.float32)
+        self._event_dims = event_dims
+        self._batch_dims = loc.shape.ndims - event_dims
+        self._scale = tfp.util.DeferredTensor(
+            tf.math.exp,
+            tf.Variable(tf.zeros(self._loc.shape[-event_dims:]),
+                        name='LogScale'))
 
-    def mean(self):
+    def _event_shape(self):
+        return tf.shape(self._loc)[-self._event_dims:]
+
+    def _batch_shape(self):
+        return tf.shape(self._loc)[:self._batch_dims]
+
+    def _mean(self):
         return self._loc
 
-    @property
-    def scale(self):
-        return tf.exp(self._log_scale)
-
-    def log_prob(self, sample, binsize=1 / 256.0):
-        scale = tf.exp(self._log_scale)
+    def _log_prob(self, sample, binsize=1 / 256.0):
         mean = self._loc
-        sample = (tf.floor(sample / binsize) * binsize - mean) / scale
+        sample = (tf.floor(sample / binsize) * binsize - mean) / self._scale
         logp = tf.math.log(
-            tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
-        return logp  # tf.reduce_sum(logp, [2, 3, 4])
+            tf.sigmoid(sample + binsize / self._scale) - tf.sigmoid(sample) +
+            1e-7)
+        return tf.reduce_sum(
+            logp, range(self._batch_dims, self._batch_dims + self._event_dims))
+
+
+def img_discretized_logistic_log_prob(mean, sample, scale, binsize=1 / 256.0):
+    sample = (tf.floor(sample / binsize) * binsize - mean) / scale
+    logp = tf.math.log(
+        tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
+    return tf.reduce_sum(logp, [1, 2, 3])

@@ -5,7 +5,7 @@ from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_bo
 import sklearn.tree
 import tensorflow_datasets as tfds
 
-from pyroclast.common.tf_util import DiscretizedLogistic
+from pyroclast.common.tf_util import img_discretized_logistic_log_prob
 
 
 class CpVAE(tf.Module):
@@ -17,6 +17,7 @@ class CpVAE(tf.Module):
                  latent_dimension,
                  class_num,
                  box_num,
+                 output_dist,
                  name='cpvae'):
         super(CpVAE, self).__init__(name=name)
         self.encoder = encoder
@@ -43,6 +44,18 @@ class CpVAE(tf.Module):
             for i in range(class_num)
         ]
 
+        # set distortion_fn
+        if output_dist == 'disc_logistic':
+            self.output_dist_scale = None  # deferred initialization
+            self.distortion_fn = lambda x, x_hat: -img_discretized_logistic_log_prob(
+                x_hat, x, self.output_dist_scale)
+        elif output_dist == 'l2':
+            self.distortion_fn = lambda x, x_hat: 500. * tf.reduce_mean(
+                tf.square(x - x_hat), axis=[1, 2, 3])
+        else:
+            print('DISTORTION_FN NOT PROPERLY SPECIFIED')
+            exit()
+
     def __call__(self, x, y=None):
         loc, scale_diag = self._encode(x)
         z_posterior = tfp.distributions.MultivariateNormalDiag(
@@ -65,17 +78,12 @@ class CpVAE(tf.Module):
             z = self.default_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, z_posterior, distortion_fn, y=None):
-        if distortion_fn == 'disc_logistic':
-            output_distribution = tfp.distributions.Independent(
-                DiscretizedLogistic(x_hat), reinterpreted_batch_ndims=3)
-            distortion = -output_distribution.log_prob(x)
-        elif distortion_fn == 'l2':
-            distortion = 500. * tf.reduce_mean(tf.square(x - x_hat),
-                                               axis=[1, 2, 3])
-        else:
-            print('DISTORTION_FN NOT PROPERLY SPECIFIED')
-            exit()
+    def vae_loss(self, x, x_hat, z_posterior, y=None):
+        if self.output_dist_scale is None:
+            self.output_dist_scale = tfp.util.DeferredTensor(
+                tf.math.exp,
+                tf.Variable(tf.zeros(x_hat.shape[-3:]), name='LogScale'))
+        distortion = self.distortion_fn(x, x_hat)
         if y is not None:
             if len(y.shape) == 1:
                 y = tf.one_hot(y, len(self.class_priors))
@@ -84,7 +92,7 @@ class CpVAE(tf.Module):
                 for prior in self.class_priors
             ],
                                          axis=1)  # batch_size x class_num
-            rate = tf.reduce_sum(tf.squeeze(y * class_divergences), axis=1)
+            rate = tf.reduce_sum(y * class_divergences, axis=1)
         else:
             rate = tfp.distributions.kl_divergence(z_posterior,
                                                    self.default_prior)
