@@ -82,7 +82,7 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
     mu = tf.cast(mu, tf.float64)
     sigma = tf.cast(sigma, tf.float64)
     upper_bounds = tf.cast(upper_bounds, tf.double)
-    upper_bounds = tf.cast(lower_bounds, tf.double)
+    lower_bounds = tf.cast(lower_bounds, tf.double)
 
     # broadcast mu, sigma, and bounds to
     # shape [batch_size, num_boxes, latent_dimension]
@@ -106,6 +106,8 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
     box_prob = tf.expand_dims(tf.transpose(box_prob), 2)
     conditional_class_prob = tf.expand_dims(conditional_class_prob, 1)
     joint_prob = tf.matmul(box_prob, conditional_class_prob)
-    # and marginalize out boxes choice by summing
+    # and marginalize out boxes choice by summing followed by normalization
     class_prob = tf.reduce_sum(joint_prob, axis=0)
+    class_prob = class_prob / tf.expand_dims(tf.reduce_sum(class_prob, axis=1),
+                                             1)
     return class_prob

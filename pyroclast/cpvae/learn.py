@@ -14,28 +14,12 @@ from pyroclast.cpvae.util import update_model_tree, build_model
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
-def learn(
-        data_dict,
-        seed=None,
-        latent_dim=128,
-        epochs=1000,
-        batch_size=64,
-        image_size=128,
-        max_tree_depth=5,
-        max_tree_leaf_nodes=16,
-        tree_update_period=10,
-        label_attr='No_Beard',
-        optimizer='adam',  # adam or rmsprop
-        learning_rate=1e-3,
-        classification_coeff=1.,
-        distortion_fn='disc_logistic',  # disc_logistic or l2
-        output_dir='./',
-        load_dir=None,
-        num_samples=5):
-    del seed  # currently unused
+def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
+          max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
+          label_attr):
     num_classes = data_dict['num_classes']
 
-    # setup model
+    # setup model vars
     model, optimizer, global_step = build_model(
         optimizer_name=optimizer,
         learning_rate=learning_rate,
@@ -55,10 +39,43 @@ def learn(
                                                   output_dir, 'model'),
                                               max_to_keep=3,
                                               keep_checkpoint_every_n_hours=2)
-    # reload if data exists
+
+    # load trained model, if available
     if load_dir:
         status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
         print("load: ", status.assert_existing_objects_matched())
+
+    # train a ddt
+    update_model_tree(data_dict['train'],
+                      model,
+                      epoch='visualize',
+                      label_attr=label_attr,
+                      output_dir=output_dir,
+                      limit=10)
+    return model, optimizer, global_step, writer, ckpt_manager
+
+
+def learn(
+        data_dict,
+        seed=None,
+        latent_dim=128,
+        epochs=1000,
+        batch_size=64,
+        image_size=128,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=10,
+        label_attr='No_Beard',
+        optimizer='adam',  # adam or rmsprop
+        learning_rate=1e-3,
+        classification_coeff=1.,
+        distortion_fn='disc_logistic',  # disc_logistic or l2
+        output_dir='./',
+        load_dir=None,
+        num_samples=5):
+    model, optimizer, global_step, writer, ckpt_manager = setup(
+        data_dict, optimizer, learning_rate, latent_dim, image_size,
+        max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir, label_attr)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
@@ -100,12 +117,6 @@ def learn(
             tf.summary.scalar("sum_loss", loss, step=global_step)
 
     # run training loop
-    update_model_tree(data_dict['train'],
-                      model,
-                      epoch='init',
-                      label_attr=label_attr,
-                      output_dir=output_dir,
-                      limit=10)
     for epoch in range(epochs):
         # train
         for batch in data_dict['train']:
