@@ -82,13 +82,16 @@ def learn(
         x = batch['image']
         labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
+        # custom distortion loss choice
+        timed_distortion_fn = 'l2' if epoch < 20 else distortion_fn
+
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x,
                                               x_hat,
                                               z_posterior,
-                                              distortion_fn=distortion_fn,
+                                              distortion_fn=timed_distortion_fn,
                                               y=labels)
             classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
