@@ -82,12 +82,15 @@ class CpVAE(tf.Module):
             z = self.default_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, z_posterior, y=None):
+    def vae_loss(self, x, x_hat, z_posterior, y=None, epoch=None):
+        # distortion
         if self.output_dist_scale is None:
             self.output_dist_scale = tfp.util.DeferredTensor(
                 tf.math.exp,
                 tf.Variable(tf.zeros(x_hat.shape[-3:]), name='LogScale'))
         distortion = self.distortion_fn(x, x_hat)
+
+        # rate
         if y is not None:
             if len(y.shape) == 1:
                 y = tf.one_hot(y, len(self.class_priors))
@@ -100,4 +103,6 @@ class CpVAE(tf.Module):
         else:
             rate = tfp.distributions.kl_divergence(z_posterior,
                                                    self.default_prior)
+        if epoch is not None and epoch <= 10:
+            rate = rate / (12 - epoch)
         return distortion, rate
