@@ -64,7 +64,7 @@ def setup_data(args):
     data_dict, info = tfds.load(args.dataset,
                                 with_info=True,
                                 data_dir='./data/')
-    if args.dataset == 'celeba':
+    if args.dataset == 'celeb_a':
         data_dict['num_classes'] = 2
         data_dict[
             'train_bpe'] = info.splits['train'].num_examples // args.batch_size
