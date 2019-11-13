@@ -48,7 +48,7 @@ class CpVAE(tf.Module):
         if output_dist == 'disc_logistic':
             self.output_dist_scale = None  # deferred initialization
             self.distortion_fn = lambda x, x_hat: -img_discretized_logistic_log_prob(
-                x_hat, x, self.output_dist_scale)
+                x_hat, x, self.output_dist_scale) / 100.
         elif output_dist == 'l2':
             self.distortion_fn = lambda x, x_hat: 500. * tf.reduce_mean(
                 tf.square(x - x_hat), axis=[1, 2, 3])
