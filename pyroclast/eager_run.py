@@ -60,27 +60,11 @@ def get_learn_function_defaults(alg, env_type):
 
 
 def setup_data(args):
-    if args.dataset.startswith('tfds_'):
-        # load data
-        data_dict, info = tfds.load(args.dataset,
-                                    with_info=True,
-                                    data_dir='./data/')
-        data_dict[
-            'train_bpe'] = info.splits['train'].num_examples // args.batch_size
-        data_dict[
-            'test_bpe'] = info.splits['test'].num_examples // args.batch_size
-        data_dict['shape'] = info.features['image'].shape
-        data_dict['num_classes'] = info.features['label'].num_classes
-
-        data_dict['train'] = data_dict['train'].shuffle(1024).batch(
-            args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-        data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
-            tf.data.experimental.AUTOTUNE)
-    elif args.dataset == 'celeba':
-        # load data
-        data_dict, info = tfds.load('celeb_a',
-                                    with_info=True,
-                                    data_dir=args.data_dir)
+    # load data
+    data_dict, info = tfds.load(args.dataset,
+                                with_info=True,
+                                data_dir='./data/')
+    if args.dataset == 'celeba':
         data_dict['num_classes'] = 2
         data_dict[
             'train_bpe'] = info.splits['train'].num_examples // args.batch_size
@@ -95,7 +79,18 @@ def setup_data(args):
         data_dict['all_test'] = data_dict['test']
         data_dict['test'] = data_dict['test'].map(
             lambda x: img_preprocess(x, args.image_size)).batch(args.batch_size)
+    else:
+        data_dict[
+            'train_bpe'] = info.splits['train'].num_examples // args.batch_size
+        data_dict[
+            'test_bpe'] = info.splits['test'].num_examples // args.batch_size
+        data_dict['shape'] = info.features['image'].shape
+        data_dict['num_classes'] = info.features['label'].num_classes
 
+        data_dict['train'] = data_dict['train'].shuffle(1024).batch(
+            args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
+            tf.data.experimental.AUTOTUNE)
     return data_dict
 
 
