@@ -62,8 +62,12 @@ class CpVAE(tf.Module):
             loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         x_hat = self._decode(z)
+        if not all(tf.math.is_finite(scale_diag)):
+            print("SCALE DIAG ISN'T FINITE")
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,
                                            self.upper, self.values)
+        if not all(tf.math.is_finite(y_hat)):
+            print("Y_HAT ISN'T FINITE")
         return x_hat, y_hat, z_posterior
 
     def _encode(self, x):
