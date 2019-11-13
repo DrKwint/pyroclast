@@ -70,7 +70,7 @@ def learn(
         output_dir='./',
         load_dir=None,
         num_samples=5,
-        clip_norm=1000.):
+        clip_norm=0.):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, learning_rate, latent_dim, image_size,
         output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
@@ -82,6 +82,7 @@ def learn(
         labels = tf.cast(batch['attributes'][label_attr], tf.int32)
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
+            global_step.assign_add(1)
             x_hat, y_hat, z_posterior = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x, x_hat, z_posterior, y=labels)
@@ -91,10 +92,12 @@ def learn(
 
         # calculate gradients for current loss
         if is_train:
-            global_step.assign_add(1)
             gradients = tape.gradient(loss, model.trainable_variables)
-            clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
-                gradients, clip_norm)
+            if clip_norm:
+                clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
+                    gradients, clip_norm)
+            else:
+                clipped_gradients = gradients
             optimizer.apply_gradients(
                 zip(clipped_gradients, model.trainable_variables))
 
@@ -118,7 +121,7 @@ def learn(
             tf.summary.scalar(prefix + "loss/total loss",
                               loss,
                               step=global_step)
-            if is_train:
+            if is_train and clip_norm:
                 tf.summary.scalar("gradient/global norm",
                                   pre_clip_global_norm,
                                   step=global_step)
