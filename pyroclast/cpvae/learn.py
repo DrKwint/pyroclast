@@ -69,7 +69,8 @@ def learn(
         output_dist='disc_logistic',  # disc_logistic or l2
         output_dir='./',
         load_dir=None,
-        num_samples=5):
+        num_samples=5,
+        clip_norm=1000.):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, learning_rate, latent_dim, image_size,
         output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
@@ -92,7 +93,10 @@ def learn(
         if is_train:
             global_step.assign_add(1)
             gradients = tape.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+            clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
+                gradients, clip_norm)
+            optimizer.apply_gradients(
+                zip(clipped_gradients, model.trainable_variables))
 
         with writer.as_default():
             prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
@@ -110,11 +114,9 @@ def learn(
             tf.summary.scalar("classification_rate",
                               classification_rate,
                               step=global_step)
-            tf.summary.scalar("loss/sum_loss", loss, step=global_step)
-            global_norm = tf.math.sqrt(
-                tf.reduce_sum([tf.norm(g)**2 for g in gradients]))
+            tf.summary.scalar("loss/total loss", loss, step=global_step)
             tf.summary.scalar("gradient/global norm",
-                              global_norm,
+                              pre_clip_global_norm,
                               step=global_step)
 
     # run training loop
