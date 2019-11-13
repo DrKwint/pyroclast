@@ -98,26 +98,30 @@ def learn(
             optimizer.apply_gradients(
                 zip(clipped_gradients, model.trainable_variables))
 
+        prefix = 'train ' if is_train else 'validate '
         with writer.as_default():
             prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
             classification_rate = tf.reduce_mean(
                 tf.cast(tf.equal(prediction, labels), tf.float32))
-            tf.summary.scalar("loss/distortion",
+            tf.summary.scalar(prefix + "loss/mean distortion",
                               tf.reduce_mean(distortion),
                               step=global_step)
-            tf.summary.scalar("loss/rate",
+            tf.summary.scalar(prefix + "loss/mean rate",
                               tf.reduce_mean(rate),
                               step=global_step)
-            tf.summary.scalar("loss/classification_loss",
+            tf.summary.scalar(prefix + "loss/mean classification_loss",
                               tf.reduce_mean(classification_loss),
                               step=global_step)
-            tf.summary.scalar("classification_rate",
+            tf.summary.scalar(prefix + "classification_rate",
                               classification_rate,
                               step=global_step)
-            tf.summary.scalar("loss/total loss", loss, step=global_step)
-            tf.summary.scalar("gradient/global norm",
-                              pre_clip_global_norm,
+            tf.summary.scalar(prefix + "loss/total loss",
+                              loss,
                               step=global_step)
+            if is_train:
+                tf.summary.scalar("gradient/global norm",
+                                  pre_clip_global_norm,
+                                  step=global_step)
 
     # run training loop
     for epoch in range(epochs):
