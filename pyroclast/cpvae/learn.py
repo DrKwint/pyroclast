@@ -5,9 +5,6 @@ import tensorflow as tf
 
 from pyroclast.common.util import img_postprocess
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
-from pyroclast.cpvae.cpvae import CpVAE
-from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
-from pyroclast.cpvae.tf_models import Encoder, Decoder
 from pyroclast.common.util import dummy_context_mgr
 from pyroclast.cpvae.util import update_model_tree, build_model
 
@@ -101,17 +98,24 @@ def learn(
             prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
             classification_rate = tf.reduce_mean(
                 tf.cast(tf.equal(prediction, labels), tf.float32))
-            tf.summary.scalar("distortion",
+            tf.summary.scalar("loss/distortion",
                               tf.reduce_mean(distortion),
                               step=global_step)
-            tf.summary.scalar("rate", tf.reduce_mean(rate), step=global_step)
-            tf.summary.scalar("classification_loss",
+            tf.summary.scalar("loss/rate",
+                              tf.reduce_mean(rate),
+                              step=global_step)
+            tf.summary.scalar("loss/classification_loss",
                               tf.reduce_mean(classification_loss),
                               step=global_step)
             tf.summary.scalar("classification_rate",
                               classification_rate,
                               step=global_step)
-            tf.summary.scalar("sum_loss", loss, step=global_step)
+            tf.summary.scalar("loss/sum_loss", loss, step=global_step)
+            global_norm = tf.math.sqrt(
+                tf.reduce_sum([tf.norm(g)**2 for g in gradients]))
+            tf.summary.scalar("gradient/global norm",
+                              global_norm,
+                              step=global_step)
 
     # run training loop
     for epoch in range(epochs):
