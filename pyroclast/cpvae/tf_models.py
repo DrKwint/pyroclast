@@ -13,7 +13,13 @@ class Encoder(tf.keras.Model):
 
     def call(self, x):
         embed = tf.reshape(self.net(x), [x.shape[0], -1])
-        return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-6
+        inv_softplus_scale = self.scale(embed)
+        if not tf.reduce_all(tf.math.is_finite(inv_softplus_scale)):
+            print("inv_softplus_scale encoder ISN'T FINITE")
+        scale = tf.nn.softplus(inv_softplus_scale) + 1e-6
+        if not tf.reduce_all(tf.math.is_finite(scale)):
+            print("scale encoder ISN'T FINITE")
+        return self.loc(embed), scale
 
 
 class Decoder(tf.keras.Model):
