@@ -46,7 +46,6 @@ class CpVAE(tf.Module):
 
         # set distortion_fn
         if output_dist == 'disc_logistic':
-            self.output_dist_scale = None  # deferred initialization
             self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
                 x_hat, x, x_hat_scale) / 100.
         elif output_dist == 'l2':
@@ -84,12 +83,6 @@ class CpVAE(tf.Module):
 
     def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None, epoch=None):
         # distortion
-        if self.output_dist_scale is None:
-            self.output_dist_scale = tfp.util.DeferredTensor(
-                tf.math.softplus,
-                tf.Variable(tf.ones(x_hat.shape[-3:]),
-                            constraint=lambda x: tf.maximum(x, -3.),
-                            name='LogScale'))
         distortion = self.distortion_fn(x, x_hat, x_hat_scale)
 
         # rate

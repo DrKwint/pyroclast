@@ -48,7 +48,8 @@ def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
                       model,
                       epoch='visualize',
                       label_attr=label_attr,
-                      output_dir=output_dir)
+                      output_dir=output_dir,
+                      limit=10)
     return model, optimizer, global_step, writer, ckpt_manager
 
 
