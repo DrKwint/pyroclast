@@ -163,6 +163,21 @@ def img_discretized_logistic_log_prob(mean,
             tf.where(cdf_delta > 1e-5,
                      tf.math.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid)))
 
+    if not tf.reduce_all(tf.math.is_finite(mean)):
+        print("mean ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(log_scale)):
+        print("log_scale ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(inv_stdv)):
+        print("inv_stdv ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(sample)):
+        print("sample ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(cdf_plus)):
+        print("cdf_plus ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(cdf_min)):
+        print("cdf_min ISN'T FINITE")
+    if not tf.reduce_all(tf.math.is_finite(logp)):
+        print("LOGP ISN'T FINITE")
+
     #sample = (tf.floor(sample / binsize) * binsize - mean) / scale
     #logp = tf.math.log(
     #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
