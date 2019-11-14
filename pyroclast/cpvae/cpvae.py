@@ -90,7 +90,7 @@ class CpVAE(tf.Module):
                 tf.Variable(tf.ones(x_hat.shape[-3:]),
                             constraint=lambda x: tf.maximum(x, -3.),
                             name='LogScale'))
-        distortion = self.distortion_fn(x, x_hat)
+        distortion = self.distortion_fn(x, x_hat, x_hat_scale)
 
         # rate
         if y is not None:

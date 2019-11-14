@@ -22,8 +22,8 @@ class Decoder(tf.keras.Model):
         super(Decoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)({'image_size': image_size})
         self.loc = tf.keras.layers.Conv2D(3, 3, padding="same")
-        self.inv_softplus_scale = tf.keras.layers.Conv2D(3, 3, padding="same")
+        self.log_scale = tf.keras.layers.Conv2D(3, 3, padding="same")
 
     def call(self, z):
         latent = self.net(z)
-        return self.loc(latent), tf.nn.softplus(self.inv_softplus_scale(latent))
+        return self.loc(latent), self.log_scale(latent)
