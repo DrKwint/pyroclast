@@ -124,8 +124,46 @@ class DiscretizedLogistic(tfp.distributions.Distribution):
             logp, range(self._batch_dims, self._batch_dims + self._event_dims))
 
 
-def img_discretized_logistic_log_prob(mean, sample, scale, binsize=1 / 256.0):
-    sample = (tf.floor(sample / binsize) * binsize - mean) / scale
-    logp = tf.math.log(
-        tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
-    return tf.reduce_sum(logp, [1, 2, 3])
+def log_sum_exp(x):
+    """ numerically stable log_sum_exp implementation that prevents overflow """
+    axis = len(x.get_shape()) - 1
+    m = tf.reduce_max(x, axis)
+    m2 = tf.reduce_max(x, axis, keepdims=True)
+    return m + tf.math.log(tf.reduce_sum(tf.exp(x - m2), axis))
+
+
+def img_discretized_logistic_log_prob(mean,
+                                      sample,
+                                      log_scale,
+                                      binsize=1 / 256.0,
+                                      log_scale_min=-7.):
+    log_scale = tf.maximum(log_scale, log_scale_min)
+
+    centered_sample = sample - mean
+    inv_stdv = tf.exp(-log_scale)
+    plus_in = inv_stdv * (centered_sample + binsize)
+    cdf_plus = tf.nn.sigmoid(plus_in)
+    min_in = inv_stdv * (centered_sample - binsize)
+    cdf_min = tf.nn.sigmoid(min_in)
+
+    log_cdf_plus = plus_in - tf.nn.softplus(
+        plus_in)  # log probability for edge case of 0
+    log_one_minus_cdf_min = -tf.nn.softplus(
+        min_in)  # log probability for edge case of 1
+    cdf_delta = cdf_plus - cdf_min  # probability for all other cases
+
+    #log probability in the center of the bin, to be used in extreme cases
+    mid_in = inv_stdv * centered_sample
+    log_pdf_mid = mid_in - log_scale - 2. * tf.nn.softplus(mid_in)
+
+    logp = tf.where(
+        sample < -0.999, log_cdf_plus,
+        tf.where(
+            sample > 0.999, log_one_minus_cdf_min,
+            tf.where(cdf_delta > 1e-5,
+                     tf.math.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid)))
+
+    #sample = (tf.floor(sample / binsize) * binsize - mean) / scale
+    #logp = tf.math.log(
+    #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
+    return tf.reduce_sum(log_sum_exp(logp), [1, 2, 3])

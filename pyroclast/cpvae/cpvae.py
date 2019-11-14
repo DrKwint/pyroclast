@@ -47,8 +47,8 @@ class CpVAE(tf.Module):
         # set distortion_fn
         if output_dist == 'disc_logistic':
             self.output_dist_scale = None  # deferred initialization
-            self.distortion_fn = lambda x, x_hat: -img_discretized_logistic_log_prob(
-                x_hat, x, self.output_dist_scale) / 100.
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
+                x_hat, x, x_hat_scale) / 100.
         elif output_dist == 'l2':
             self.distortion_fn = lambda x, x_hat: 500. * tf.reduce_mean(
                 tf.square(x - x_hat), axis=[1, 2, 3])
@@ -61,14 +61,14 @@ class CpVAE(tf.Module):
         z_posterior = tfp.distributions.MultivariateNormalDiag(
             loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
-        x_hat = self._decode(z)
+        x_hat, x_hat_scale = self._decode(z)
         if not all(tf.math.is_finite(scale_diag)):
             print("SCALE DIAG ISN'T FINITE")
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,
                                            self.upper, self.values)
         if not all(tf.math.is_finite(y_hat)):
             print("Y_HAT ISN'T FINITE")
-        return x_hat, y_hat, z_posterior
+        return x_hat, y_hat, z_posterior, x_hat_scale
 
     def _encode(self, x):
         loc, scale_diag = self.encoder(x)
@@ -82,12 +82,14 @@ class CpVAE(tf.Module):
             z = self.default_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, z_posterior, y=None, epoch=None):
+    def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None, epoch=None):
         # distortion
         if self.output_dist_scale is None:
             self.output_dist_scale = tfp.util.DeferredTensor(
-                tf.math.exp,
-                tf.Variable(tf.zeros(x_hat.shape[-3:]), name='LogScale'))
+                tf.math.softplus,
+                tf.Variable(tf.ones(x_hat.shape[-3:]),
+                            constraint=lambda x: tf.maximum(x, -3.),
+                            name='LogScale'))
         distortion = self.distortion_fn(x, x_hat)
 
         # rate
