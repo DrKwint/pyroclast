@@ -141,7 +141,7 @@ def learn(
                               tf.reduce_max(z_posterior.stddev()),
                               step=global_step)
 
-            if is_train and clip_norm:
+            if is_train:
                 for (v, g) in zip(model.trainable_variables, gradients):
                     if g is None:
                         continue
@@ -149,9 +149,10 @@ def learn(
                                       'gradient/mean of {}'.format(v.name),
                                       tf.reduce_mean(g),
                                       step=global_step)
-                tf.summary.scalar("gradient/global norm",
-                                  pre_clip_global_norm,
-                                  step=global_step)
+                if clip_norm:
+                    tf.summary.scalar("gradient/global norm",
+                                      pre_clip_global_norm,
+                                      step=global_step)
 
     # run training loop
     for epoch in range(epochs):
