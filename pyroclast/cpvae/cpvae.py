@@ -39,7 +39,7 @@ class CpVAE(tf.Module):
                                 name='class_{}_loc'.format(i)),
                 scale_diag=tfp.util.DeferredTensor(
                     tf.math.softplus,
-                    tf.Variable(np.zeros(latent_dimension, dtype=np.float32),
+                    tf.Variable(np.ones(latent_dimension, dtype=np.float32),
                                 name='class_{}_scale_diag'.format(i))))
             for i in range(class_num)
         ]
@@ -62,11 +62,11 @@ class CpVAE(tf.Module):
             loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         x_hat, x_hat_scale = self._decode(z)
-        if not all(tf.math.is_finite(scale_diag)):
+        if not tf.reduce_all(tf.math.is_finite(scale_diag)):
             print("SCALE DIAG ISN'T FINITE")
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,
                                            self.upper, self.values)
-        if not all(tf.math.is_finite(y_hat)):
+        if not tf.reduce_all(tf.math.is_finite(y_hat)):
             print("Y_HAT ISN'T FINITE")
         return x_hat, y_hat, z_posterior, x_hat_scale
 
