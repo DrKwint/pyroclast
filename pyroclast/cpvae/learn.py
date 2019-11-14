@@ -125,14 +125,14 @@ def learn(
             tf.summary.scalar(prefix + "loss/total loss",
                               loss,
                               step=global_step)
-            tf.summary.scalar(prefix + 'posterior/mean scale',
-                              tf.reduce_mean(z_posterior.scale),
+            tf.summary.scalar(prefix + 'posterior/mean stddev',
+                              tf.reduce_mean(z_posterior.stddev()),
                               step=global_step)
-            tf.summary.scalar(prefix + 'posterior/min scale',
-                              tf.reduce_min(z_posterior.scale),
+            tf.summary.scalar(prefix + 'posterior/min stddev',
+                              tf.reduce_min(z_posterior.stddev()),
                               step=global_step)
-            tf.summary.scalar(prefix + 'posterior/max scale',
-                              tf.reduce_max(z_posterior.scale),
+            tf.summary.scalar(prefix + 'posterior/max stddev',
+                              tf.reduce_max(z_posterior.stddev()),
                               step=global_step)
 
             if is_train and clip_norm:
