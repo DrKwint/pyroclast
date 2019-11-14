@@ -97,7 +97,8 @@ def learn(
         # calculate gradients for current loss
         if is_train:
             gradients = tape.gradient(loss, model.trainable_variables)
-            if not tf.reduce_all(tf.math.is_finite(gradients)):
+            if not tf.reduce_all(
+                    tf.math.is_finite([g for g in gradients if g is not None])):
                 print("GRADIENTS ISN'T FINITE")
             if clip_norm:
                 clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
