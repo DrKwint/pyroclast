@@ -166,4 +166,4 @@ def img_discretized_logistic_log_prob(mean,
     #sample = (tf.floor(sample / binsize) * binsize - mean) / scale
     #logp = tf.math.log(
     #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
-    return tf.reduce_sum(log_sum_exp(logp), [1, 2, 3])
+    return tf.reduce_sum(log_sum_exp(logp), [1, 2])
