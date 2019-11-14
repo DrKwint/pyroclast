@@ -142,6 +142,13 @@ def learn(
                               step=global_step)
 
             if is_train and clip_norm:
+                for (v, g) in zip(model.trainable_variables, gradients):
+                    if g is None:
+                        continue
+                    tf.summary.scalar(prefix +
+                                      'gradient/mean of {}'.format(v.name),
+                                      tf.reduce_mean(g),
+                                      step=global_step)
                 tf.summary.scalar("gradient/global norm",
                                   pre_clip_global_norm,
                                   step=global_step)
