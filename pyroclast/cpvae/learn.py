@@ -93,7 +93,8 @@ def learn(
                                               epoch=epoch)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
-            loss = tf.reduce_mean(distortion + beta * rate + gamma * classification_loss)
+            loss = tf.reduce_mean(distortion + beta * rate +
+                                  gamma * classification_loss)
 
         # calculate gradients for current loss
         if is_train:
@@ -167,7 +168,7 @@ def learn(
 
         # sample
         for i in range(num_samples):
-            im = img_postprocess(np.squeeze(model.sample()))
+            im = img_postprocess(np.squeeze(model.sample()[0]))
             im.save(
                 os.path.join(output_dir,
                              "epoch_{}_sample_{}.png".format(epoch, i)))
