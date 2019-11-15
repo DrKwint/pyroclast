@@ -96,15 +96,11 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
                                     sigma,
                                     validate_args=True,
                                     allow_nan_stats=False)
-    dim_probs = tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds))
-    if not tf.reduce_all(tf.math.is_finite(dim_probs)):
-        print("dim_probs ISN'T FINITE")
+    dim_log_probs = tf.math.log(1e-10 + tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds)))
 
     # For each box, calculate probability that a sample falls in
     # We assume the Gaussian has diagonal covariance so this is a product
-    box_prob = tf.reduce_prod(dim_probs, axis=2)
-    if not tf.reduce_all(tf.math.is_finite(box_prob)):
-        print("dim_probs ISN'T FINITE")
+    box_prob = tf.math.exp(tf.reduce_sum(dim_log_probs, axis=2))
 
     # finally, calculate joint probability of P(A and B_i) as above
     box_prob = tf.expand_dims(tf.transpose(box_prob), 2)

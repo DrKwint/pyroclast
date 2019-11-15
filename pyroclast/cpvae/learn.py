@@ -48,8 +48,7 @@ def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
                       model,
                       epoch='visualize',
                       label_attr=label_attr,
-                      output_dir=output_dir,
-                      limit=10)
+                      output_dir=output_dir)
     return model, optimizer, global_step, writer, ckpt_manager
 
 
@@ -65,12 +64,13 @@ def learn(
         label_attr='No_Beard',
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
-        classification_coeff=1.,
         output_dist='disc_logistic',  # disc_logistic or l2
         output_dir='./',
         load_dir=None,
         num_samples=5,
-        clip_norm=0.):
+        clip_norm=0.,
+        beta=5.,
+        gamma=5.):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, learning_rate, latent_dim, image_size,
         output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
@@ -91,19 +91,13 @@ def learn(
                                               z_posterior,
                                               y=labels,
                                               epoch=epoch)
-            classification_loss = classification_coeff * tf.nn.sparse_softmax_cross_entropy_with_logits(
+            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
-            loss = tf.reduce_mean(distortion + rate + classification_loss)
+            loss = tf.reduce_mean(distortion + beta * rate + gamma * classification_loss)
 
         # calculate gradients for current loss
         if is_train:
             gradients = tape.gradient(loss, model.trainable_variables)
-            if not all([
-                    tf.reduce_all(tf.math.is_finite(g))
-                    for g in gradients
-                    if g is not None
-            ]):
-                print("GRADIENTS ISN'T FINITE")
             if clip_norm:
                 clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
                     gradients, clip_norm)

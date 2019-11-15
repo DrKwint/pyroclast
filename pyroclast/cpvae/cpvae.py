@@ -49,7 +49,7 @@ class CpVAE(tf.Module):
             self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
                 x_hat, x, x_hat_scale) / 100.
         elif output_dist == 'l2':
-            self.distortion_fn = lambda x, x_hat: 500. * tf.reduce_mean(
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: 500. * tf.reduce_mean(
                 tf.square(x - x_hat), axis=[1, 2, 3])
         else:
             print('DISTORTION_FN NOT PROPERLY SPECIFIED')
@@ -61,12 +61,8 @@ class CpVAE(tf.Module):
             loc=loc, scale_diag=scale_diag)
         z = z_posterior.sample()
         x_hat, x_hat_scale = self._decode(z)
-        if not tf.reduce_all(tf.math.is_finite(scale_diag)):
-            print("SCALE DIAG ISN'T FINITE")
         y_hat = transductive_box_inference(loc, scale_diag, self.lower,
                                            self.upper, self.values)
-        if not tf.reduce_all(tf.math.is_finite(y_hat)):
-            print("Y_HAT ISN'T FINITE")
         return x_hat, y_hat, z_posterior, x_hat_scale
 
     def _encode(self, x):
