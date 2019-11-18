@@ -64,11 +64,12 @@ def learn(
         label_attr='No_Beard',
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
-        output_dist='disc_logistic',  # disc_logistic or l2
+        output_dist='hybrid',  # disc_logistic or l2 or hybrid
         output_dir='./',
         load_dir=None,
         num_samples=5,
         clip_norm=0.,
+        alpha=1e-2,
         beta=5.,
         gamma=5.):
     model, optimizer, global_step, writer, ckpt_manager = setup(
@@ -93,7 +94,7 @@ def learn(
                                               epoch=epoch)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
-            loss = tf.reduce_mean(distortion + beta * rate +
+            loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
 
         # calculate gradients for current loss
@@ -113,13 +114,13 @@ def learn(
             classification_rate = tf.reduce_mean(
                 tf.cast(tf.equal(prediction, labels), tf.float32))
             tf.summary.scalar(prefix + "loss/mean distortion",
-                              tf.reduce_mean(distortion),
+                              alpha * tf.reduce_mean(distortion),
                               step=global_step)
             tf.summary.scalar(prefix + "loss/mean rate",
-                              tf.reduce_mean(rate),
+                              beta * tf.reduce_mean(rate),
                               step=global_step)
             tf.summary.scalar(prefix + "loss/mean classification_loss",
-                              tf.reduce_mean(classification_loss),
+                              gamma * tf.reduce_mean(classification_loss),
                               step=global_step)
             tf.summary.scalar(prefix + "classification_rate",
                               classification_rate,

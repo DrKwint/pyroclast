@@ -46,11 +46,23 @@ class CpVAE(tf.Module):
 
         # set distortion_fn
         if output_dist == 'disc_logistic':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
-                x_hat, x, x_hat_scale) / 100.
+            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: -img_discretized_logistic_log_prob(
+                x_hat, x, x_hat_scale)
         elif output_dist == 'l2':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: 500. * tf.reduce_mean(
+            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: tf.reduce_mean(
                 tf.square(x - x_hat), axis=[1, 2, 3])
+        elif output_dist == 'hybrid':
+            discretized_logistic = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
+                x_hat, x, x_hat_scale)
+            l2 = lambda x, x_hat: tf.reduce_mean(tf.square(x - x_hat),
+                                                 axis=[1, 2, 3])
+
+            def hybrid_distortion(x, x_hat, x_hat_scale, epoch, epoch_max=10):
+                coeff = max(0., min(1., epoch / epoch_max))
+                return coeff * discretized_logistic(
+                    x, x_hat, x_hat_scale) + (1. - coeff) * l2(x, x_hat)
+
+            self.distortion_fn = hybrid_distortion
         else:
             print('DISTORTION_FN NOT PROPERLY SPECIFIED')
             exit()
@@ -79,7 +91,7 @@ class CpVAE(tf.Module):
 
     def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None, epoch=None):
         # distortion
-        distortion = self.distortion_fn(x, x_hat, x_hat_scale)
+        distortion = self.distortion_fn(x, x_hat, x_hat_scale, epoch)
 
         # rate
         if y is not None:
@@ -94,6 +106,4 @@ class CpVAE(tf.Module):
         else:
             rate = tfp.distributions.kl_divergence(z_posterior,
                                                    self.default_prior)
-        if epoch is not None and epoch <= 10:
-            rate = rate / (12 - epoch)
         return distortion, rate
