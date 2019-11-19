@@ -9,8 +9,7 @@ from PIL import Image
 
 from pyroclast.cpvae.cpvae import CpVAE
 from pyroclast.cpvae.tf_models import Decoder, Encoder
-from pyroclast.cpvae.util import (build_model, setup_celeba_data,
-                                  update_model_tree)
+from pyroclast.cpvae.util import (build_model, update_model_tree)
 
 app = Flask(__name__, static_folder='static')
 model = None
@@ -30,36 +29,36 @@ def learn(
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
         classification_coeff=1.,
-        distortion_fn='disc_logistic',  # disc_logistic or l2
+        output_dist='disc_logistic',  # disc_logistic or l2
         output_dir='./',
         load_dir=None):
-    # preprocess/load data
-    data_dict = setup_celeba_data(batch_size, image_size)
-    num_classes = 1
-
     # setup model vars
-    tfvar_objs = build_model(optimizer_name=optimizer,
-                             learning_rate=learning_rate,
-                             num_classes=num_classes,
-                             latent_dim=latent_dim,
-                             image_size=image_size,
-                             max_tree_depth=max_tree_depth,
-                             max_tree_leaf_nodes=max_tree_leaf_nodes)
+    model, optimizer, global_step = build_model(
+        optimizer_name=optimizer,
+        learning_rate=learning_rate,
+        num_classes=num_classes,
+        latent_dim=latent_dim,
+        image_size=image_size,
+        output_dist=output_dist,
+        max_tree_depth=max_tree_depth,
+        max_tree_leaf_nodes=max_tree_leaf_nodes)
 
     # load trained model, if available
-    checkpoint = tf.train.Checkpoint(**tfvar_objs)
+    checkpoint = tf.train.Checkpoint(model=model,
+                                     optimizer=optimizer,
+                                     global_step=global_step)
     status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
     print("load: ", status.assert_existing_objects_matched())
 
     # train a ddt
     update_model_tree(data_dict['train'],
-                      tfvar_objs['model'],
+                      model,
                       epoch='visualize',
                       label_attr=label_attr,
                       output_dir=output_dir,
                       limit=10)
 
-    return tfvar_objs
+    return model
 
 
 @app.route('/sample')
