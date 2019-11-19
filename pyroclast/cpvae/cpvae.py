@@ -49,7 +49,7 @@ class CpVAE(tf.Module):
             self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: -img_discretized_logistic_log_prob(
                 x_hat, x, x_hat_scale)
         elif output_dist == 'l2':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: tf.reduce_mean(
+            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: tf.reduce_sum(
                 tf.square(x - x_hat), axis=[1, 2, 3])
         elif output_dist == 'hybrid':
             discretized_logistic = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
