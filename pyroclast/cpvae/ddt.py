@@ -65,38 +65,50 @@ def get_decision_tree_boundaries(tree, feature_num, class_num,
     return lower_bounds, upper_bounds, values
 
 
-def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds, values):
+def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
+                               conditional_class_prob):
     """
+    Calculates the probability that a sample of a multivariate Gaussian defined N(mu, sigma*I) will be classified into class c
+
     Args:
     - mu, sigma (Tensor): shape [batch_size, latent_dimension]
-    - lower_bounds, upper_bounds (Tensor): shape [box_num, latent_dimension]
-    - values (Tensor): shape [box_num, class_num] proportion of each class in the membership of the box
+    - lower_bounds, upper_bounds (Tensor): shape [num_boxes, latent_dimension]
+        defines the lower and upper bounds of each box in each dimension
+    - conditional_class_prob (Tensor): shape [num_boxes, class_num] weight of each class per box
     """
+    # Infer dimensions and make sure data types are set as needed
+    batch_size = tf.shape(mu)[0]
+    num_boxes = tf.shape(lower_bounds)[0]
     mu = tf.cast(mu, tf.float64)
     sigma = tf.cast(sigma, tf.float64)
-    # broadcast mu, sigma, and bounds to
-    # shape [batch_size, box_num, latent_dimension]
-    mu = tf.tile(tf.expand_dims(mu, 1), [1, tf.shape(lower_bounds)[0], 1])
-    sigma = tf.tile(tf.expand_dims(sigma, 1), [1, tf.shape(lower_bounds)[0], 1])
-    lower_bounds = tf.tile(
-        tf.expand_dims(lower_bounds, 0), [tf.shape(mu)[0], 1, 1])
-    upper_bounds = tf.tile(
-        tf.expand_dims(upper_bounds, 0), [tf.shape(mu)[0], 1, 1])
-
-    # integral over CDF between bounds per dimension, rectifying for numerical error
-    # in the tails of the CDF
-    dist = tfp.distributions.Normal(mu, sigma, True, False)
     upper_bounds = tf.cast(upper_bounds, tf.double)
-    dim_probs = tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds))
+    lower_bounds = tf.cast(lower_bounds, tf.double)
 
-    # for each box, calculate probability that a sample falls in
-    # as we assume the Gaussian has diagonal covariance, this is a product
-    box_prob = tf.reduce_prod(dim_probs, axis=2)
+    # broadcast mu, sigma, and bounds to
+    # shape [batch_size, num_boxes, latent_dimension]
+    mu = tf.tile(tf.expand_dims(mu, 1), [1, num_boxes, 1])
+    sigma = tf.tile(tf.expand_dims(sigma, 1), [1, num_boxes, 1])
+    lower_bounds = tf.tile(tf.expand_dims(lower_bounds, 0), [batch_size, 1, 1])
+    upper_bounds = tf.tile(tf.expand_dims(upper_bounds, 0), [batch_size, 1, 1])
+
+    # integral over PDF between bounds per dimension, rectify numerical error
+    dist = tfp.distributions.Normal(mu,
+                                    sigma,
+                                    validate_args=True,
+                                    allow_nan_stats=False)
+    dim_log_probs = tf.math.log(
+        1e-10 + tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds)))
+
+    # For each box, calculate probability that a sample falls in
+    # We assume the Gaussian has diagonal covariance so this is a product
+    box_prob = tf.math.exp(tf.reduce_sum(dim_log_probs, axis=2))
 
     # finally, calculate joint probability of P(A and B_i) as above
     box_prob = tf.expand_dims(tf.transpose(box_prob), 2)
-    values = tf.expand_dims(values, 1)
-    y = tf.matmul(box_prob, values)
-    # and marginalize out boxes choice by summing
-    y = tf.reduce_sum(y, axis=0)
-    return y
+    conditional_class_prob = tf.expand_dims(conditional_class_prob, 1)
+    joint_prob = tf.matmul(box_prob, conditional_class_prob)
+    # and marginalize out boxes choice by summing followed by normalization
+    class_prob = tf.reduce_sum(joint_prob, axis=0)
+    class_prob = class_prob / tf.expand_dims(tf.reduce_sum(class_prob, axis=1),
+                                             1)
+    return class_prob
