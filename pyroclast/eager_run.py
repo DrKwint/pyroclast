@@ -91,6 +91,7 @@ def setup_data(args):
             args.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
         data_dict['test'] = data_dict['test'].batch(args.batch_size).prefetch(
             tf.data.experimental.AUTOTUNE)
+
     return data_dict
 
 
