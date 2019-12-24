@@ -11,14 +11,16 @@ from pyroclast.cpvae.util import update_model_tree, build_model
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
-def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
-          output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
-          output_dir, label_attr):
+def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
+          image_size, output_dist, max_tree_depth, max_tree_leaf_nodes,
+          load_dir, output_dir):
     num_classes = data_dict['num_classes']
 
     # setup model vars
     model, optimizer, global_step = build_model(
         optimizer_name=optimizer,
+        encoder_name=encoder,
+        decoder_name=decoder,
         learning_rate=learning_rate,
         num_classes=num_classes,
         latent_dim=latent_dim,
@@ -47,13 +49,15 @@ def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
     update_model_tree(data_dict['train'],
                       model,
                       epoch='visualize',
-                      label_attr=label_attr,
+                      num_classes=num_classes,
                       output_dir=output_dir)
     return model, optimizer, global_step, writer, ckpt_manager
 
 
 def learn(
         data_dict,
+        encoder,
+        decoder,
         seed=None,
         latent_dim=128,
         epochs=1000,
@@ -61,7 +65,6 @@ def learn(
         max_tree_depth=5,
         max_tree_leaf_nodes=16,
         tree_update_period=10,
-        label_attr='No_Beard',
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
         output_dist='hybrid',  # disc_logistic or l2 or hybrid
@@ -71,16 +74,17 @@ def learn(
         clip_norm=0.,
         alpha=1e-2,
         beta=5.,
-        gamma=5.):
+        gamma=5.,
+        silent=False):
     model, optimizer, global_step, writer, ckpt_manager = setup(
-        data_dict, optimizer, learning_rate, latent_dim, image_size,
-        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
-        label_attr)
+        data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
+        image_size, output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
+        output_dir)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
         x = tf.cast(batch['image'], tf.float32)
-        labels = tf.cast(batch['attributes'][label_attr], tf.int32)
+        labels = tf.cast(batch['label'], tf.int32)
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
@@ -164,8 +168,8 @@ def learn(
         # save and update
         ckpt_manager.save(checkpoint_number=epoch)
         if epoch % tree_update_period == 0:
-            update_model_tree(data_dict['train'], model, epoch, label_attr,
-                              output_dir)
+            update_model_tree(data_dict['train'], model, epoch,
+                              data_dict['num_classes'], output_dir)
 
         # sample
         for i in range(num_samples):

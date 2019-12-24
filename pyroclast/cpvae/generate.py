@@ -14,7 +14,6 @@ def learn(
         max_tree_depth=5,
         max_tree_leaf_nodes=16,
         tree_update_period=10,
-        label_attr='No_Beard',
         optimizer='adam',  # adam or rmsprop
         learning_rate=1e-3,
         classification_coeff=1.,
