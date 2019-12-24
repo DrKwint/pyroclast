@@ -17,12 +17,12 @@ class TestSequentialResNet(object):
     def setup_tf_env(self):
         tf.reset_default_graph()
         session = tf.Session()
-        data_ph = tf.placeholder(
-            shape=[self.batch_size] + self.data_shape,
-            dtype=tf.float32,
-            name='data_placeholder')
-        label_ph = tf.placeholder(
-            shape=[self.batch_size], dtype=tf.int64, name='label_placeholder')
+        data_ph = tf.placeholder(shape=[self.batch_size] + self.data_shape,
+                                 dtype=tf.float32,
+                                 name='data_placeholder')
+        label_ph = tf.placeholder(shape=[self.batch_size],
+                                  dtype=tf.int64,
+                                  name='label_placeholder')
         model = SequentialResNet(self.num_classes, self.num_channels)
         return session, model, data_ph, label_ph
 
@@ -67,10 +67,11 @@ class TestSequentialResNet(object):
             session.run(
                 train_op, {
                     data_ph:
-                    np.random.random([self.batch_size] + self.data_shape),
+                        np.random.random([self.batch_size] + self.data_shape),
                     label_ph:
-                    np.random.randint(
-                        low=0, high=self.num_classes - 1, size=self.batch_size)
+                        np.random.randint(low=0,
+                                          high=self.num_classes - 1,
+                                          size=self.batch_size)
                 })
             if not approx_list(stable_model_values, model_variables):
                 raise Exception(

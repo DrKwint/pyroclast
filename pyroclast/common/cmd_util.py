@@ -30,8 +30,10 @@ def common_arg_parser():
     parser = arg_parser()
     parser.add_argument('--task', help='', type=str, default='supervised')
     parser.add_argument('--dataset', help='dataset', type=str, default='mnist')
-    parser.add_argument(
-        '--alg', help='algorithm', type=str, default='selfboosting')
+    parser.add_argument('--alg',
+                        help='algorithm',
+                        type=str,
+                        default='selfboosting')
     parser.add_argument('--network', help='network', type=str, default=None)
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
