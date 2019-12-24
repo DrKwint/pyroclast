@@ -3,6 +3,7 @@ python:
   - "3.6"
 install:
   - pip install -q yapf==0.28.0
+  - pip install -q -r cpvae_minimal_requirements.txt
 script:
   - yapf -drp pyroclast --style=".style.yapf"
   - pytest pyroclast/cpvae/
