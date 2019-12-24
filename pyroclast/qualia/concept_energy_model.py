@@ -36,8 +36,8 @@ class ConceptEnergyModel(snt.AbstractModule):
 
 
         TODO: doc"""
-        return self._attention_model(self._entity_model(data, concept),
-                                     attention, concept)
+        return self._attention_model(
+            self._entity_model(data, concept), attention, concept)
 
     def maximum_likelihood_loss(self, energy, attention_var):
         """Implements Eqn. 7"""
@@ -51,10 +51,9 @@ class ConceptEnergyModel(snt.AbstractModule):
                                                k):
         """Returns an operation which updates a variable with SGLD to minimize
         model energy"""
-        grads_and_vars = self._optimizer.compute_gradients(energy,
-                                                           var_list=[variable])
+        grads_and_vars = self._optimizer.compute_gradients(
+            energy, var_list=[variable])
         grad = grads_and_vars[0][0]
         omega = tf.random.normal(variable.shape, stddev=alpha)
-        return self._optimizer.apply_gradients([
-            (variable + (alpha / 2.) * grad + omega**k, variable)
-        ])
+        return self._optimizer.apply_gradients(
+            [(variable + (alpha / 2.) * grad + omega**k, variable)])

@@ -8,8 +8,8 @@ def calculate_binary_gamma_tilde(label, hypothesis, prev_hypothesis,
     label = tf.cast(label, tf.float32)
     gamma_tilde = distribution * label * hypothesis
     prev_gamma_tilde = distribution * label * prev_hypothesis
-    gamma = tf.sqrt((tf.square(gamma_tilde) - tf.square(prev_gamma_tilde)) / 1 -
-                    tf.square(prev_gamma_tilde))
+    gamma = tf.sqrt((tf.square(gamma_tilde) - tf.square(prev_gamma_tilde)
+                    ) / 1 - tf.square(prev_gamma_tilde))
     return gamma
 
 
@@ -25,9 +25,8 @@ def update_binary_distribution(weak_module_classifier, label,
 
 def binary_loss(weak_module_classifier, label, distribution):
     weak_module_classifier = tf.squeeze(weak_module_classifier)
-    return tf.reduce_mean(
-        distribution *
-        tf.exp(tf.cast(label, tf.float32) * weak_module_classifier))
+    return tf.reduce_mean(distribution * tf.exp(
+        tf.cast(label, tf.float32) * weak_module_classifier))
 
 
 def calculate_multiclass_gamma_tilde(label, hypothesis, prev_hypothesis,
@@ -67,8 +66,8 @@ class UpdateMulticlassDistribution(object):
         label_num = self.state.shape[1]
         label_idxs = tf.stack([tf.range(batch_size), label], axis=-1)
         label_vals = tf.gather_nd(self.state, label_idxs)
-        tiled_label_vals = tf.tile(tf.expand_dims(label_vals, 1),
-                                   [1, label_num])
+        tiled_label_vals = tf.tile(
+            tf.expand_dims(label_vals, 1), [1, label_num])
 
         incorrect_idxs = tf.exp(
             self.state -
@@ -97,13 +96,13 @@ def multiclass_loss(weak_module_classifier, label, state):
     label_idxs = tf.stack([tf.range(batch_size), label], axis=-1)
 
     label_prediction_vals = tf.gather_nd(weak_module_classifier, label_idxs)
-    label_prediction_vals = tf.tile(tf.expand_dims(label_prediction_vals, 1),
-                                    [1, label_num])
+    label_prediction_vals = tf.tile(
+        tf.expand_dims(label_prediction_vals, 1), [1, label_num])
 
     try:
         state_label_vals = tf.gather_nd(state, label_idxs)
-        state_label_vals = tf.tile(tf.expand_dims(state_label_vals, 1),
-                                   [1, label_num])
+        state_label_vals = tf.tile(
+            tf.expand_dims(state_label_vals, 1), [1, label_num])
     except:
         state_label_vals = tf.zeros_like(label_prediction_vals)
 

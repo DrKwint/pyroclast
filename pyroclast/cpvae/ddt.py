@@ -96,7 +96,8 @@ def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
                                     sigma,
                                     validate_args=True,
                                     allow_nan_stats=False)
-    dim_log_probs = tf.math.log(1e-10 + tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds)))
+    dim_log_probs = tf.math.log(
+        1e-10 + tf.nn.relu(dist.cdf(upper_bounds) - dist.cdf(lower_bounds)))
 
     # For each box, calculate probability that a sample falls in
     # We assume the Gaussian has diagonal covariance so this is a product
