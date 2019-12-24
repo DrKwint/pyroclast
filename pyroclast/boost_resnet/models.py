@@ -3,11 +3,15 @@ import tensorflow as tf
 
 def repr_module(channels):
     return tf.keras.Sequential([
-        tf.keras.layers.Conv2D(
-            channels, 3, padding='same', activation=tf.nn.relu),
+        tf.keras.layers.Conv2D(channels,
+                               3,
+                               padding='same',
+                               activation=tf.nn.relu),
         tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Conv2D(
-            channels, 3, padding='same', activation=tf.nn.relu),
+        tf.keras.layers.Conv2D(channels,
+                               3,
+                               padding='same',
+                               activation=tf.nn.relu),
         tf.keras.layers.BatchNormalization()
     ])
 

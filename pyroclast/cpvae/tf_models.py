@@ -8,8 +8,8 @@ class Encoder(tf.keras.Model):
         super(Encoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)({})
         self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
-        self.scale = tf.keras.layers.Dense(
-            latent_dim, name='encoder_scale_diag_raw')
+        self.scale = tf.keras.layers.Dense(latent_dim,
+                                           name='encoder_scale_diag_raw')
 
     def call(self, x):
         embed = tf.reshape(self.net(x), [x.shape[0], -1])
