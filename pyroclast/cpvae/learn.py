@@ -1,215 +1,175 @@
 import os
 
 import numpy as np
-import sklearn.tree
 import tensorflow as tf
-import tensorflow_datasets as tfds
-import tensorflow_probability as tfp
-from PIL import Image
-from tqdm import tqdm
 
+from pyroclast.common.util import img_postprocess
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
-from pyroclast.cpvae.cpvae import CpVAE
-from pyroclast.cpvae.models import build_decoder, build_encoder
-from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
+from pyroclast.common.util import dummy_context_mgr
+from pyroclast.cpvae.util import update_model_tree, build_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-CRANE = os.environ['HOME'] == "/home/scott/equint"
 
 
-def setup_celeba_data(batch_size):
-    # load data
-    data_dir = './data/' if CRANE else None
-    data_dict, info = tfds.load('celeb_a', with_info=True, data_dir=data_dir)
-    data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
-    data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
-    data_dict['shape'] = info.features['image'].shape
-
-    data_dict['all_train'] = data_dict['train']
-    data_dict['train'] = data_dict['train'].shuffle(1024).batch(batch_size)
-    data_dict['all_test'] = data_dict['test']
-    data_dict['test'] = data_dict['test'].batch(batch_size)
-    return data_dict
-
-
-def concat_dicts(list_of_dicts):
-    concat_dict = dict()
-    for key in list_of_dicts[0].keys():
-        concat_dict[key] = tf.concat(values=[d[key] for d in list_of_dicts],
-                                     axis=0)
-    return concat_dict
-
-
-def calculate_latent_values(ds, model, label_attr):
-    locs = []
-    scales = []
-    samples = []
-    attrs = []
-    for batch in tqdm(ds):
-        loc, scale_diag = model._encode(tf.to_float(batch['image']))
-        locs.append(loc)
-        scales.append(scale_diag)
-        z_posterior = tfp.distributions.MultivariateNormalDiag(
-            loc=loc, scale_diag=scale_diag)
-        z = z_posterior.sample()
-        samples.append(z)
-        attrs.append(batch['attributes'][label_attr])
-    locs = tf.concat(locs, 0)
-    scales = tf.concat(scales, 0)
-    samples = tf.concat(samples, 0)
-    attrs = tf.concat(attrs, 0)
-    return locs, scales, samples, attrs
-
-
-def fit_and_calculate_dt_boxes(decision_tree, z, label, class_num,
-                               latent_dimension):
-    # train ensemble
-    decision_tree.fit(z, label)
-    lower_, upper_, values_ = get_decision_tree_boundaries(
-        decision_tree, latent_dimension, class_num)
-    return lower_, upper_, values_
-
-
-def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
-                                     latent_dimension):
-    # update class stats
-    if len(labels.shape) > 1: labels = np.argmax(labels, axis=1)
-    class_locs = np.zeros([class_num, latent_dimension])
-    class_scales = np.zeros([class_num, latent_dimension])
-    sum_sq = tf.square(scale_diag) + tf.square(loc)
-    for l in range(class_num):
-        class_locs[l] = np.mean(tf.gather(loc, tf.where(tf.equal(labels, l))))
-        class_scales[l] = np.mean(tf.gather(sum_sq, tf.where(tf.equal(
-            labels, l))),
-                                  axis=0) - np.square(class_locs[l])
-    return class_locs, class_scales
-
-
-def update_model_tree(ds, model, epoch, label_attr):
-    locs, scales, samples, labels = calculate_latent_values(
-        ds, model, label_attr)
-    labels = tf.cast(labels, tf.int32)
-    lower_, upper_, values_ = fit_and_calculate_dt_boxes(
-        model.decision_tree, samples, labels, 2, samples.shape[-1])
-    model.lower = lower_
-    model.upper = upper_
-    model.values = values_
-    class_locs, class_scales = calculate_latent_params_by_class(
-        labels, locs, scales, 2, samples.shape[-1])
-    sklearn.tree.export_graphviz(model.decision_tree,
-                                 out_file=os.path.join(
-                                     '.', 'ddt_epoch{}.dot'.format(epoch)),
-                                 filled=True,
-                                 rounded=True)
-    return class_locs, class_scales
-
-
-def learn(data_dict,
-          seed=None,
-          latent_dim=64,
-          epochs=1000,
-          batch_size=32,
-          max_tree_depth=5,
-          max_tree_leaf_nodes=16,
-          tb_dir='./tb/',
-          label_attr='No_Beard'):
-    del seed  # currently unused
+def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
+          output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
+          output_dir, label_attr):
     num_classes = data_dict['num_classes']
 
-    # CELEB_A
-    data_dict = setup_celeba_data(batch_size)
-    num_classes = 1
+    # setup model vars
+    model, optimizer, global_step = build_model(
+        optimizer_name=optimizer,
+        learning_rate=learning_rate,
+        num_classes=num_classes,
+        latent_dim=latent_dim,
+        image_size=image_size,
+        output_dist=output_dist,
+        max_tree_depth=max_tree_depth,
+        max_tree_leaf_nodes=max_tree_leaf_nodes)
 
-    # setup model
-    from pyroclast.cpvae.tf_models import Encoder, Decoder
-    encoder = Encoder(64)
-    decoder = Decoder()
-    decision_tree = sklearn.tree.DecisionTreeClassifier(
-        max_depth=max_tree_depth,
-        min_weight_fraction_leaf=0.01,
-        max_leaf_nodes=max_tree_leaf_nodes)
-    model = CpVAE(encoder,
-                  decoder,
-                  decision_tree,
-                  img_height=218,
-                  img_width=178,
-                  latent_dimension=latent_dim,
-                  class_num=num_classes,
-                  box_num=max_tree_leaf_nodes)
-    optimizer = tf.keras.optimizers.RMSprop(1e-4)
+    #checkpointing and tensorboard
+    writer = tf.summary.create_file_writer(output_dir)
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+                                     model=model,
+                                     global_step=global_step)
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=os.path.join(
+                                                  output_dir, 'model'),
+                                              max_to_keep=3,
+                                              keep_checkpoint_every_n_hours=2)
 
-    # tensorboard
-    global_step = tf.compat.v1.train.get_or_create_global_step()
-    writer = tf.contrib.summary.create_file_writer(tb_dir)
-    writer.set_as_default()
+    # load trained model, if available
+    if load_dir:
+        status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
+        print("load: ", status.assert_existing_objects_matched())
 
-    # training loop
+    # train a ddt
     update_model_tree(data_dict['train'],
                       model,
-                      epoch='init',
-                      label_attr=label_attr)
-    for epoch in range(epochs):
-        print("TRAIN")
-        for i, batch in tqdm(enumerate(data_dict['train']),
-                             total=data_dict['train_bpe']):
+                      epoch='visualize',
+                      label_attr=label_attr,
+                      output_dir=output_dir)
+    return model, optimizer, global_step, writer, ckpt_manager
+
+
+def learn(
+        data_dict,
+        seed=None,
+        latent_dim=128,
+        epochs=1000,
+        image_size=128,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=10,
+        label_attr='No_Beard',
+        optimizer='adam',  # adam or rmsprop
+        learning_rate=1e-3,
+        output_dist='hybrid',  # disc_logistic or l2 or hybrid
+        output_dir='./',
+        load_dir=None,
+        num_samples=5,
+        clip_norm=0.,
+        alpha=1e-2,
+        beta=5.,
+        gamma=5.):
+    model, optimizer, global_step, writer, ckpt_manager = setup(
+        data_dict, optimizer, learning_rate, latent_dim, image_size,
+        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
+        label_attr)
+
+    # define minibatch fn
+    def run_minibatch(epoch, batch, is_train=True):
+        x = tf.cast(batch['image'], tf.float32)
+        labels = tf.cast(batch['attributes'][label_attr], tf.int32)
+
+        with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
-            # move data from [0,255] to [-1,1]
-            x = tf.cast(batch['image'], tf.float32) / 255.
-            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
-
-            with tf.GradientTape() as tape:
-                x_hat, y_hat, z_posterior = model(x)
-                y_hat = tf.cast(y_hat, tf.float32)
-                distortion, rate = model.vae_loss(x, x_hat, z_posterior)
-                classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    labels=labels, logits=y_hat)
-                loss = tf.reduce_mean(distortion + rate + classification_loss)
-            # calculate gradients for current loss
-            gradients = tape.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-            with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='train')
-                tf.contrib.summary.scalar("rate", rate, family='train')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='train')
-                tf.contrib.summary.scalar("sum_loss", loss, family='train')
-
-        print("TEST")
-        for batch in tqdm(data_dict['test'], total=data_dict['test_bpe']):
-            x = tf.cast(batch['image'], tf.float32) / 255.
-            labels = tf.cast(batch['attributes'][label_attr], tf.int32)
-
-            x_hat, y_hat, z_posterior = model(x)
-            y_hat = tf.cast(y_hat, tf.float32)
-            distortion, rate = model.vae_loss(x, x_hat, z_posterior)
+            x_hat, y_hat, z_posterior, x_hat_scale = model(x)
+            y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
+            distortion, rate = model.vae_loss(x,
+                                              x_hat,
+                                              x_hat_scale,
+                                              z_posterior,
+                                              y=labels,
+                                              epoch=epoch)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
-            loss = tf.reduce_mean(distortion + rate + classification_loss)
+            loss = tf.reduce_mean(alpha * distortion + beta * rate +
+                                  gamma * classification_loss)
 
-            with tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar("distortion",
-                                          distortion,
-                                          family='test')
-                tf.contrib.summary.scalar("rate", rate, family='test')
-                tf.contrib.summary.scalar("classification_loss",
-                                          classification_loss,
-                                          family='test')
-                tf.contrib.summary.scalar("mean_test_loss", loss, family='test')
+        # calculate gradients for current loss
+        if is_train:
+            gradients = tape.gradient(loss, model.trainable_variables)
+            if clip_norm:
+                clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
+                    gradients, clip_norm)
+            else:
+                clipped_gradients = gradients
+            optimizer.apply_gradients(
+                zip(clipped_gradients, model.trainable_variables))
 
-        print("UPDATE")
-        update_model_tree(data_dict['train'], model, epoch, label_attr)
+        prefix = 'train ' if is_train else 'validate '
+        with writer.as_default():
+            prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(prediction, labels), tf.float32))
+            tf.summary.scalar(prefix + "loss/mean distortion",
+                              alpha * tf.reduce_mean(distortion),
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean rate",
+                              beta * tf.reduce_mean(rate),
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean classification_loss",
+                              gamma * tf.reduce_mean(classification_loss),
+                              step=global_step)
+            tf.summary.scalar(prefix + "classification_rate",
+                              classification_rate,
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/total loss",
+                              loss,
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/mean stddev',
+                              tf.reduce_mean(z_posterior.stddev()),
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/min stddev',
+                              tf.reduce_min(z_posterior.stddev()),
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/max stddev',
+                              tf.reduce_max(z_posterior.stddev()),
+                              step=global_step)
 
-        print("SAMPLE")
-        sample = np.squeeze(model.sample())
-        print("sample stats:", np.min(sample[:, :, 0] * 255.),
-              np.mean(sample[:, :, 0] * 255.), np.max(sample[:, :, 0] * 255.))
-        print("sample stats:", np.min(sample[:, :, 1] * 255.),
-              np.mean(sample[:, :, 1] * 255.), np.max(sample[:, :, 1] * 255.))
-        print("sample stats:", np.min(sample[:, :, 2] * 255.),
-              np.mean(sample[:, :, 2] * 255.), np.max(sample[:, :, 2] * 255.))
-        im = Image.fromarray((sample * 255).astype('uint8'), mode='RGB')
-        im.save("epoch_{}_sample.png".format(epoch))
+            if is_train:
+                for (v, g) in zip(model.trainable_variables, gradients):
+                    if g is None:
+                        continue
+                    tf.summary.scalar(prefix +
+                                      'gradient/mean of {}'.format(v.name),
+                                      tf.reduce_mean(g),
+                                      step=global_step)
+                if clip_norm:
+                    tf.summary.scalar("gradient/global norm",
+                                      pre_clip_global_norm,
+                                      step=global_step)
+
+    # run training loop
+    for epoch in range(epochs):
+        # train
+        for batch in data_dict['train']:
+            run_minibatch(epoch, batch, is_train=True)
+
+        # test
+        for batch in data_dict['test']:
+            run_minibatch(epoch, batch, is_train=False)
+
+        # save and update
+        ckpt_manager.save(checkpoint_number=epoch)
+        if epoch % tree_update_period == 0:
+            update_model_tree(data_dict['train'], model, epoch, label_attr,
+                              output_dir)
+
+        # sample
+        for i in range(num_samples):
+            im = img_postprocess(np.squeeze(model.sample()[0]))
+            im.save(
+                os.path.join(output_dir,
+                             "epoch_{}_sample_{}.png".format(epoch, i)))

@@ -35,17 +35,12 @@ def common_arg_parser():
                         type=str,
                         default='selfboosting')
     parser.add_argument('--network', help='network', type=str, default=None)
-    parser.add_argument('--no_cuda',
-                        help='flag to prevent GPU use',
-                        action='store_true')
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--num_labeled', type=int, default=None)
-    parser.add_argument('--test_batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--epochs', type=int, default=1)
-    parser.add_argument('--log_interval', type=int, default=1)
-    parser.add_argument('--data_dir', type=str, default='./data')
+    parser.add_argument('--data_dir', type=str, default=None)
+    parser.add_argument('--image_size', type=int, default=None)
+    parser.add_argument('--output_dir', type=str, default='./')
     return parser
 
 

@@ -4,32 +4,32 @@ from pyroclast.common.models import get_network_builder
 
 class Encoder(tf.keras.Model):
 
-    def __init__(self, latent_dim, name='enc'):
+    def __init__(self, network_name, latent_dim, name='enc'):
         super(Encoder, self).__init__(name=name)
-        self.net = get_network_builder('conv_only')({})
+        self.net = get_network_builder(network_name)({})
         self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
         self.scale = tf.keras.layers.Dense(latent_dim,
                                            name='encoder_scale_diag_raw')
 
     def call(self, x):
-        n, _, _, _ = x.shape
-        embed = self.net(x)
-        embed = tf.reshape(embed, [n, -1])
-        return self.loc(embed), tf.nn.softplus(self.scale(embed)) + 1e-6
+        embed = tf.reshape(self.net(x), [x.shape[0], -1])
+        inv_softplus_scale = self.scale(embed)
+        if not tf.reduce_all(tf.math.is_finite(inv_softplus_scale)):
+            print("inv_softplus_scale encoder ISN'T FINITE")
+        scale = tf.nn.softplus(inv_softplus_scale) + 1e-6
+        if not tf.reduce_all(tf.math.is_finite(scale)):
+            print("scale encoder ISN'T FINITE")
+        return self.loc(embed), scale
 
 
 class Decoder(tf.keras.Model):
 
-    def __init__(self, name='dec'):
+    def __init__(self, network_name, image_size, name='dec'):
         super(Decoder, self).__init__(name=name)
-        self.initial = tf.keras.layers.Dense(64)
-        self.net = get_network_builder('upscale_conv')()
-        self.final = tf.keras.layers.Conv2D(3, 1, padding="same")
+        self.net = get_network_builder(network_name)({'image_size': image_size})
+        self.loc = tf.keras.layers.Conv2D(3, 3, padding="same")
+        self.log_scale = tf.keras.layers.Conv2D(3, 3, padding="same")
 
     def call(self, z):
-        n, d = z.shape.as_list()
-        initial = self.initial(z)
-        initial = tf.reshape(initial, [n, 4, 4, 4])
-        latent = self.net(initial)
-        output = self.final(latent)
-        return tf.nn.sigmoid(output)
+        latent = self.net(z)
+        return self.loc(latent), self.log_scale(latent)
