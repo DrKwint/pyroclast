@@ -12,8 +12,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
-          image_size, output_dist, max_tree_depth, max_tree_leaf_nodes,
-          load_dir, output_dir):
+          output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
+          output_dir):
     num_classes = data_dict['num_classes']
 
     # setup model vars
@@ -24,7 +24,6 @@ def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
         learning_rate=learning_rate,
         num_classes=num_classes,
         latent_dim=latent_dim,
-        image_size=image_size,
         output_dist=output_dist,
         max_tree_depth=max_tree_depth,
         max_tree_leaf_nodes=max_tree_leaf_nodes)
@@ -61,13 +60,12 @@ def learn(
         seed=None,
         latent_dim=128,
         epochs=1000,
-        image_size=128,
-        max_tree_depth=5,
-        max_tree_leaf_nodes=16,
-        tree_update_period=10,
-        optimizer='adam',  # adam or rmsprop
-        learning_rate=1e-3,
-        output_dist='hybrid',  # disc_logistic or l2 or hybrid
+        max_tree_depth=6,
+        max_tree_leaf_nodes=32,
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=1e-4,
+        output_dist='l2',  # disc_logistic or l2 or hybrid
         output_dir='./',
         load_dir=None,
         num_samples=5,
@@ -78,8 +76,7 @@ def learn(
         silent=False):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
-        image_size, output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
-        output_dir)
+        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):

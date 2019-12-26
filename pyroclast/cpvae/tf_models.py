@@ -24,7 +24,7 @@ class Encoder(tf.keras.Model):
 
 class Decoder(tf.keras.Model):
 
-    def __init__(self, network_name, image_size, name='dec'):
+    def __init__(self, network_name, name='dec'):
         super(Decoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)()
         self.loc = tf.keras.layers.Conv2D(3, 3, padding="same")
