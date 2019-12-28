@@ -3,10 +3,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from pyroclast.common.util import img_postprocess
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
-from pyroclast.common.util import dummy_context_mgr
-from pyroclast.cpvae.util import update_model_tree, build_model
+from pyroclast.common.util import dummy_context_mgr, img_postprocess
+from pyroclast.cpvae.util import build_model, update_model_tree
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -15,6 +14,7 @@ def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
           output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
           output_dir):
     num_classes = data_dict['num_classes']
+    num_channels = data_dict['shape'][-1]
 
     # setup model vars
     model, optimizer, global_step = build_model(
@@ -23,6 +23,7 @@ def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
         decoder_name=decoder,
         learning_rate=learning_rate,
         num_classes=num_classes,
+        num_channels=num_channels,
         latent_dim=latent_dim,
         output_dist=output_dist,
         max_tree_depth=max_tree_depth,
@@ -91,8 +92,7 @@ def learn(
                                               x_hat,
                                               x_hat_scale,
                                               z_posterior,
-                                              y=labels,
-                                              epoch=epoch)
+                                              y=labels)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +

@@ -1,4 +1,5 @@
 import tensorflow as tf
+
 from pyroclast.common.models import get_network_builder
 
 
@@ -24,11 +25,13 @@ class Encoder(tf.keras.Model):
 
 class Decoder(tf.keras.Model):
 
-    def __init__(self, network_name, name='dec'):
+    def __init__(self, network_name, output_channels, name='dec'):
         super(Decoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)()
-        self.loc = tf.keras.layers.Conv2D(3, 3, padding="same")
-        self.log_scale = tf.keras.layers.Conv2D(3, 3, padding="same")
+        self.loc = tf.keras.layers.Conv2D(output_channels, 3, padding="same")
+        self.log_scale = tf.keras.layers.Conv2D(output_channels,
+                                                3,
+                                                padding="same")
 
     def call(self, z):
         latent = self.net(z)

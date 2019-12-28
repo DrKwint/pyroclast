@@ -1,23 +1,25 @@
 import os
 
+import numpy as np
 import sklearn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
-import numpy as np
-
-from pyroclast.cpvae.cpvae import CpVAE
-from pyroclast.cpvae.tf_models import Decoder, Encoder
 from tqdm import tqdm
-from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
+
+from pyroclast.common.util import ensure_dir_exists
+from pyroclast.cpvae.cpvae import CpVAE
+from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
+                                 transductive_box_inference)
+from pyroclast.cpvae.tf_models import Decoder, Encoder
 
 
 def build_model(optimizer_name, encoder_name, decoder_name, learning_rate,
-                num_classes, latent_dim, output_dist, max_tree_depth,
-                max_tree_leaf_nodes):
+                num_classes, num_channels, latent_dim, output_dist,
+                max_tree_depth, max_tree_leaf_nodes):
     # model
     encoder = Encoder(encoder_name, latent_dim)
-    decoder = Decoder(decoder_name)
+    decoder = Decoder(decoder_name, num_channels)
     decision_tree = sklearn.tree.DecisionTreeClassifier(
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,
@@ -138,6 +140,7 @@ def update_model_tree(ds, model, epoch, num_classes, output_dir):
     model.values = values_
     class_locs, class_scales = calculate_latent_params_by_class(
         labels, locs, scales, 2, samples.shape[-1])
+    ensure_dir_exists(output_dir)
     sklearn.tree.export_graphviz(model.decision_tree,
                                  out_file=os.path.join(
                                      output_dir,
