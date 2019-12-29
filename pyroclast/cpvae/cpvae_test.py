@@ -50,7 +50,7 @@ class CpVAETest(parameterized.TestCase):
                                                   z_posterior)
                 assert distortion.shape == self.args[
                     'batch_size'], 'output_dist is {}'.format(dist)
-                # distortion is log prob, so it can be whatever
+                assert not any(distortion < 0.)
                 assert rate.shape == self.args['batch_size']
                 assert not any(rate < 0.)
                 break
