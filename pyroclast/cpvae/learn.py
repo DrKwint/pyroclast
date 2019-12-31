@@ -81,7 +81,7 @@ def learn(
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
-        x = tf.cast(batch['image'], tf.float32)
+        x = tf.cast(batch['image'], tf.float32) / 255.
         labels = tf.cast(batch['label'], tf.int32)
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
@@ -93,6 +93,7 @@ def learn(
                                               x_hat_scale,
                                               z_posterior,
                                               y=labels)
+            print(distortion)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
