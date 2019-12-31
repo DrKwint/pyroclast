@@ -87,13 +87,13 @@ def learn(
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
             x_hat, y_hat, z_posterior, x_hat_scale = model(x)
+            print(x_hat)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x,
                                               x_hat,
                                               x_hat_scale,
                                               z_posterior,
                                               y=labels)
-            print(distortion)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
@@ -171,7 +171,9 @@ def learn(
 
         # sample
         for i in range(num_samples):
-            im = img_postprocess(np.squeeze(model.sample()[0]))
+            im = np.squeeze(model.sample()[0])
+            if output_dist == 'bernoulli':
+                im = np.exp(im)
             im.save(
                 os.path.join(output_dir,
                              "epoch_{}_sample_{}.png".format(epoch, i)))
