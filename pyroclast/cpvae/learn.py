@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
 from pyroclast.common.util import dummy_context_mgr, img_postprocess
@@ -59,22 +60,23 @@ def learn(
         encoder,
         decoder,
         seed=None,
-        latent_dim=128,
+        latent_dim=64,
         epochs=1000,
-        max_tree_depth=6,
-        max_tree_leaf_nodes=32,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
         tree_update_period=3,
         optimizer='rmsprop',  # adam or rmsprop
-        learning_rate=1e-4,
-        output_dist='l2',  # disc_logistic or l2 or hybrid
+        learning_rate=3e-4,
+        output_dist='l2',  # disc_logistic or l2 or bernoulli
         output_dir='./',
         load_dir=None,
         num_samples=5,
         clip_norm=0.,
-        alpha=1e-2,
-        beta=5.,
-        gamma=5.,
-        silent=False):
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        gamma_delay=0,
+        debug=False):
     model, optimizer, global_step, writer, ckpt_manager = setup(
         data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
         output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir)
@@ -87,7 +89,6 @@ def learn(
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
             x_hat, y_hat, z_posterior, x_hat_scale = model(x)
-            print(x_hat)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x,
                                               x_hat,
@@ -96,6 +97,8 @@ def learn(
                                               y=labels)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
+            classification_loss = classification_loss * float(
+                epoch > gamma_delay)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
 
@@ -121,7 +124,7 @@ def learn(
             tf.summary.scalar(prefix + "loss/mean rate",
                               beta * tf.reduce_mean(rate),
                               step=global_step)
-            tf.summary.scalar(prefix + "loss/mean classification_loss",
+            tf.summary.scalar(prefix + "loss/mean classification loss",
                               gamma * tf.reduce_mean(classification_loss),
                               step=global_step)
             tf.summary.scalar(prefix + "classification_rate",
@@ -141,13 +144,14 @@ def learn(
                               step=global_step)
 
             if is_train:
-                for (v, g) in zip(model.trainable_variables, gradients):
-                    if g is None:
-                        continue
-                    tf.summary.scalar(prefix +
-                                      'gradient/mean of {}'.format(v.name),
-                                      tf.reduce_mean(g),
-                                      step=global_step)
+                if debug:
+                    for (v, g) in zip(model.trainable_variables, gradients):
+                        if g is None:
+                            continue
+                        tf.summary.scalar(prefix +
+                                          'gradient/mean of {}'.format(v.name),
+                                          tf.reduce_mean(g),
+                                          step=global_step)
                 if clip_norm:
                     tf.summary.scalar("gradient/global norm",
                                       pre_clip_global_norm,
@@ -174,6 +178,7 @@ def learn(
             im = np.squeeze(model.sample()[0])
             if output_dist == 'bernoulli':
                 im = np.exp(im)
+            im = Image.fromarray((255. * im).astype(np.uint8))
             im.save(
                 os.path.join(output_dir,
                              "epoch_{}_sample_{}.png".format(epoch, i)))
