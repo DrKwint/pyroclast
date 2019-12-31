@@ -54,10 +54,8 @@ class CpVAE(tf.Module):
             self.distortion_fn = lambda x, x_hat, x_hat_scale: tf.reduce_sum(
                 tf.square(x - x_hat), axis=[1, 2, 3])
         elif output_dist == 'bernoulli':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: tf.math.exp(
-                tf.reduce_sum(tfp.distributions.Bernoulli(logits=x_hat).
-                              log_prob(x),
-                              axis=[1, 2, 3]))
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: -1. * tfp.distributions.Independent(
+                tfp.distributions.Bernoulli(logits=x_hat), 3).log_prob(x)
         elif output_dist == 'continuous_bernoulli':
             self.distortion_fn = lambda x, x_hat, x_hat_scale: 0.
         else:
