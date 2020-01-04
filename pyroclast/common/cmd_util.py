@@ -39,7 +39,6 @@ def common_arg_parser():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--data_dir', type=str, default=None)
-    parser.add_argument('--image_size', type=int, default=None)
     parser.add_argument('--output_dir', type=str, default='./')
     return parser
 

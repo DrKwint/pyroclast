@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 from PIL import Image
 
@@ -26,4 +28,12 @@ def img_preprocess(d, crop_size):
 
 
 def img_postprocess(x):
-    return Image.fromarray(((x + 1) * 127.5).astype('uint8'), mode='RGB')
+    if len(x.shape) == 3 and x.shape[-1] == 3:
+        return Image.fromarray(((x + 1) * 127.5).astype('uint8'), mode='RGB')
+    else:
+        return Image.fromarray(((x + 1) * 127.5).astype('uint8'))
+
+
+def ensure_dir_exists(dir_path):
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)

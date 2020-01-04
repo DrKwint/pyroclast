@@ -2,27 +2,30 @@ import os
 
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 
-from pyroclast.common.util import img_postprocess
 from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
-from pyroclast.common.util import dummy_context_mgr
-from pyroclast.cpvae.util import update_model_tree, build_model
+from pyroclast.common.util import dummy_context_mgr, img_postprocess
+from pyroclast.cpvae.util import build_model, update_model_tree
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
-def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
+def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
           output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
-          output_dir, label_attr):
+          output_dir):
     num_classes = data_dict['num_classes']
+    num_channels = data_dict['shape'][-1]
 
     # setup model vars
     model, optimizer, global_step = build_model(
         optimizer_name=optimizer,
+        encoder_name=encoder,
+        decoder_name=decoder,
         learning_rate=learning_rate,
         num_classes=num_classes,
+        num_channels=num_channels,
         latent_dim=latent_dim,
-        image_size=image_size,
         output_dist=output_dist,
         max_tree_depth=max_tree_depth,
         max_tree_leaf_nodes=max_tree_leaf_nodes)
@@ -47,40 +50,41 @@ def setup(data_dict, optimizer, learning_rate, latent_dim, image_size,
     update_model_tree(data_dict['train'],
                       model,
                       epoch='visualize',
-                      label_attr=label_attr,
+                      num_classes=num_classes,
                       output_dir=output_dir)
     return model, optimizer, global_step, writer, ckpt_manager
 
 
 def learn(
         data_dict,
+        encoder,
+        decoder,
         seed=None,
-        latent_dim=128,
+        latent_dim=64,
         epochs=1000,
-        image_size=128,
         max_tree_depth=5,
         max_tree_leaf_nodes=16,
-        tree_update_period=10,
-        label_attr='No_Beard',
-        optimizer='adam',  # adam or rmsprop
-        learning_rate=1e-3,
-        output_dist='hybrid',  # disc_logistic or l2 or hybrid
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=3e-4,
+        output_dist='l2',  # disc_logistic or l2 or bernoulli
         output_dir='./',
         load_dir=None,
         num_samples=5,
         clip_norm=0.,
-        alpha=1e-2,
-        beta=5.,
-        gamma=5.):
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        gamma_delay=0,
+        debug=False):
     model, optimizer, global_step, writer, ckpt_manager = setup(
-        data_dict, optimizer, learning_rate, latent_dim, image_size,
-        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir,
-        label_attr)
+        data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
+        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
-        x = tf.cast(batch['image'], tf.float32)
-        labels = tf.cast(batch['attributes'][label_attr], tf.int32)
+        x = tf.cast(batch['image'], tf.float32) / 255.
+        labels = tf.cast(batch['label'], tf.int32)
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
@@ -90,10 +94,11 @@ def learn(
                                               x_hat,
                                               x_hat_scale,
                                               z_posterior,
-                                              y=labels,
-                                              epoch=epoch)
+                                              y=labels)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
+            classification_loss = classification_loss * float(
+                epoch > gamma_delay)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
 
@@ -119,7 +124,7 @@ def learn(
             tf.summary.scalar(prefix + "loss/mean rate",
                               beta * tf.reduce_mean(rate),
                               step=global_step)
-            tf.summary.scalar(prefix + "loss/mean classification_loss",
+            tf.summary.scalar(prefix + "loss/mean classification loss",
                               gamma * tf.reduce_mean(classification_loss),
                               step=global_step)
             tf.summary.scalar(prefix + "classification_rate",
@@ -139,13 +144,14 @@ def learn(
                               step=global_step)
 
             if is_train:
-                for (v, g) in zip(model.trainable_variables, gradients):
-                    if g is None:
-                        continue
-                    tf.summary.scalar(prefix +
-                                      'gradient/mean of {}'.format(v.name),
-                                      tf.reduce_mean(g),
-                                      step=global_step)
+                if debug:
+                    for (v, g) in zip(model.trainable_variables, gradients):
+                        if g is None:
+                            continue
+                        tf.summary.scalar(prefix +
+                                          'gradient/mean of {}'.format(v.name),
+                                          tf.reduce_mean(g),
+                                          step=global_step)
                 if clip_norm:
                     tf.summary.scalar("gradient/global norm",
                                       pre_clip_global_norm,
@@ -164,12 +170,15 @@ def learn(
         # save and update
         ckpt_manager.save(checkpoint_number=epoch)
         if epoch % tree_update_period == 0:
-            update_model_tree(data_dict['train'], model, epoch, label_attr,
-                              output_dir)
+            update_model_tree(data_dict['train'], model, epoch,
+                              data_dict['num_classes'], output_dir)
 
         # sample
         for i in range(num_samples):
-            im = img_postprocess(np.squeeze(model.sample()[0]))
+            im = np.squeeze(model.sample()[0])
+            if output_dist == 'bernoulli':
+                im = np.exp(im)
+            im = Image.fromarray((255. * im).astype(np.uint8))
             im.save(
                 os.path.join(output_dir,
                              "epoch_{}_sample_{}.png".format(epoch, i)))

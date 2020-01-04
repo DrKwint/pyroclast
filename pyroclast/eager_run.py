@@ -66,19 +66,20 @@ def setup_data(args):
                                 data_dir='./data/')
     if args.dataset == 'celeb_a':
         data_dict['num_classes'] = 2
+        data_dict['train_bpe'] = info.splits['train'].num_examples // args[
+            'batch_size']
         data_dict[
-            'train_bpe'] = info.splits['train'].num_examples // args.batch_size
-        data_dict[
-            'test_bpe'] = info.splits['test'].num_examples // args.batch_size
+            'test_bpe'] = info.splits['test'].num_examples // args['batch_size']
         data_dict['shape'] = info.features['image'].shape
 
         data_dict['all_train'] = data_dict['train']
         data_dict['train'] = data_dict['train'].map(
             lambda x: img_preprocess(x, args.image_size)).shuffle(1024).batch(
-                args.batch_size)
+                args['batch_size'])
         data_dict['all_test'] = data_dict['test']
         data_dict['test'] = data_dict['test'].map(
-            lambda x: img_preprocess(x, args.image_size)).batch(args.batch_size)
+            lambda x: img_preprocess(x, args.image_size)).batch(
+                args['batch_size'])
     else:
         data_dict[
             'train_bpe'] = info.splits['train'].num_examples // args.batch_size

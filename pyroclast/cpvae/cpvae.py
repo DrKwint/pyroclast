@@ -1,11 +1,12 @@
-import tensorflow as tf
-import tensorflow_probability as tfp
 import numpy as np
-from pyroclast.cpvae.ddt import transductive_box_inference, get_decision_tree_boundaries
 import sklearn.tree
+import tensorflow as tf
 import tensorflow_datasets as tfds
+import tensorflow_probability as tfp
 
 from pyroclast.common.tf_util import img_discretized_logistic_log_prob
+from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
+                                 transductive_box_inference)
 
 
 class CpVAE(tf.Module):
@@ -45,24 +46,18 @@ class CpVAE(tf.Module):
         ]
 
         # set distortion_fn
+        # can be any fn which takes (data, output_mean, output_scale) and returns a value per datum
         if output_dist == 'disc_logistic':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: -img_discretized_logistic_log_prob(
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
                 x_hat, x, x_hat_scale)
         elif output_dist == 'l2':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale, epoch: tf.reduce_sum(
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: tf.reduce_sum(
                 tf.square(x - x_hat), axis=[1, 2, 3])
-        elif output_dist == 'hybrid':
-            discretized_logistic = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
-                x_hat, x, x_hat_scale)
-            l2 = lambda x, x_hat: tf.reduce_mean(tf.square(x - x_hat),
-                                                 axis=[1, 2, 3])
-
-            def hybrid_distortion(x, x_hat, x_hat_scale, epoch, epoch_max=10):
-                coeff = max(0., min(1., epoch / epoch_max))
-                return coeff * discretized_logistic(
-                    x, x_hat, x_hat_scale) + (1. - coeff) * l2(x, x_hat)
-
-            self.distortion_fn = hybrid_distortion
+        elif output_dist == 'bernoulli':
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: -1. * tfp.distributions.Independent(
+                tfp.distributions.Bernoulli(logits=x_hat), 3).log_prob(x)
+        elif output_dist == 'continuous_bernoulli':
+            self.distortion_fn = lambda x, x_hat, x_hat_scale: 0.
         else:
             print('DISTORTION_FN NOT PROPERLY SPECIFIED')
             exit()
@@ -89,9 +84,9 @@ class CpVAE(tf.Module):
             z = self.default_prior.sample(sample_shape)
         return self._decode(z)
 
-    def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None, epoch=None):
+    def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None):
         # distortion
-        distortion = self.distortion_fn(x, x_hat, x_hat_scale, epoch)
+        distortion = self.distortion_fn(x, x_hat, x_hat_scale)
 
         # rate
         if y is not None:

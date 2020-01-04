@@ -65,6 +65,34 @@ def conv_only(output_channels=[32, 64, 64, 128],
     ])
 
 
+@register("mnist_encoder")
+def mnist_conv():
+    layers = []
+    layers.append(tf.keras.layers.Conv2D(16, 3, 2,
+                                         padding='SAME'))  # 14 x 14 x 16
+    layers.append(tf.keras.layers.Conv2D(32, 3, 2,
+                                         padding='SAME'))  # 7 x 7 x 32
+    return tf.keras.Sequential(layers)
+
+
+@register("mnist_decoder")
+def mnist_deconv():
+    layers = []
+    layers.append(tf.keras.layers.Dense(49))
+    layers.append(tf.keras.layers.Reshape(target_shape=[7, 7, 1]))
+    layers.append(
+        tf.keras.layers.Conv2DTranspose(filters=32,
+                                        kernel_size=5,
+                                        strides=2,
+                                        padding='SAME'))
+    layers.append(
+        tf.keras.layers.Conv2DTranspose(filters=16,
+                                        kernel_size=5,
+                                        strides=2,
+                                        padding='SAME'))
+    return tf.keras.Sequential(layers)
+
+
 @register("celeba_enc")
 def celeba_conv(is_train=True):
     layers = []
