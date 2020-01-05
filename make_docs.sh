@@ -8,6 +8,6 @@ else
     cd "$(dirname $(realpath "$0"))"
 fi
 
-sphinx-apidoc -f -o docs/api pyroclast pyroclast/svae/* pyroclast/selfboosting/* pyroclast/qualia/*
+sphinx-apidoc -f -o docs/api pyroclast
 cd docs
 make html
