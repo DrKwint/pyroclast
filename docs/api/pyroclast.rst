@@ -9,9 +9,6 @@ Subpackages
    pyroclast.boost_resnet
    pyroclast.cpvae
    pyroclast.flask
-   pyroclast.qualia
-   pyroclast.selfboosting
-   pyroclast.svae
 
 Submodules
 ----------

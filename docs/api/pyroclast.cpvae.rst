@@ -36,14 +36,6 @@ pyroclast.cpvae.ddt\_test module
    :undoc-members:
    :show-inheritance:
 
-pyroclast.cpvae.generate module
--------------------------------
-
-.. automodule:: pyroclast.cpvae.generate
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 pyroclast.cpvae.learn module
 ----------------------------
 
