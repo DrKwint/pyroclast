@@ -68,13 +68,17 @@ def get_decision_tree_boundaries(tree, feature_num, class_num,
 def transductive_box_inference(mu, sigma, lower_bounds, upper_bounds,
                                conditional_class_prob):
     """
-    Calculates the probability that a sample of a multivariate Gaussian defined N(mu, sigma*I) will be classified into class c
+    Calculates the probability that a sample of a multivariate Gaussian, defined :math:`N(\mu, \sigma I)`, will be classified into class c
 
     Args:
-    - mu, sigma (Tensor): shape [batch_size, latent_dimension]
-    - lower_bounds, upper_bounds (Tensor): shape [num_boxes, latent_dimension]
-        defines the lower and upper bounds of each box in each dimension
-    - conditional_class_prob (Tensor): shape [num_boxes, class_num] weight of each class per box
+        mu (Tensor): shape [batch_size, latent_dimension]
+        sigma (Tensor): identical shape and dtype to `mu`
+        lower_bounds (Tensor): shape [num_boxes, latent_dimension], defines the lower and upper bounds of each box in each dimension
+        upper_bounds (Tensor): identical shape and dtype to `lower_bounds`
+        conditional_class_prob (Tensor): shape [num_boxes, class_num] weight of each class per box
+
+    Returns:
+        Tensor of shape [batch_size, class_num] with the parameters of a discrete distribution per datum
     """
     # Infer dimensions and make sure data types are set as needed
     batch_size = tf.shape(mu)[0]
