@@ -22,8 +22,6 @@ setup(
         if package.startswith('pyroclast')
     ],
     install_requires=[
-        'tensorflow', 'dm-sonnet', 'tensorflow_datasets',
-        'tensorflow_probability'
     ],
     extras_require=extras,
     description=

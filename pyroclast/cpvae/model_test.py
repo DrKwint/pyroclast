@@ -3,8 +3,8 @@ import tensorflow as tf
 from absl.testing import parameterized
 
 from pyroclast.common.tf_util import setup_tfds
-from pyroclast.cpvae.cpvae import CpVAE
-from pyroclast.cpvae.tf_models import Decoder, Encoder
+from pyroclast.cpvae.model import CpVAE
+from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 from pyroclast.cpvae.util import update_model_tree
 
 
@@ -17,12 +17,14 @@ class CpVAETest(parameterized.TestCase):
         self.args['encoder'] = 'mnist_encoder'
         self.args['decoder'] = 'mnist_decoder'
         self.args['epochs'] = 1
+        self.args['data_limit'] = 80
         self.args['latent_dim'] = 10
         self.args['batch_size'] = 8
+        self.args['output_dir'] = 'cpvae_cpvae_test'
 
-        self.ds = setup_tfds(self.args, data_limit=100)
-        self.encoder = Encoder(self.args['encoder'], self.args['latent_dim'])
-        self.decoder = Decoder(self.args['decoder'], self.ds['shape'][-1])
+        self.ds = setup_tfds(self.args['dataset'], self.args['batch_size'], self.args['data_limit'])
+        self.encoder = VAEEncoder(self.args['encoder'], self.args['latent_dim'])
+        self.decoder = VAEDecoder(self.args['decoder'], self.ds['shape'][-1])
         self.decision_tree = sklearn.tree.DecisionTreeClassifier(
             max_depth=2, min_weight_fraction_leaf=0.01, max_leaf_nodes=4)
 
@@ -41,7 +43,7 @@ class CpVAETest(parameterized.TestCase):
                               model,
                               epoch='visualize',
                               num_classes=self.ds['num_classes'],
-                              output_dir='pytest')
+                              output_dir='cpvae_test')
 
             for batch in self.ds['train']:
                 x = tf.cast(batch['image'], tf.float32)

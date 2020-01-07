@@ -8,21 +8,21 @@ import tensorflow_datasets as tfds
 import tqdm
 
 
-def setup_tfds(args, data_limit=-1):
-    data_dict, info = tfds.load(args['dataset'],
+def setup_tfds(dataset, batch_size, data_limit=-1, data_dir='./data/'):
+    data_dict, info = tfds.load(dataset,
                                 with_info=True,
-                                data_dir='./data/')
+                                data_dir=data_dir)
     data_dict[
-        'train_bpe'] = info.splits['train'].num_examples // args['batch_size']
+        'train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict[
-        'test_bpe'] = info.splits['test'].num_examples // args['batch_size']
+        'test_bpe'] = info.splits['test'].num_examples // batch_size
     data_dict['shape'] = info.features['image'].shape
     data_dict['num_classes'] = info.features['label'].num_classes
 
-    data_dict['train'] = data_dict['train'].take(data_limit).shuffle(
-        1024).batch(args['batch_size']).prefetch(tf.data.experimental.AUTOTUNE)
-    data_dict['test'] = data_dict['test'].take(data_limit).batch(
-        args['batch_size']).prefetch(tf.data.experimental.AUTOTUNE)
+    data_dict['train'] = data_dict['train'].shuffle(
+        1024).take(data_limit).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    data_dict['test'] = data_dict['test'].shuffle(1024).take(data_limit).batch(
+        batch_size).prefetch(tf.data.experimental.AUTOTUNE)
     return data_dict
 
 

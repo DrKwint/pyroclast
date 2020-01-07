@@ -1,130 +1,197 @@
+import os
+
 import numpy as np
-import sklearn.tree
 import tensorflow as tf
-import tensorflow_datasets as tfds
-import tensorflow_probability as tfp
+from PIL import Image
+from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
+from pyroclast.common.util import dummy_context_mgr, img_postprocess
+from pyroclast.cpvae.util import build_model, update_model_tree
+from tqdm import tqdm
 
-from pyroclast.common.tf_util import img_discretized_logistic_log_prob
-from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
-                                 transductive_box_inference)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 
-class CpVAE(tf.Module):
+def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
+          output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir,
+          output_dir):
+    num_classes = data_dict['num_classes']
+    num_channels = data_dict['shape'][-1]
 
-    def __init__(self,
-                 encoder,
-                 decoder,
-                 decision_tree,
-                 latent_dimension,
-                 class_num,
-                 box_num,
-                 output_dist,
-                 name='cpvae'):
-        """Builds a CpVAE TF Module which performs generation and classification
+    # setup model vars
+    model, optimizer, global_step = build_model(
+        optimizer_name=optimizer,
+        encoder_name=encoder,
+        decoder_name=decoder,
+        learning_rate=learning_rate,
+        num_classes=num_classes,
+        num_channels=num_channels,
+        latent_dim=latent_dim,
+        output_dist=output_dist,
+        max_tree_depth=max_tree_depth,
+        max_tree_leaf_nodes=max_tree_leaf_nodes)
 
-        Args:
-            encoder (Module): function from input data to loc and scale tensors each of length equal to `latent_dimension`
-            decoder (Module): function from latent variable to loc and scale tensors of shape equal to the input data
-            decision_tree (sklearn.tree.DecisionTreeClassifier):
-            latent_dimension (int): number of dimensions in the latent variable
-            class_num (int): number of classes to classify data into
-            box_num (int): maximum number of boxes in the decision tree
-            output_dist (str): name of the distribution to use as the VAE output, mostly used to calculate distortion
-        """
-        super(CpVAE, self).__init__(name=name)
-        self.encoder = encoder
-        self.decoder = decoder
-        self.decision_tree = decision_tree
+    #checkpointing and tensorboard
+    writer = tf.summary.create_file_writer(output_dir)
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+                                     model=model,
+                                     global_step=global_step)
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=os.path.join(
+                                                  output_dir, 'model'),
+                                              max_to_keep=3,
+                                              keep_checkpoint_every_n_hours=2)
 
-        # tree_stuff, these must be set before classification is attempted
-        self.lower = None
-        self.upper = None
-        self.values = None
+    # load trained model, if available
+    if load_dir:
+        status = checkpoint.restore(tf.train.latest_checkpoint(str(load_dir)))
+        print("load: ", status.assert_existing_objects_matched())
 
-        # Set a default prior of the standard (0,I) Gaussian
-        self.default_prior = tfp.distributions.MultivariateNormalDiag(
-            loc=tf.zeros(latent_dimension),
-            scale_diag=tf.ones(latent_dimension))
-        # If the prior is per-class, use a Gaussian with learned parameters for each
-        self.class_priors = [
-            tfp.distributions.MultivariateNormalDiag(
-                loc=tf.Variable(np.zeros(latent_dimension, dtype=np.float32),
-                                name='class_{}_loc'.format(i)),
-                scale_diag=tfp.util.DeferredTensor(
-                    tf.math.softplus,
-                    tf.Variable(np.ones(latent_dimension, dtype=np.float32),
-                                name='class_{}_scale_diag'.format(i))))
-            for i in range(class_num)
-        ]
+    # train a ddt
+    update_model_tree(data_dict['train'],
+                      model,
+                      epoch='visualize',
+                      num_classes=num_classes,
+                      output_dir=output_dir)
+    return model, optimizer, global_step, writer, ckpt_manager
 
-        # set distortion_fn
-        # can be any fn which takes (data, output_mean, output_scale) and returns a value per datum
-        if output_dist == 'disc_logistic':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: -img_discretized_logistic_log_prob(
-                x_hat, x, x_hat_scale)
-        elif output_dist == 'l2':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: tf.reduce_sum(
-                tf.square(x - x_hat), axis=[1, 2, 3])
-        elif output_dist == 'bernoulli':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: -1. * tfp.distributions.Independent(
-                tfp.distributions.Bernoulli(logits=x_hat), 3).log_prob(x)
-        elif output_dist == 'continuous_bernoulli':
-            self.distortion_fn = lambda x, x_hat, x_hat_scale: 0.
-        else:
-            print('DISTORTION_FN NOT PROPERLY SPECIFIED')
-            exit()
 
-    def __call__(self, x, y=None):
-        # autoencode
-        loc, scale_diag = self._encode(x)
-        z_posterior = tfp.distributions.MultivariateNormalDiag(
-            loc=loc, scale_diag=scale_diag)
-        z = z_posterior.sample()
-        x_hat, x_hat_scale = self._decode(z)
-        # classification
-        assert not (self.lower is None or self.upper is None or
-                    self.values is None)
-        y_hat = transductive_box_inference(loc, scale_diag, self.lower,
-                                           self.upper, self.values)
-        return x_hat, y_hat, z_posterior, x_hat_scale
+def learn(
+        data_dict,
+        encoder,
+        decoder,
+        seed=None,
+        latent_dim=64,
+        epochs=1000,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=3e-4,
+        output_dist='l2',  # disc_logistic or l2 or bernoulli
+        output_dir='./',
+        load_dir=None,
+        num_samples=5,
+        clip_norm=0.,
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        gamma_delay=0,
+        debug=False):
+    model, optimizer, global_step, writer, ckpt_manager = setup(
+        data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
+        output_dist, max_tree_depth, max_tree_leaf_nodes, load_dir, output_dir)
 
-    def _encode(self, x):
-        loc, scale_diag = self.encoder(x)
-        return loc, scale_diag
+    # define minibatch fn
+    def run_minibatch(epoch, batch, is_train=True):
+        x = tf.cast(batch['image'], tf.float32) / 255.
+        labels = tf.cast(batch['label'], tf.int32)
 
-    def _decode(self, z):
-        return self.decoder(z)
+        with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
+            global_step.assign_add(1)
+            x_hat, y_hat, z_posterior, x_hat_scale = model(x)
+            y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
+            distortion, rate = model.vae_loss(x,
+                                              x_hat,
+                                              x_hat_scale,
+                                              z_posterior,
+                                              y=labels)
+            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=y_hat)
+            classification_loss = classification_loss * float(
+                epoch > gamma_delay)
+            loss = tf.reduce_mean(alpha * distortion + beta * rate +
+                                  gamma * classification_loss)
 
-    def sample(self, sample_num=1, use_class_prior=False):
-        """Sample from the generative distribution
+        # calculate gradients for current loss
+        if is_train:
+            gradients = tape.gradient(loss, model.trainable_variables)
+            if clip_norm:
+                clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
+                    gradients, clip_norm)
+            else:
+                clipped_gradients = gradients
+            optimizer.apply_gradients(
+                zip(clipped_gradients, model.trainable_variables))
 
-        Args:
-            sample_shape (int): Number of samples
-            use_class_prior (bool):
-        """
-        if use_class_prior:
-            class_choices = tfp.distributions.Categorical(
-                [1 / self.class_num] * self.class_num).sample(sample_num)
-            z = np.array([self.class_priors[c].sample() for c in class_choices])
-        else:
-            z = self.default_prior.sample(sample_num)
-        return self._decode(z)
+        prefix = 'train ' if is_train else 'validate '
+        with writer.as_default():
+            prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(prediction, labels), tf.float32))
+            tf.summary.scalar(prefix + "loss/mean distortion",
+                              alpha * tf.reduce_mean(distortion),
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean rate",
+                              beta * tf.reduce_mean(rate),
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean classification loss",
+                              gamma * tf.reduce_mean(classification_loss),
+                              step=global_step)
+            tf.summary.scalar(prefix + "classification_rate",
+                              classification_rate,
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/total loss",
+                              loss,
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/mean stddev',
+                              tf.reduce_mean(z_posterior.stddev()),
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/min stddev',
+                              tf.reduce_min(z_posterior.stddev()),
+                              step=global_step)
+            tf.summary.scalar(prefix + 'posterior/max stddev',
+                              tf.reduce_max(z_posterior.stddev()),
+                              step=global_step)
 
-    def vae_loss(self, x, x_hat, x_hat_scale, z_posterior, y=None):
-        # distortion
-        distortion = self.distortion_fn(x, x_hat, x_hat_scale)
+            if is_train:
+                if debug:
+                    for (v, g) in zip(model.trainable_variables, gradients):
+                        if g is None:
+                            continue
+                        tf.summary.scalar(prefix +
+                                          'gradient/mean of {}'.format(v.name),
+                                          tf.reduce_mean(g),
+                                          step=global_step)
+                if clip_norm:
+                    tf.summary.scalar("gradient/global norm",
+                                      pre_clip_global_norm,
+                                      step=global_step)
 
-        # rate
-        if y is not None:
-            if len(y.shape) == 1:
-                y = tf.one_hot(y, len(self.class_priors))
-            class_divergences = tf.stack([
-                tfp.distributions.kl_divergence(z_posterior, prior)
-                for prior in self.class_priors
-            ],
-                                         axis=1)  # batch_size x class_num
-            rate = tf.reduce_sum(y * class_divergences, axis=1)
-        else:
-            rate = tfp.distributions.kl_divergence(z_posterior,
-                                                   self.default_prior)
-        return distortion, rate
+    # run training loop
+    for epoch in range(epochs):
+        # train
+        train_batches = data_dict['train']
+        if debug:
+            print("Epoch", epoch)
+            print("TRAIN")
+            train_batches = tqdm(train_batches, total=data_dict['train_bpe'])
+        for batch in train_batches:
+            run_minibatch(epoch, batch, is_train=True)
+
+        # test
+        test_batches = data_dict['test']
+        if debug:
+            print("TEST")
+            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        for batch in test_batches:
+            run_minibatch(epoch, batch, is_train=False)
+
+        # save and update
+        if debug:
+            print('Saving parameters')
+        ckpt_manager.save(checkpoint_number=epoch)
+        if epoch % tree_update_period == 0:
+            if debug:
+                print('Updating decision tree')
+            update_model_tree(data_dict['train'], model, epoch,
+                              data_dict['num_classes'], output_dir)
+
+        # sample
+        if debug:
+            print('Sampling')
+        for i in range(num_samples):
+            im = np.squeeze(model.sample()[0])
+            im = Image.fromarray((255. * im).astype(np.uint8))
+            im.save(
+                os.path.join(output_dir,
+                             "epoch_{}_sample_{}.png".format(epoch, i)))

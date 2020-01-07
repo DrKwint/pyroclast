@@ -8,18 +8,18 @@ import tensorflow_probability as tfp
 from tqdm import tqdm
 
 from pyroclast.common.util import ensure_dir_exists
-from pyroclast.cpvae.cpvae import CpVAE
+from pyroclast.cpvae.model import CpVAE
 from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
                                  transductive_box_inference)
-from pyroclast.cpvae.tf_models import Decoder, Encoder
+from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 
 
 def build_model(optimizer_name, encoder_name, decoder_name, learning_rate,
                 num_classes, num_channels, latent_dim, output_dist,
                 max_tree_depth, max_tree_leaf_nodes):
     # model
-    encoder = Encoder(encoder_name, latent_dim)
-    decoder = Decoder(decoder_name, num_channels)
+    encoder = VAEEncoder(encoder_name, latent_dim)
+    decoder = VAEDecoder(decoder_name, num_channels)
     decision_tree = sklearn.tree.DecisionTreeClassifier(
         max_depth=max_tree_depth,
         min_weight_fraction_leaf=0.01,

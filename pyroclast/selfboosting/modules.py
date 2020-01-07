@@ -1,4 +1,4 @@
-import sonnet as snt
+#import sonnet as snt
 import tensorflow as tf
 
 mapping = {}
