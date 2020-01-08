@@ -88,10 +88,10 @@ def learn(
 
         with tf.GradientTape() if is_train else dummy_context_mgr() as tape:
             global_step.assign_add(1)
-            x_hat, y_hat, z_posterior, x_hat_scale = model(x)
+            x_hat_loc, y_hat, z_posterior, x_hat_scale = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
             distortion, rate = model.vae_loss(x,
-                                              x_hat,
+                                              x_hat_loc,
                                               x_hat_scale,
                                               z_posterior,
                                               y=labels)
@@ -190,7 +190,8 @@ def learn(
         if debug:
             print('Sampling')
         for i in range(num_samples):
-            im = np.squeeze(model.sample()[0])
+            im = np.squeeze(model.sample(use_class_prior=True)[0])
+            im = np.minimum(1., np.maximum(0., im))
             im = Image.fromarray((255. * im).astype(np.uint8))
             im.save(
                 os.path.join(output_dir,

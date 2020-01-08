@@ -36,6 +36,7 @@ class CpVAE(tf.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.decision_tree = decision_tree
+        self.class_num = class_num
 
         # tree_stuff, these must be set before classification is attempted
         self.lower = None
