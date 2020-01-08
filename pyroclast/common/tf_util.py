@@ -9,6 +9,22 @@ import tqdm
 
 
 def setup_tfds(dataset, batch_size, data_limit=-1, data_dir='./data/'):
+    """Setup a TensorFlow Dataset
+
+    Args:
+        dataset (str): Name of the TFDS to load `(Full list here) <https://www.tensorflow.org/datasets/catalog/overview>`_
+        batch_size (int): Number of data per batch
+        data_limit (int): Upper limit to the number of data to load, -1 to load all data
+        data_dir (relative path str): Directory where TFDS should look for the data files
+
+    Returns:
+        A dict with keys train, test, train_bpe, test_bpe, shape, and num_classes.
+
+        train, test are iterators over batches of each set respectively.
+        train_bpe and test_bpe are the number of batches per epoch in each set
+        shape is the shape of each datum
+        num_classes is the number of classes in the labels
+    """
     data_dict, info = tfds.load(dataset, with_info=True, data_dir=data_dir)
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size

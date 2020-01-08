@@ -10,6 +10,7 @@ from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
 
 
 class CpVAE(tf.Module):
+    """Classifier + VAE model which is both generative and discriminative"""
 
     def __init__(self,
                  encoder,

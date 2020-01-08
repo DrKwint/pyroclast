@@ -3,10 +3,11 @@ from pyroclast.common.tf_util import setup_tfds
 from pyroclast.cpvae.cpvae import learn
 
 
-class LearnTest(parameterized.TestCase):
+class CpVAETest(parameterized.TestCase):
+    """Test the `cpvae` submodule"""
 
     def setUp(self):
-        super(LearnTest, self).setUp()
+        super(CpVAETest, self).setUp()
         self.args = dict()
         self.args['dataset'] = 'mnist'
         self.args['encoder'] = 'mnist_encoder'
@@ -18,6 +19,7 @@ class LearnTest(parameterized.TestCase):
         self.args['output_dir'] = 'cpvae_learn_test'
 
     def test_mnist(self):
+        """Run one small epoch of MNIST just to make sure no errors are thrown"""
         # takes ~4 seconds on a laptop
         mnist_ds = setup_tfds(self.args['dataset'], self.args['batch_size'],
                               self.args['data_limit'])
