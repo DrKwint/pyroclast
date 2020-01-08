@@ -33,8 +33,7 @@ def get_alg_module(alg, submodule=None):
     submodule = submodule or alg
     try:
         # first try to import the alg module from baselines
-        alg_module = import_module('.'.join(['pyroclast',
-                                             alg, submodule]))
+        alg_module = import_module('.'.join(['pyroclast', alg, submodule]))
     except ImportError:
         print('failed to import from {}'.format('.'.join(['pyroclast', alg])))
         assert False
@@ -60,7 +59,8 @@ def train(args, extra_args):
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, args.dataset)
     alg_kwargs.update(extra_args)
-    data_dict = setup_tfds(args.dataset, args.batch_size, args.data_limit, args.data_dir)
+    data_dict = setup_tfds(args.dataset, args.batch_size, args.data_limit,
+                           args.data_dir)
 
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, args.dataset, alg_kwargs))

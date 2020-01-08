@@ -28,10 +28,14 @@ class VAEDecoder(tf.keras.Model):
     def __init__(self, network_name, output_channels, name='dec'):
         super(VAEDecoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)()
-        self.loc = tf.keras.layers.Conv2D(output_channels, 3, padding="same", name='decoder_loc')
+        self.loc = tf.keras.layers.Conv2D(output_channels,
+                                          3,
+                                          padding="same",
+                                          name='decoder_loc')
         self.log_scale = tf.keras.layers.Conv2D(output_channels,
                                                 3,
-                                                padding="same", name='decoder_log_scale')
+                                                padding="same",
+                                                name='decoder_log_scale')
 
     def call(self, z):
         latent = self.net(z)

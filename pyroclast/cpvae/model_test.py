@@ -22,7 +22,8 @@ class CpVAETest(parameterized.TestCase):
         self.args['batch_size'] = 8
         self.args['output_dir'] = 'cpvae_cpvae_test'
 
-        self.ds = setup_tfds(self.args['dataset'], self.args['batch_size'], self.args['data_limit'])
+        self.ds = setup_tfds(self.args['dataset'], self.args['batch_size'],
+                             self.args['data_limit'])
         self.encoder = VAEEncoder(self.args['encoder'], self.args['latent_dim'])
         self.decoder = VAEDecoder(self.args['decoder'], self.ds['shape'][-1])
         self.decision_tree = sklearn.tree.DecisionTreeClassifier(

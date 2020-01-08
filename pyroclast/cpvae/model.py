@@ -71,7 +71,8 @@ class CpVAE(tf.Module):
         elif output_dist == 'bernoulli':
             self.distortion_fn = lambda x, x_hat, x_hat_scale: -1. * tfp.distributions.Independent(
                 tfp.distributions.Bernoulli(logits=x_hat), 3).log_prob(x)
-            self.output_fn = lambda x_hat, x_hat_scale: tfp.distributions.Bernoulli(logits=x_hat).sample()
+            self.output_fn = lambda x_hat, x_hat_scale: tfp.distributions.Bernoulli(
+                logits=x_hat).sample()
         elif output_dist == 'continuous_bernoulli':
             self.distortion_fn = lambda x, x_hat, x_hat_scale: 0.
             self.output_fn = lambda x_hat, x_hat_scale: x_hat

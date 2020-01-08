@@ -19,7 +19,8 @@ class LearnTest(parameterized.TestCase):
 
     def test_mnist(self):
         # takes ~4 seconds on a laptop
-        mnist_ds = setup_tfds(self.args['dataset'], self.args['batch_size'], self.args['data_limit'])
+        mnist_ds = setup_tfds(self.args['dataset'], self.args['batch_size'],
+                              self.args['data_limit'])
         learn(mnist_ds,
               encoder=self.args['encoder'],
               decoder=self.args['decoder'],
