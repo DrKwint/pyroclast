@@ -3,9 +3,9 @@ import os
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-from pyroclast.common.tf_util import calculate_accuracy, run_epoch_ops
-from pyroclast.common.util import dummy_context_mgr, img_postprocess
-from pyroclast.cpvae.util import build_model, update_model_tree
+from pyroclast.common.util import dummy_context_mgr
+from pyroclast.cpvae.util import build_model
+from pyroclast.cpvae.ddt import DDT
 from tqdm import tqdm
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -47,11 +47,7 @@ def setup(data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
         print("load: ", status.assert_existing_objects_matched())
 
     # train a ddt
-    update_model_tree(data_dict['train'],
-                      model,
-                      epoch='visualize',
-                      num_classes=num_classes,
-                      output_dir=output_dir)
+    model.classifier.update_model_tree(data_dict['train'], model.posterior)
     return model, optimizer, global_step, writer, ckpt_manager
 
 
@@ -176,15 +172,17 @@ def learn(
         for batch in test_batches:
             run_minibatch(epoch, batch, is_train=False)
 
-        # save and update
+        # save parameters
         if debug:
             print('Saving parameters')
         ckpt_manager.save(checkpoint_number=epoch)
-        if epoch % tree_update_period == 0:
+
+        # update
+        if type(model.classifier) is DDT and epoch % tree_update_period == 0:
             if debug:
                 print('Updating decision tree')
-            update_model_tree(data_dict['train'], model, epoch,
-                              data_dict['num_classes'], output_dir)
+            model.classifier.update_model_tree(data_dict['train'],
+                                               model.posterior)
 
         # sample
         if debug:

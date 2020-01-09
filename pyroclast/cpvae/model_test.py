@@ -5,7 +5,7 @@ from absl.testing import parameterized
 from pyroclast.common.tf_util import setup_tfds
 from pyroclast.cpvae.model import CpVAE
 from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
-from pyroclast.cpvae.util import update_model_tree
+from pyroclast.cpvae.ddt import DDT
 
 
 class CpVAETest(parameterized.TestCase):
@@ -26,8 +26,9 @@ class CpVAETest(parameterized.TestCase):
                              self.args['data_limit'])
         self.encoder = VAEEncoder(self.args['encoder'], self.args['latent_dim'])
         self.decoder = VAEDecoder(self.args['decoder'], self.ds['shape'][-1])
-        self.decision_tree = sklearn.tree.DecisionTreeClassifier(
+        decision_tree = sklearn.tree.DecisionTreeClassifier(
             max_depth=2, min_weight_fraction_leaf=0.01, max_leaf_nodes=4)
+        self.DDT = DDT(decision_tree, 10)
 
     def test_vae_loss(self):
         output_distributions = ['disc_logistic', 'l2', 'bernoulli']
@@ -35,16 +36,13 @@ class CpVAETest(parameterized.TestCase):
             # require the outputs of CpVAE loss fn to be non-negative and have size equal to batch size
             model = CpVAE(self.encoder,
                           self.decoder,
-                          self.decision_tree,
+                          self.DDT,
                           self.args['latent_dim'],
                           self.ds['num_classes'],
                           1,
                           output_dist=dist)
-            update_model_tree(self.ds['train'],
-                              model,
-                              epoch='visualize',
-                              num_classes=self.ds['num_classes'],
-                              output_dir='cpvae_test')
+            model.classifier.update_model_tree(self.ds['train'],
+                                               model.posterior)
 
             for batch in self.ds['train']:
                 x = tf.cast(batch['image'], tf.float32)

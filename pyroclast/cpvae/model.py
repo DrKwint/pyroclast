@@ -5,8 +5,6 @@ import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
 
 from pyroclast.common.tf_util import img_discretized_logistic_log_prob
-from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
-                                 transductive_box_inference)
 
 
 class CpVAE(tf.Module):
@@ -15,7 +13,7 @@ class CpVAE(tf.Module):
     def __init__(self,
                  encoder,
                  decoder,
-                 decision_tree,
+                 classifier,
                  latent_dimension,
                  class_num,
                  box_num,
@@ -26,7 +24,7 @@ class CpVAE(tf.Module):
         Args:
             encoder (Module): function from input data to loc and scale tensors each of length equal to `latent_dimension`
             decoder (Module): function from latent variable to loc and scale tensors of shape equal to the input data
-            decision_tree (sklearn.tree.DecisionTreeClassifier):
+            classifier (Module):
             latent_dimension (int): number of dimensions in the latent variable
             class_num (int): number of classes to classify data into
             box_num (int): maximum number of boxes in the decision tree
@@ -35,13 +33,8 @@ class CpVAE(tf.Module):
         super(CpVAE, self).__init__(name=name)
         self.encoder = encoder
         self.decoder = decoder
-        self.decision_tree = decision_tree
+        self.classifier = classifier
         self.class_num = class_num
-
-        # tree_stuff, these must be set before classification is attempted
-        self.lower = None
-        self.upper = None
-        self.values = None
 
         # Set a default prior of the standard (0,I) Gaussian
         self.default_prior = tfp.distributions.MultivariateNormalDiag(
@@ -84,17 +77,23 @@ class CpVAE(tf.Module):
 
     def __call__(self, x, y=None):
         # autoencode
-        loc, scale_diag = self._encode(x)
-        z_posterior = tfp.distributions.MultivariateNormalDiag(
-            loc=loc, scale_diag=scale_diag)
+        z_loc, z_scale_diag = self._encode(x)
+        z_posterior = self.posterior(z_loc, scale_diag=z_scale_diag)
         z = z_posterior.sample()
         x_hat_loc, x_hat_scale = self._decode(z)
         # classification
-        assert not (self.lower is None or self.upper is None or
-                    self.values is None)
-        y_hat = transductive_box_inference(loc, scale_diag, self.lower,
-                                           self.upper, self.values)
+        y_hat = self.classifier(z_loc, z_scale_diag)
         return x_hat_loc, y_hat, z_posterior, x_hat_scale
+
+    def posterior(self, x, scale_diag=None):
+        # x is data if scale diag is None, otherwise it's loc
+        if scale_diag is None:
+            loc, scale_diag = self._encode(x)
+        else:
+            loc = x
+        z_posterior = tfp.distributions.MultivariateNormalDiag(
+            loc=loc, scale_diag=scale_diag)
+        return z_posterior
 
     def _encode(self, x):
         loc, scale_diag = self.encoder(x)
