@@ -1,2 +1,2 @@
 # exports
-from pyroclast.boost_resnet.learn import learn
+from pyroclast.boost_resnet.boost_resnet import learn
