@@ -28,18 +28,17 @@ def common_arg_parser():
     Create an argparse.ArgumentParser.
     """
     parser = arg_parser()
-    parser.add_argument('--task', help='', type=str, default='supervised')
     parser.add_argument('--dataset', help='dataset', type=str, default='mnist')
     parser.add_argument('--alg',
                         help='algorithm',
                         type=str,
                         default='selfboosting')
-    parser.add_argument('--network', help='network', type=str, default=None)
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--data_limit', type=int, default=-1)
     parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--output_dir', type=str, default='./')
+    parser.add_argument('--debug', action='store_true')
     return parser
 
 

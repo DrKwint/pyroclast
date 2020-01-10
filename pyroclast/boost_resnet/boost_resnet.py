@@ -14,7 +14,9 @@ from pyroclast.boost_resnet.models import repr_module, classification_module
 
 
 def learn(data_dict,
-          seed=None,
+          seed,
+          output_dir,
+          debug,
           batch_size=32,
           learning_rate=1e-3,
           num_classes=10,
@@ -47,8 +49,7 @@ def learn(data_dict,
 
     # tensorboard
     global_step = tf.compat.v1.train.get_or_create_global_step()
-    writer = tf.contrib.summary.create_file_writer(tb_dir)
-    writer.set_as_default()
+    writer = tf.summary.create_file_writer(output_dir)
 
     # training loop
     for num_module in range(num_modules):
@@ -83,14 +84,15 @@ def learn(data_dict,
                 _, global_norm = tf.clip_by_global_norm(gradients, 10.0)
                 optimizer.apply_gradients(
                     zip(gradients, module.trainable_variables))
-                with tf.contrib.summary.always_record_summaries():
-                    tf.contrib.summary.scalar("gradient_global_norm",
-                                              global_norm)
+                with writer.as_default():
+                    tf.summary.scalar("gradient_global_norm",
+                                      global_norm,
+                                      step=global_step)
                     [
-                        tf.contrib.summary.scalar(
-                            "mean_train_loss_module_{}".format(i),
+                        tf.summary.scalar(
+                            "loss/mean_train_loss_module_{}".format(i),
                             loss,
-                            family='loss') for (i, loss) in enumerate(losses)
+                            step=global_step) for (i, loss) in enumerate(losses)
                     ]
                     correct_predictions = [
                         tf.equal(classification_fn(bc), label)
@@ -101,34 +103,33 @@ def learn(data_dict,
                         for cp in correct_predictions
                     ]
                     [
-                        tf.contrib.summary.scalar(
-                            "mean_train_boosted_classifier_accuracy_module_{}".
-                            format(i),
+                        tf.summary.scalar(
+                            "accuracy/mean_train_boosted_classifier_accuracy_module_{}"
+                            .format(i),
                             a,
-                            family='accuracy')
+                            step=global_step)
                         for (i, a) in enumerate(accuracies)
                     ]
                     for (m, a) in enumerate(alphas):
                         a_val = a.numpy()
                         [
-                            tf.contrib.summary.scalar(
-                                "alpha_module_{}".format(m),
+                            tf.summary.scalar(
+                                "alpha_class_{}/alpha_module_{}".format(m, c),
                                 val,
-                                family='alpha_class_{}'.format(c))
-                            for c, val in enumerate(a_val)
+                                step=global_step) for c, val in enumerate(a_val)
                         ]
                     [
-                        tf.contrib.summary.scalar(
-                            "train_gamma_tilde_module_{}".format(i),
+                        tf.summary.scalar(
+                            "gamma_tilde/train_gamma_tilde_module_{}".format(i),
                             a,
-                            family='gamma_tilde')
+                            step=global_step)
                         for (i, a) in enumerate(gamma_tildes)
                     ]
                     [
-                        tf.contrib.summary.scalar("train_gamma_{}-{}".format(
+                        tf.summary.scalar("gamma/train_gamma_{}-{}".format(
                             i, i + 1),
-                                                  a,
-                                                  family='gamma')
+                                          a,
+                                          step=global_step)
                         for (i, a) in enumerate(gammas)
                     ]
             print("TEST")
@@ -154,12 +155,12 @@ def learn(data_dict,
                                             axis=0)
             print("Test accuracy per boosted classifier:",
                   mean_epoch_accuracies)
-            with tf.contrib.summary.always_record_summaries():
+            with writer.as_default():
                 [
-                    tf.contrib.summary.scalar(
-                        "mean_test_boosted_classifier_accuracy_module_{}".
-                        format(i),
+                    tf.summary.scalar(
+                        "test/accuracy/mean_test_boosted_classifier_accuracy_module_{}"
+                        .format(i),
                         a,
-                        family='test/accuracy')
+                        step=global_step)
                     for (i, a) in enumerate(mean_epoch_accuracies)
                 ]

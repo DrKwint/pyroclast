@@ -9,7 +9,7 @@ install:
 
 script:
   - yapf -drp pyroclast --style=".style.yapf"
-  - pytest pyroclast/cpvae/
+  - pytest pyroclast
 
 notifications:
   slack: unldeeplearning:Rlua358rgewVz3KouHODYK8w

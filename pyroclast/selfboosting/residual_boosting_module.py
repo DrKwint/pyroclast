@@ -2,7 +2,7 @@
 Implementation of `Learning Deep ResNet Blocks Sequentially using Boosting
 Theory`
 """
-import sonnet as snt
+#import sonnet as snt
 import tensorflow as tf
 
 from pyroclast.selfboosting.modules import get_module

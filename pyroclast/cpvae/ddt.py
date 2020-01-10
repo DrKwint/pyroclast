@@ -1,7 +1,49 @@
+import os
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+import sklearn
 from sklearn import tree
+
+from pyroclast.cpvae.util import ensure_dir_exists
+
+
+class DDT(tf.Module):
+    """Differentiable decision tree which classifies on the parameters of a Gaussian"""
+
+    def __init__(self, decision_tree, num_classes):
+        self.decision_tree = decision_tree
+        self.num_classes = num_classes
+        self.lower = None
+        self.upper = None
+        self.values = None
+
+    def __call__(self, loc, scale_diag):
+        return transductive_box_inference(loc, scale_diag, self.lower,
+                                          self.upper, self.values)
+
+    def update_model_tree(self, ds, posterior_fn):
+        # calculate latent variable values and labels
+        labels, z_vals = zip(*[(
+            batch['label'],
+            posterior_fn(tf.dtypes.cast(batch['image'], tf.float32)).sample())
+                               for batch in ds])
+        labels = np.concatenate(labels).astype(np.int32)
+        z_vals = np.concatenate(z_vals)
+
+        # train decision tree
+        self.decision_tree.fit(z_vals, labels)
+        self.lower, self.upper, self.values = get_decision_tree_boundaries(
+            self.decision_tree, z_vals.shape[-1], self.num_classes)
+
+    def save_dot(self, output_dir, epoch):
+        ensure_dir_exists(output_dir)
+        sklearn.tree.export_graphviz(self.decision_tree,
+                                     out_file=os.path.join(
+                                         output_dir,
+                                         'ddt_epoch{}.dot'.format(epoch)),
+                                     filled=True,
+                                     rounded=True)
 
 
 def get_decision_tree_boundaries(tree, feature_num, class_num,
