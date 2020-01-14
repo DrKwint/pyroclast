@@ -38,7 +38,7 @@ def setup_tfds(dataset,
     def resize_ds_img(features):
         features['image'] = tf.image.resize(features['image'],
                                             resize_data_shape)
-        # I'm not actually sure if this bit is right at all, but it's needed for batching right now
+        # I'm not actually sure if this bit with the mask is right at all, but it's needed for batching right now
         if 'segmentation_mask' in features:
             features['segmentation_mask'] = tf.image.resize(
                 features['segmentation_mask'], resize_data_shape)
