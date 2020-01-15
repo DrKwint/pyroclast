@@ -1,5 +1,7 @@
-import tensorflow as tf
+import functools
+
 import numpy as np
+import tensorflow as tf
 
 from pyroclast.prototype.prototype_layer import PrototypeLayer
 
@@ -96,11 +98,12 @@ class ProtoPNet(tf.Module):
             this is the numerical maximum. The only problem with this
             interpretation is that the norm of each prototype vector is
             unbounded and the l2 distance between it and an image patch could
-            be greater than 1.
+            be greater than 1. Prototypes are initialized in the range [0,1].
             """
             max_dist = self.prototype_dim
             inverted_distances = tf.reduce_max(
-                (-min_distances) * prototypes_of_correct_class, axis=1)
+                (max_dist - min_distances) * prototypes_of_correct_class,
+                axis=1)
             term_dict['cluster'] = max_dist - inverted_distances
 
             # calculate separation cost
@@ -115,3 +118,16 @@ class ProtoPNet(tf.Module):
 
         term_dict['l1'] = tf.norm(self.classifier.trainable_weights[0], 1)
         return term_dict
+
+    @property
+    def trainable_prototype_and_final_conv_vars(self):
+        return self.final_conv.trainable_variables + list(
+            self.prototype_layer.trainable_variables)
+
+    @property
+    def trainable_conv_stack_vars(self):
+        return self.conv_stack.trainable_variables
+
+    @property
+    def trainable_classifier_vars(self):
+        return self.classifier.trainable_variables

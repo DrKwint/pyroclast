@@ -12,14 +12,15 @@ def learn(data_dict,
           debug,
           conv_stack='vgg19_conv',
           epochs=10,
-          learning_rate=1e-3,
+          learning_rate=3e-3,
           cluster_coeff=0.8,
           l1_coeff=1e-4,
           separation_coeff=0.08,
           clip_norm=None,
           num_prototypes=20,
           prototype_dim=128,
-          is_class_specific=False):
+          is_class_specific=False,
+          delay_conv_stack_training=False):
     writer = tf.summary.create_file_writer(output_dir)
     global_step = tf.compat.v1.train.get_or_create_global_step()
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
@@ -35,7 +36,7 @@ def learn(data_dict,
                       class_specific=is_class_specific)
 
     # define minibatch fn
-    def run_minibatch(epoch, batch, is_train=True):
+    def run_phase1_minibatch(epoch, batch, is_train=True):
         """
         Args:
             epoch (int): Epoch of training for logging
@@ -65,14 +66,18 @@ def learn(data_dict,
 
         # calculate gradients for current loss
         if is_train:
-            gradients = tape.gradient(loss, model.trainable_variables)
+            train_vars = model.trainable_prototype_and_final_conv_vars
+            if delay_conv_stack_training and epoch >= 5:
+                train_vars += model.trainable_conv_stack_vars
+            else:
+                train_vars += model.trainable_conv_stack_vars
+            gradients = tape.gradient(loss, train_vars)
             if clip_norm:
                 clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
                     gradients, clip_norm)
             else:
                 clipped_gradients = gradients
-            optimizer.apply_gradients(
-                zip(clipped_gradients, model.trainable_variables))
+            optimizer.apply_gradients(zip(clipped_gradients, train_vars))
 
         # log to TensorBoard
         prefix = 'train_' if is_train else 'validate_'
@@ -109,4 +114,12 @@ def learn(data_dict,
             print("TRAIN")
             train_batches = tqdm(train_batches, total=data_dict['train_bpe'])
         for batch in train_batches:
-            run_minibatch(epoch, batch, is_train=True)
+            run_phase1_minibatch(epoch, batch, is_train=True)
+
+        # test
+        test_batches = data_dict['test']
+        if debug:
+            print("TEST")
+            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        for batch in test_batches:
+            run_phase1_minibatch(epoch, batch, is_train=False)

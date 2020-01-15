@@ -14,7 +14,8 @@ class PrototypeLayer(tf.Module):
         # Uniform [0,1] init for prototypes as in paper
         self.prototypes = tf.Variable(tf.random.uniform(
             [num_prototypes, prototype_dim]),
-                                      trainable=True)
+                                      trainable=True,
+                                      name='prototype_vectors')
         self.max_pool = tf.keras.layers.GlobalMaxPool2D()
 
     def __call__(self, z, epsilon=1e-4):
