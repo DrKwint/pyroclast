@@ -16,7 +16,11 @@ class ProtoPNet(tf.Module):
                  class_specific=0):
         """
         Args:
-            conv_stack (Module): Convolutional network which ends in a 7x7xC representation where C is arbitrary
+            conv_stack (tf.Module): Convolutional network which ends in a 7x7xC representation where C is arbitrary, but typically equal to the prototype_dim
+            num_prototypes (int): Number of prototype vectors in the model
+            prototype_dim (int): Dimensionality of each prototype vector
+            num_classes (int): Number of classes in the classification problem
+            class_specific (bool): Optional, whether to use class-specific prototypes and objective
         """
         self.prototype_dim = prototype_dim
         self.class_specific = class_specific
@@ -60,6 +64,9 @@ class ProtoPNet(tf.Module):
         """
         Args:
             x (Tensor): image data to be classified
+
+        Returns:
+            Tuple of tensors (y_hat, minimum distances)
         """
         conv_output = self.final_conv(self.conv_stack(x))
         assert conv_output.shape[1:3] == [7, 7]
@@ -71,11 +78,12 @@ class ProtoPNet(tf.Module):
     def conv_prototype_objective(self, min_distances, label=None):
         """
         Args:
-            min_distances (tf.Tensor): shape [batch_size, num_prototypes]
-            label (tf.Tensor): shape [batch_size]
+            min_distances (tf.Tensor): shape [batch_size, num_prototypes] values calculated by self.__call__
+            label (tf.Tensor): shape [batch_size] correct labels from dataset
 
         Returns:
-
+            dict of string to tf.Tensor, objective components of shape [batch_size]
+            May contain keys ['cluster', 'separation', and 'l1']
         """
         term_dict = dict()
         if self.class_specific:

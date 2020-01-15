@@ -36,6 +36,12 @@ def learn(data_dict,
 
     # define minibatch fn
     def run_minibatch(epoch, batch, is_train=True):
+        """
+        Args:
+            epoch (int): Epoch of training for logging
+            batch (dict): dict from dataset
+            is_train (bool): Optional, run backwards pass if True
+        """
         x = tf.cast(batch['image'], tf.float32) / 255.
         labels = tf.cast(batch['label'], tf.int32)
 

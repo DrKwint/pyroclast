@@ -4,6 +4,11 @@ import tensorflow as tf
 class PrototypeLayer(tf.Module):
 
     def __init__(self, num_prototypes, prototype_dim):
+        """
+        Args:
+            num_prototypes (int): Number of prototype vectors in the model
+            prototype_dim (int): Dimensionality of each prototype vector
+        """
         self.prototype_dim = prototype_dim
         self.num_prototypes = num_prototypes
         # Uniform [0,1] init for prototypes as in paper
@@ -16,6 +21,7 @@ class PrototypeLayer(tf.Module):
         """
         Args:
             z (Tensor): 7x7x<prototype_dim>
+            epsilon (float): Optional, some sufficiently small value
         """
 
         def l2_convolution(images, vectors):
