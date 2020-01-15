@@ -22,7 +22,7 @@ class CpVAETest(parameterized.TestCase):
         """Run one small epoch of MNIST just to make sure no errors are thrown"""
         # takes ~4 seconds on a laptop
         mnist_ds = setup_tfds(self.args['dataset'], self.args['batch_size'],
-                              self.args['data_limit'])
+                              None, self.args['data_limit'])
         learn(mnist_ds,
               encoder=self.args['encoder'],
               decoder=self.args['decoder'],

@@ -8,12 +8,17 @@ import tensorflow_datasets as tfds
 import tqdm
 
 
-def setup_tfds(dataset, batch_size, data_limit=-1, data_dir='./data/'):
+def setup_tfds(dataset,
+               batch_size,
+               resize_data_shape=None,
+               data_limit=-1,
+               data_dir=None):
     """Setup a TensorFlow Dataset
 
     Args:
         dataset (str): Name of the TFDS to load `(Full list here) <https://www.tensorflow.org/datasets/catalog/overview>`_
         batch_size (int): Number of data per batch
+        resize_data_shape (interable of int): If specified, do an image reshape on the data to the given shape
         data_limit (int): Upper limit to the number of data to load, -1 to load all data
         data_dir (relative path str): Directory where TFDS should look for the data files
 
@@ -28,8 +33,25 @@ def setup_tfds(dataset, batch_size, data_limit=-1, data_dir='./data/'):
     data_dict, info = tfds.load(dataset, with_info=True, data_dir=data_dir)
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
-    data_dict['shape'] = info.features['image'].shape
     data_dict['num_classes'] = info.features['label'].num_classes
+
+    def resize_ds_img(features):
+        features['image'] = tf.image.resize(features['image'],
+                                            resize_data_shape)
+        # I'm not actually sure if this bit with the mask is right at all, but it's needed for batching right now
+        if 'segmentation_mask' in features:
+            features['segmentation_mask'] = tf.image.resize(
+                features['segmentation_mask'], resize_data_shape)
+        return features
+
+    if resize_data_shape is None:
+        data_dict['shape'] = info.features['image'].shape
+    else:
+        data_dict['train'] = data_dict['train'].map(resize_ds_img)
+        data_dict['test'] = data_dict['test'].map(resize_ds_img)
+        data_dict['shape'] = resize_data_shape + [
+            info.features['image'].shape[-1]
+        ]
 
     data_dict['train'] = data_dict['train'].shuffle(1024).take(
         data_limit).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
