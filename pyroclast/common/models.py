@@ -212,7 +212,7 @@ def get_network_builder(name):
 
     Usage Examplee:
     -------------
-    from baselines.common.models import register
+    from pyroclast.common.models import register
     @register("your_network_name")
     def your_network_define(**net_kwargs):
         ...

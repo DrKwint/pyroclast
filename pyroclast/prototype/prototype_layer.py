@@ -6,9 +6,10 @@ class PrototypeLayer(tf.Module):
     def __init__(self, num_prototypes, prototype_dim):
         self.prototype_dim = prototype_dim
         self.num_prototypes = num_prototypes
-        # using ones here is a temporary measure until we figure out a better init
-        self.prototypes = tf.Variable(tf.ones([num_prototypes, prototype_dim]),
-                                      trainable=False)
+        # Uniform [0,1] init for prototypes as in paper
+        self.prototypes = tf.Variable(tf.random.uniform(
+            [num_prototypes, prototype_dim]),
+                                      trainable=True)
         self.max_pool = tf.keras.layers.GlobalMaxPool2D()
 
     def __call__(self, z, epsilon=1e-4):
@@ -17,38 +18,42 @@ class PrototypeLayer(tf.Module):
             z (Tensor): 7x7x<prototype_dim>
         """
 
-        def l2_convolution(x):
+        def l2_convolution(images, vectors):
             '''
-            Apply prototype vectors as l2-convolution filters on input.
+            Calculate pairwise l2 distance between the patches of an image and an array of vectors
 
-            Translated from (https://github.com/cfchen-duke/ProtoPNet/blob/master/model.py)
+            Calculating the l2 distance between each of the HxW patches and the
+            N_2 vectors. Naively, this would require looping O(n^2) times, but
+            a convolution makes the control flow moot.
+
+            Args:
+                images (tf.Tensor): shape [N_1,H,W,C] activation images
+                vectors (tf.Tensor): shape [N_2,C] list of vectors
+
+            Returns:
+                tf.Tensor of l2 distances with shape [N_1, H, W, N_2]
             '''
-            x2 = x**2
-            x2_patch_sum = tf.nn.conv2d(
-                input=x2,
-                filters=tf.ones([1, 1, x.shape[-1], self.num_prototypes]),
+            # shape [N_1,H,W,N_2]
+            image_sq = tf.nn.conv2d(
+                input=images**2,
+                filters=tf.ones([1, 1, images.shape[-1], vectors.shape[0]]),
                 strides=1,
                 padding="SAME")
 
-            p2 = self.prototypes**2
-            p2 = tf.math.reduce_sum(p2, axis=-1)
-            # p2 is a vector of shape (num_prototypes,)
-            # then we reshape it to (num_prototypes, 1, 1)
-            p2_reshape = tf.reshape(p2, [self.num_prototypes, 1, 1])
+            # shape [N_2]
+            vectors_sq = tf.reduce_sum(vectors**2, 1)
 
-            prototype_filters = tf.expand_dims(
-                tf.expand_dims(tf.transpose(self.prototypes), 0), 0)
-            xp = tf.nn.conv2d(input=x,
-                              filters=prototype_filters,
-                              strides=1,
-                              padding="SAME")
-            intermediate_result = -2 * tf.transpose(p2_reshape + tf.transpose(
-                xp, [0, 3, 1, 2]), [0, 2, 3, 1])  # use broadcast
-            # x2_patch_sum and intermediate_result are of the same shape
-            distances = tf.nn.relu(x2_patch_sum + intermediate_result)
-            return distances
+            vector_filters = tf.expand_dims(
+                tf.expand_dims(tf.transpose(vectors), 0), 0)
+            # shape [N_1,H,W,N_2]
+            image_vector_prod = tf.nn.conv2d(input=images,
+                                             filters=vector_filters,
+                                             strides=1,
+                                             padding="SAME")
+            # equiv to $(x - y)^2$
+            return image_sq - (2 * image_vector_prod) + vectors_sq
 
-        distances = l2_convolution(z)
+        distances = l2_convolution(z, self.prototypes)
         similarities = tf.math.log((distances + 1) / (distances + epsilon))
 
         return distances, similarities
