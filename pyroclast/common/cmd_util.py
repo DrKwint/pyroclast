@@ -35,6 +35,10 @@ def common_arg_parser():
                         default='selfboosting')
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--resize_data_shape',
+                        type=int,
+                        nargs='+',
+                        default=None)
     parser.add_argument('--data_limit', type=int, default=-1)
     parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--output_dir', type=str, default='./')

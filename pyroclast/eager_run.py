@@ -59,7 +59,8 @@ def train(args, extra_args):
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, args.dataset)
     alg_kwargs.update(extra_args)
-    data_dict = setup_tfds(args.dataset, args.batch_size, args.data_limit,
+    data_dict = setup_tfds(args.dataset, args.batch_size,
+                           args.resize_data_shape, args.data_limit,
                            args.data_dir)
 
     print('Training {} on {} with arguments \n{}'.format(
