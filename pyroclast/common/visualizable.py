@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class InterpretableModel(abc.ABC):
+class VisualizableMixin(abc.ABC):
     """Interface Model interface.
 
     Provides functionality for various calculations and
@@ -15,6 +15,9 @@ class InterpretableModel(abc.ABC):
     @abc.abstractmethod
     def classify(self, x):
         """Calculates output logits given a set of inputs.
+
+        Args:
+           x (tf.Tensor): Input of shape [batch_size, ...data_shape]
 
         Returns:
             logits (tf.Tensor): shape [batch_size, num_classes]
@@ -50,8 +53,8 @@ class InterpretableModel(abc.ABC):
            activation_map (np.array): shape [batch_size, ...data_shape]
 
         """
-        result = self.conv_stack_submodel(x)
-        return tf.image.resize_images(result, [x.shape[1], x.shape[2]])
+        result = self.conv_stack_submodel()(x)
+        return tf.image.resize(result, [x.shape[1], x.shape[2]])
 
     def cam_map(self, x):
         """Calculates the class activation mapping
@@ -66,24 +69,26 @@ class InterpretableModel(abc.ABC):
         """
         pass
 
-    def sensitivity_map(self, x, y, softmax=False):
+    def sensitivity_map(self, x, softmax=False):
         """Calculates the sensitivity map by back propagating on the input
         data x.
 
-        Given input (images) x, calculates the sensitivity map by
-        first doing a forward pass and then backpropagating to find
-        the gradients on the input.
+        Given input (images) x, calculates the sensitivity map of the
+        input by first doing a forward pass and then backpropagating
+        to find the gradients on the input.
 
         Args:
            x (np.array): shape [batch_size, ...data_shape]
+           softmax (bool): Whether to softmax before calculating gradients
 
         Returns:
            sensitivity_map (np.array): shape [batch_size, ...data_shape]
 
         """
         with tf.GradientTape() as tape:
+            tape.watch(x)
             result = self.classify(x)
             if softmax:
                 result = tf.nn.softmax(result)
-            grads = tape.gradient(result[:, y], x)
+            grads = tape.gradient(result, x)
         return grads
