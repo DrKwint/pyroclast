@@ -13,5 +13,6 @@ Welcome to Pyroclast's Documentation!
 
    source/introduction
    source/design_patterns
+   source/visualizable
    source/webpage
    api/modules
