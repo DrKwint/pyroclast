@@ -73,7 +73,7 @@ class ProtoPNet(tf.Module):
 
     @property
     def final_conv_vars(self):
-        self.final_conv.trainable_variables
+        return self.final_conv.trainable_variables
 
     @property
     def trainable_conv_stack_vars(self):
