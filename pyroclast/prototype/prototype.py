@@ -44,7 +44,7 @@ def learn(data_dict,
         Args:
             epoch (int): Epoch of training for logging
             batch (dict): dict from dataset
-            phase (int): Value in [1,3] which determines what objective and variables are used in training updates.
+            phase (int): Value in {1,3} which determines what objective and variables are used in training updates.
             is_train (bool): Optional, run backwards pass if True
         """
         x = tf.cast(batch['image'], tf.float32) / 255.
