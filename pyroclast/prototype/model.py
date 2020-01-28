@@ -1,5 +1,5 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 from pyroclast.prototype.prototype_layer import PrototypeLayer
 
@@ -25,6 +25,13 @@ class ProtoPNet(tf.Module):
         self.prototype_dim = prototype_dim
         self.class_specific = class_specific
 
+        # Uniform [0,1] init for prototypes as in paper
+        self.prototypes = tf.Variable(tf.random.uniform(
+            [num_prototypes, prototype_dim]),
+                                      trainable=True,
+                                      name='prototype_vectors')
+
+        # set the modules needed for forward pass
         self.conv_stack = conv_stack
         self.final_conv = tf.keras.Sequential([
             tf.keras.layers.Conv2D(prototype_dim,
@@ -60,20 +67,38 @@ class ProtoPNet(tf.Module):
         else:
             self.classifier = tf.keras.layers.Dense(num_classes, use_bias=False)
 
+    @property
+    def trainable_prototype_vars(self):
+        return list(self.prototype_layer.trainable_variables)
+
+    @property
+    def final_conv_vars(self):
+        return self.final_conv.trainable_variables
+
+    @property
+    def trainable_conv_stack_vars(self):
+        return self.conv_stack.trainable_variables
+
+    @property
+    def trainable_classifier_vars(self):
+        return self.classifier.trainable_variables
+
     def __call__(self, x):
         """
         Args:
             x (Tensor): image data to be classified
 
         Returns:
-            Tuple of tensors (y_hat, minimum distances)
+            Tuple of tensors (y_hat, minimum distances, conv_output)
         """
         conv_output = self.final_conv(self.conv_stack(x))
         assert conv_output.shape[1:3] == [7, 7]
-        distances, similarities = self.prototype_layer(conv_output)
+        distances, similarities = self.prototype_layer(conv_output,
+                                                       self.prototypes)
         minimum_distances = -self.max_pool(-distances)
         prototype_activations = self.max_pool(similarities)
-        return self.classifier(prototype_activations), minimum_distances
+        return self.classifier(
+            prototype_activations), minimum_distances, conv_output
 
     def conv_prototype_objective(self, min_distances, label=None):
         """
@@ -88,7 +113,6 @@ class ProtoPNet(tf.Module):
         term_dict = dict()
         if self.class_specific:
             assert label is not None
-            # shape [batch_size, num_prototypes]
             prototypes_of_correct_class = tf.transpose(
                 self.prototype_class_identity[:, label])
             """
@@ -96,11 +120,12 @@ class ProtoPNet(tf.Module):
             this is the numerical maximum. The only problem with this
             interpretation is that the norm of each prototype vector is
             unbounded and the l2 distance between it and an image patch could
-            be greater than 1.
+            be greater than 1. Prototypes are initialized in the range [0,1].
             """
             max_dist = self.prototype_dim
             inverted_distances = tf.reduce_max(
-                (-min_distances) * prototypes_of_correct_class, axis=1)
+                (max_dist - min_distances) * prototypes_of_correct_class,
+                axis=1)
             term_dict['cluster'] = max_dist - inverted_distances
 
             # calculate separation cost
