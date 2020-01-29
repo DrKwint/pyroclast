@@ -39,14 +39,12 @@ class FeatureClassifierMixin(abc.ABC):
         """
         pass
 
-    def usefulness(self, D, num_classes, num_features):
+    def usefulness(self, D):
         """Finds maximal rho such that f is rho-useful over the dataset D for
         classifying y
 
         Args:
            D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datam. `label' can be either an int or one-hot encoding.
-           num_classes (int): The number of classes in the problem
-           num_features (int): The number of features output from `features()'. Better way to do this?
 
         Returns:
            rho (tf.Tensor): The usefulness of each feature for each class. Of shape [num_features, num_classes].
@@ -55,29 +53,32 @@ class FeatureClassifierMixin(abc.ABC):
         def class_index(x_i):
             if type(x_i['label']) == int:
                 return x_i['label']
+            elif len(x_i['label'].shape) == 1:
+                return x_i['label'][0]
             else:
                 return tf.math.argmax(x_i['label'])
+
+        def get_one_hot(x):
+            return tf.cast(
+                tf.one_hot(class_index(x),
+                           num_classes,
+                           on_value=1,
+                           off_value=-1), tf.float32)
 
         def get_features_and_cast(x_i):
             x_i = tf.cast(x_i['image'], tf.float32)
             return self.features(x_i)
 
-        print(D)
+        for d in D:
+            features = get_features_and_cast(d)
+            num_features = features.shape[-1]
+            num_classes = self.classify_features(features).shape[-1]
+            break
 
-        rho = D.map(lambda x: (get_features_and_cast(x),
-                               tf.cast(
-                                   tf.one_hot(class_index(x),
-                                              num_classes,
-                                              on_value=1,
-                                              off_value=-1), tf.float32)))
-        print(rho)
+        rho = D.map(lambda x: (get_features_and_cast(x), get_one_hot(x)))
         rho = rho.map(lambda f, c: tf.tensordot(f, c, 0))
-        print(rho)
         rho = rho.reduce(tf.zeros([num_features, num_classes]),
                          lambda x, y: x + tf.reduce_sum(y, 0))
-
-        print(rho)
-
         assert rho.shape == [num_features, num_classes]
         return rho
 

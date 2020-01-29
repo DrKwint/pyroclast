@@ -10,7 +10,8 @@ class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
     def __init__(self):
         super(BasicMnistFeatureClassifier, self).__init__()
         self.conv_layer_1 = tf.keras.layers.Conv2D(16, 3, padding='same')
-        self.conv_layer_2 = tf.keras.layers.Conv2D(16, 3, padding='same')
+        self.conv_layer_2 = tf.keras.layers.Conv2D(
+            16, 3, padding='same', bias_initializer='glorot_normal')
         self.flatten_layer = tf.keras.layers.Flatten()
         self.dense_layer = tf.keras.layers.Dense(10)
 
@@ -51,6 +52,6 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
             assert f.shape == (self.args['batch_size'], self.num_features)
 
     def test_usefulness(self):
-        usefulness = self.model.usefulness(self.ds['train'], 10,
-                                           self.num_features)
+        usefulness = self.model.usefulness(self.ds['train'])
         assert usefulness.shape == [self.num_features, 10]
+        assert tf.math.reduce_any(tf.cast(usefulness, tf.bool))
