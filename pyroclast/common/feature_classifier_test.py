@@ -60,7 +60,6 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
         # if saved model isn't present, train and save, otherwise load
         checkpoint = tf.train.Checkpoint(model=self.model)
         if not osp.exists(self.args['model_params_prefix'] + '-1.index'):
-            exit()
             optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
             for batch in self.ds['train']:
                 with tf.GradientTape() as tape:
