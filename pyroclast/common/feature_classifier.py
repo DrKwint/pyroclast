@@ -55,12 +55,10 @@ class FeatureClassifierMixin(abc.ABC):
         Returns:
            rho (tf.Tensor): The usefulness of each feature for each class. Of shape [num_features, num_classes].
         """
+
         def get_one_hot(x):
-            return tf.cast(
-                tf.one_hot(x,
-                           num_classes,
-                           on_value=1,
-                           off_value=-1), tf.float32)
+            return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
+                           tf.float32)
 
         def cast_and_get_features(x):
             x = tf.cast(x, tf.float32)
@@ -83,12 +81,14 @@ class FeatureClassifierMixin(abc.ABC):
             """
             features = cast_and_get_features(x)
             binary_labels = get_one_hot(y)
-            einsum = tf.linalg.matmul(tf.expand_dims(features, -1), tf.expand_dims(binary_labels, -2))
+            einsum = tf.linalg.matmul(tf.expand_dims(features, -1),
+                                      tf.expand_dims(binary_labels, -2))
             return einsum
 
-
         rho = D.map(lambda x: calc_fcdot(x['image'], x['label']))
-        rho, num_data = rho.reduce((0., 0), lambda x, y: (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf.shape(y)[0]))
+        rho, num_data = rho.reduce(
+            (0., 0), lambda x, y:
+            (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf.shape(y)[0]))
         rho = rho / float(num_data)
         return rho
 
@@ -115,19 +115,28 @@ class FeatureClassifierMixin(abc.ABC):
                            tf.float32)
 
         # create adversarially perturbed dataset and calulate its usefulness
-        D_adv = D.map(lambda x: {'image': fast_gradient_sign_method(
-            self.features, self.classify_features,
-            tf.cast(x['image'], tf.float32), get_one_hot(x['label']), 0.01, 1),
-                                'label': tf.expand_dims(tf.expand_dims(x['label'], 1), 1)})
+        D_adv = D.map(
+            lambda x: {
+                'image':
+                    fast_gradient_sign_method(self.features, self.
+                                              classify_features,
+                                              tf.cast(x['image'], tf.float32),
+                                              get_one_hot(x['label']), 0.01, 1),
+                'label':
+                    tf.expand_dims(tf.expand_dims(x['label'], 1), 1)
+            })
         adv_usefulness = self.usefulness(D_adv)
 
         # create a mask with 1's where the class and feature line up in both
         # the data portion (first 2 dims) and the calulated usefulness (last 2 dims)
         # because we were only adversarially attacking one class/feature pair at a time
-        idxs = np.array([[[i,j,i,j] for j in range(adv_usefulness.shape[1])] for i in range(adv_usefulness.shape[0])])
+        idxs = np.array([[[i, j, i, j]
+                          for j in range(adv_usefulness.shape[1])]
+                         for i in range(adv_usefulness.shape[0])])
         idxs = np.reshape(idxs, [-1, 4])
         mask = np.zeros_like(adv_usefulness)
         mask[tuple(idxs.T)] = 1.
         # apply mask and reduce over the calulated usefulness dims (last 2)
-        adv_usefulness = tf.reduce_sum(tf.reduce_sum(adv_usefulness * mask, -1), -1)
+        adv_usefulness = tf.reduce_sum(tf.reduce_sum(adv_usefulness * mask, -1),
+                                       -1)
         return adv_usefulness
