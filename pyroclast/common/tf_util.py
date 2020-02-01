@@ -12,7 +12,8 @@ def setup_tfds(dataset,
                batch_size,
                resize_data_shape=None,
                data_limit=-1,
-               data_dir=None):
+               data_dir=None,
+               shuffle_seed=None):
     """Setup a TensorFlow Dataset
 
     Args:
@@ -53,10 +54,12 @@ def setup_tfds(dataset,
             info.features['image'].shape[-1]
         ]
 
-    data_dict['train'] = data_dict['train'].shuffle(1024).take(
-        data_limit).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-    data_dict['test'] = data_dict['test'].shuffle(1024).take(data_limit).batch(
-        batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    data_dict['train'] = data_dict['train'].shuffle(
+        1024, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
+            tf.data.experimental.AUTOTUNE)
+    data_dict['test'] = data_dict['test'].shuffle(
+        1024, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
+            tf.data.experimental.AUTOTUNE)
     return data_dict
 
 

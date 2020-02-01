@@ -86,9 +86,9 @@ class FeatureClassifierMixin(abc.ABC):
             return einsum
 
         rho = D.map(lambda x: calc_fcdot(x['image'], x['label']))
-        rho, num_data = rho.reduce(
-            (0., 0), lambda x, y:
-            (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf.shape(y)[0]))
+        reduce_lambda = lambda x, y: (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf
+                                      .shape(y)[0])
+        rho, num_data = rho.reduce((0., 0), reduce_lambda)
         rho = rho / float(num_data)
         return rho
 
@@ -118,10 +118,10 @@ class FeatureClassifierMixin(abc.ABC):
         D_adv = D.map(
             lambda x: {
                 'image':
-                    fast_gradient_sign_method(self.features, self.
-                                              classify_features,
-                                              tf.cast(x['image'], tf.float32),
-                                              get_one_hot(x['label']), 0.01, 1),
+                    fast_gradient_sign_method(
+                        self.features, self.classify_features,
+                        tf.cast(x['image'], tf.float32), get_one_hot(x[
+                            'label']), eps, norm),
                 'label':
                     tf.expand_dims(tf.expand_dims(x['label'], 1), 1)
             })

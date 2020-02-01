@@ -1,3 +1,4 @@
+import os.path as osp
 import tensorflow as tf
 from absl.testing import parameterized
 
@@ -9,15 +10,22 @@ class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
 
     def __init__(self):
         super(BasicMnistFeatureClassifier, self).__init__()
-        self.conv_layer_1 = tf.keras.layers.Conv2D(16, 3, padding='same')
+        self.conv_layer_1 = tf.keras.layers.Conv2D(16,
+                                                   3,
+                                                   padding='same',
+                                                   activation=tf.nn.relu)
         self.conv_layer_2 = tf.keras.layers.Conv2D(
-            16, 3, padding='same', bias_initializer='glorot_normal')
+            16,
+            3,
+            padding='same',
+            bias_initializer='glorot_normal',
+            activation=tf.nn.relu)
         self.flatten_layer = tf.keras.layers.Flatten()
-        self.first_dense = tf.keras.layers.Dense(25)
+        self.first_dense = tf.keras.layers.Dense(25, activation=tf.nn.relu)
         self.num_features = 25
         self.dense_layer = tf.keras.layers.Dense(10)
 
-    def __call__(self, x, y=None):
+    def __call__(self, x):
         f = self.features(x)
         return self.classify_features(f)
 
@@ -39,10 +47,40 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
         self.args = dict()
         self.args['data_limit'] = 24
         self.args['batch_size'] = 8
+        self.args[
+            'model_params_prefix'] = './feature_classifier_test/mnist_params'
 
         self.model = BasicMnistFeatureClassifier()
-        self.ds = setup_tfds('mnist', self.args['batch_size'], None,
-                             self.args['data_limit'])
+        self.ds = setup_tfds('mnist',
+                             self.args['batch_size'],
+                             None,
+                             self.args['data_limit'],
+                             shuffle_seed=431)
+
+        # if saved model isn't present, train and save, otherwise load
+        checkpoint = tf.train.Checkpoint(model=self.model)
+        if not osp.exists(self.args['model_params_prefix'] + '-1.index'):
+            exit()
+            optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+            for batch in self.ds['train']:
+                with tf.GradientTape() as tape:
+                    mean_loss = tf.reduce_mean(
+                        tf.nn.sparse_softmax_cross_entropy_with_logits(
+                            labels=batch['label'],
+                            logits=self.model(
+                                tf.cast(batch['image'], tf.float32))))
+                gradients = tape.gradient(mean_loss,
+                                          self.model.trainable_variables)
+
+                optimizer.apply_gradients(
+                    zip(gradients, self.model.trainable_variables))
+            checkpoint.save(self.args['model_params_prefix'])
+        else:
+            for batch in self.ds['train']:
+                self.model(tf.cast(batch['image'], tf.float32))
+                break
+            checkpoint.restore(self.args['model_params_prefix'] +
+                               '-1').assert_consumed()
 
     def test_basic_mnist_feature_classifier(self):
         for batch in self.ds['train']:
