@@ -2,6 +2,9 @@ import abc
 import numpy as np
 import tensorflow as tf
 
+from pyroclast.common.adversarial import fast_gradient_sign_method
+import sonnet as snt
+
 
 class FeatureClassifierMixin(abc.ABC):
     """Feature Classifier Mixin.
@@ -11,6 +14,9 @@ class FeatureClassifierMixin(abc.ABC):
     classification based off those features. Formalizing this much of
     the network allows us to perform `usefulness' and `robustness'
     analysis on the features.
+
+    Definitions of 'usefulness' and 'robustness' from :ref:`Adversarial Examples Are
+    Not Bugs, They Are Features by Ilyas et al.<https://arxiv.org/abs/1905.02175>`
     """
 
     @abc.abstractmethod
@@ -44,54 +50,84 @@ class FeatureClassifierMixin(abc.ABC):
         classifying y
 
         Args:
-           D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datam. `label' can be either an int or one-hot encoding.
+           D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datam. `image' should be f32 and shape [N..HWC], `label' can be either an int or one-hot encoding.
 
         Returns:
            rho (tf.Tensor): The usefulness of each feature for each class. Of shape [num_features, num_classes].
         """
-
-        def class_index(x_i):
-            if type(x_i['label']) == int:
-                return x_i['label']
-            elif len(x_i['label'].shape) == 1:
-                return x_i['label'][0]
-            else:
-                return tf.math.argmax(x_i['label'])
-
         def get_one_hot(x):
             return tf.cast(
-                tf.one_hot(class_index(x),
+                tf.one_hot(x,
                            num_classes,
                            on_value=1,
                            off_value=-1), tf.float32)
 
-        def get_features_and_cast(x_i):
-            x_i = tf.cast(x_i['image'], tf.float32)
-            return self.features(x_i)
+        def cast_and_get_features(x):
+            x = tf.cast(x, tf.float32)
+            features = self.features
+            if len(x.shape) > 4:
+                merge_dims = len(x.shape) - 3
+                features = snt.BatchApply(self.features, merge_dims)
+            return features(x)
 
         for d in D:
-            features = get_features_and_cast(d)
-            num_features = features.shape[-1]
+            features = cast_and_get_features(d['image'])
             num_classes = self.classify_features(features).shape[-1]
             break
 
-        rho = D.map(lambda x: (get_features_and_cast(x), get_one_hot(x)))
-        rho = rho.map(lambda f, c: tf.tensordot(f, c, 0))
-        rho = rho.reduce(tf.zeros([num_features, num_classes]),
-                         lambda x, y: x + tf.reduce_sum(y, 0))
-        assert rho.shape == [num_features, num_classes]
+        def calc_fcdot(x, y):
+            """
+            Args:
+                x (Tensor): f32 data with shape [N..HWC]
+                y (Tensor): int labels
+            """
+            features = cast_and_get_features(x)
+            binary_labels = get_one_hot(y)
+            einsum = tf.linalg.matmul(tf.expand_dims(features, -1), tf.expand_dims(binary_labels, -2))
+            return einsum
+
+
+        rho = D.map(lambda x: calc_fcdot(x['image'], x['label']))
+        rho, num_data = rho.reduce((0., 0), lambda x, y: (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf.shape(y)[0]))
+        rho = rho / float(num_data)
         return rho
 
-    def robustness(self, D, num_classes, Delta):
+    def robustness(self, D, eps, norm):
         """Calculates the robustness of features in a network with respect to
-        a dataset D and perturbation class Delta.
+        a dataset D and a perturbation class defined by norm and eps.
 
         Args:
-           D (tf.data.Dataset): An unbatched dataset where image and label are valid keys for each datam
-           num_classes (int): The number of classes in the problem
-           Delta (): A perturbation class
+           D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datum
+           eps (float): numerical limit on the norm of the actual delta
+           norm (1, 2, or np.inf): Which class of delta to use
 
         Returns:
            gamma (tf.Tensor): The robustness of each feature for each class. Of shape [num_features, num_classes].
         """
-        pass
+        # get number of classes
+        for d in D:
+            features = self.features(tf.cast(d['image'], tf.float32))
+            num_classes = self.classify_features(features).shape[-1]
+            break
+
+        def get_one_hot(x):
+            return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
+                           tf.float32)
+
+        # create adversarially perturbed dataset and calulate its usefulness
+        D_adv = D.map(lambda x: {'image': fast_gradient_sign_method(
+            self.features, self.classify_features,
+            tf.cast(x['image'], tf.float32), get_one_hot(x['label']), 0.01, 1),
+                                'label': tf.expand_dims(tf.expand_dims(x['label'], 1), 1)})
+        adv_usefulness = self.usefulness(D_adv)
+
+        # create a mask with 1's where the class and feature line up in both
+        # the data portion (first 2 dims) and the calulated usefulness (last 2 dims)
+        # because we were only adversarially attacking one class/feature pair at a time
+        idxs = np.array([[[i,j,i,j] for j in range(adv_usefulness.shape[1])] for i in range(adv_usefulness.shape[0])])
+        idxs = np.reshape(idxs, [-1, 4])
+        mask = np.zeros_like(adv_usefulness)
+        mask[tuple(idxs.T)] = 1.
+        # apply mask and reduce over the calulated usefulness dims (last 2)
+        adv_usefulness = tf.reduce_sum(tf.reduce_sum(adv_usefulness * mask, -1), -1)
+        return adv_usefulness

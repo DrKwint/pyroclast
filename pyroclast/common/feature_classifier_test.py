@@ -13,6 +13,8 @@ class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
         self.conv_layer_2 = tf.keras.layers.Conv2D(
             16, 3, padding='same', bias_initializer='glorot_normal')
         self.flatten_layer = tf.keras.layers.Flatten()
+        self.first_dense = tf.keras.layers.Dense(25)
+        self.num_features = 25
         self.dense_layer = tf.keras.layers.Dense(10)
 
     def __call__(self, x, y=None):
@@ -23,6 +25,7 @@ class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
         x = self.conv_layer_1(x)
         x = self.conv_layer_2(x)
         x = self.flatten_layer(x)
+        x = self.first_dense(x)
         return x
 
     def classify_features(self, f):
@@ -34,13 +37,12 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
     def setUp(self):
         super(FeatureClassifierMixinTest, self).__init__()
         self.args = dict()
-        self.args['data_limit'] = 80
+        self.args['data_limit'] = 24
         self.args['batch_size'] = 8
 
         self.model = BasicMnistFeatureClassifier()
         self.ds = setup_tfds('mnist', self.args['batch_size'], None,
                              self.args['data_limit'])
-        self.num_features = 16 * 28 * 28
 
     def test_basic_mnist_feature_classifier(self):
         for batch in self.ds['train']:
@@ -49,9 +51,16 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
             assert y.shape == (self.args['batch_size'], 10)
 
             f = self.model.features(x)
-            assert f.shape == (self.args['batch_size'], self.num_features)
+            assert f.shape == (self.args['batch_size'], self.model.num_features)
 
-    def test_usefulness(self):
+    def test_usefulness_and_robustness(self):
+        # usefulness
         usefulness = self.model.usefulness(self.ds['train'])
-        assert usefulness.shape == [self.num_features, 10]
+        assert usefulness.shape == [self.model.num_features, 10]
         assert tf.math.reduce_any(tf.cast(usefulness, tf.bool))
+
+        # robustness
+        robustness = self.model.robustness(self.ds['train'], 0.1, 2)
+        mean_usefulness = tf.reduce_mean(usefulness)
+        mean_robustness = tf.reduce_mean(robustness)
+        assert mean_robustness < mean_usefulness
