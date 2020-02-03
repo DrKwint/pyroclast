@@ -46,8 +46,7 @@ class FeatureClassifierMixin(abc.ABC):
         pass
 
     def usefulness(self, D):
-        """Finds maximal rho such that f is rho-useful over the dataset D for
-        classifying y
+        """Finds maximal rho per feature/class pair such that the model is rho-useful over the dataset D
 
         Args:
            D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datam. `image' should be f32 and shape [N..HWC], `label' can be either an int or one-hot encoding.
