@@ -1,0 +1,7 @@
+How to Contribute:
+
+1. Create a branch (typically from master) locally with the changes you're offering.
+2. Create a pull request against your upstream branch. Under the "assignee", put yourself and whoever else is responsible for the changes. Under the reviewer, put someone who didn't make any changes who you think can best decide whether your code is ready to be merged. When in doubt, put DrKwint and she'll figure it out. Please, if you can, include labels, milestone, and project.
+3. You should ensure that it passes all tests on Travis CI. These will include running `pytest` on the whole respository to make sure your changes didn't break someone else's code and also running `yapf` over the whole repository to make sure style conventions are being followed. If you're failing this style check, make sure you have the same version of `yapf` installed as in the `requirements.txt` that's being used in testing and run `yapf -ir` on the offending directory.
+4. As soon as you're done getting all tests passing and have an accepted review (this might require going back and forth a few times making more changes), you can hit the "squash and merge" button and then delete the branch. Even if you're going to use a branch of the same name in the future, the bookkeeping is simplified if you delete it and then re-create it.
+5. Delete the branch from your local machine and pull the upstream branch. Congratulations, your contribution has been merged!

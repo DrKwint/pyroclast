@@ -1,10 +1,12 @@
-# pyroclast
+# Pyroclast
+by Eleanor Quint
 
 A deep learning library by and for the Nebraska AI Research (NEAR) Lab
 
-## sub-packages
+To install, pick a requirements.txt file and run `pip install -r <filename>`
 
-- common
-- qualia
-- boost_resnet
-- svae
+Experiments can generally be run with `python -m pyroclast --alg <module> ...`
+
+To run all tests:
+
+`pytest pyroclast`
