@@ -1,0 +1,8 @@
+# Order is important; the last matching pattern takes the most
+# precedence. Filenames can match any regex.
+
+# default
+* @DrKwint
+
+/pyroclast/common/feature_classifier*.py @ihowell
+/pyroclast/common/visualizable*.py       @ihowell
