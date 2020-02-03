@@ -118,10 +118,12 @@ class FeatureClassifierMixin(abc.ABC):
         D_adv = D.map(
             lambda x: {
                 'image':
-                    fast_gradient_sign_method(
-                        self.features, self.classify_features,
-                        tf.cast(x['image'], tf.float32), get_one_hot(x[
-                            'label']), eps, norm),
+                    tf.expand_dims(
+                        tf.expand_dims(tf.cast(x['image'], tf.float32), [1]),
+                        [1]) + fast_gradient_sign_method(
+                            self.features, self.classify_features,
+                            tf.cast(x['image'], tf.float32),
+                            get_one_hot(x['label']), eps, norm),
                 'label':
                     tf.expand_dims(tf.expand_dims(x['label'], 1), 1)
             })
