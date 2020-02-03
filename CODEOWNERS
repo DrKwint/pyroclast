@@ -4,5 +4,5 @@
 # default
 * @DrKwint
 
-/common/feature_classifier*.py @ihowell
-/common/visualizable*.py       @ihowell
+/pyroclast/common/feature_classifier*.py @ihowell
+/pyroclast/common/visualizable*.py       @ihowell

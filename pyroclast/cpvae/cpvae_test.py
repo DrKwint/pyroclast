@@ -29,3 +29,7 @@ class CpVAETest(parameterized.TestCase):
               latent_dim=self.args['latent_dim'],
               epochs=self.args['epochs'],
               output_dir=self.args['output_dir'])
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.args['output_dir'])

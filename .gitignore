@@ -4,6 +4,9 @@ docs_build/
 data/
 .DS_Store
 
+# Test stuff
+feature_classifier_test
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
