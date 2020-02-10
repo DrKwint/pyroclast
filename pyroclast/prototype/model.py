@@ -2,9 +2,10 @@ import numpy as np
 import tensorflow as tf
 
 from pyroclast.prototype.prototype_layer import PrototypeLayer
+from pyroclast.common.feature_classifier import FeatureClassifierMixin
 
 
-class ProtoPNet(tf.Module):
+class ProtoPNet(FeatureClassifierMixin, tf.Module):
     """Implementation of the classifier introduced in 'This Looks Like That:
     Deep Learning for Interpretable Image Recognition'"""
 
@@ -83,6 +84,15 @@ class ProtoPNet(tf.Module):
     def trainable_classifier_vars(self):
         return self.classifier.trainable_variables
 
+    def prototype_activations(self, x):
+        conv_output = self.final_conv(self.conv_stack(x))
+        assert conv_output.shape[1:3] == [7, 7]
+        distances, similarities = self.prototype_layer(conv_output,
+                                                       self.prototypes)
+        minimum_distances = -self.max_pool(-distances)
+        prototype_activations = self.max_pool(similarities)
+        return prototype_activations, minimum_distances, conv_output
+
     def __call__(self, x):
         """
         Args:
@@ -91,12 +101,8 @@ class ProtoPNet(tf.Module):
         Returns:
             Tuple of tensors (y_hat, minimum distances, conv_output)
         """
-        conv_output = self.final_conv(self.conv_stack(x))
-        assert conv_output.shape[1:3] == [7, 7]
-        distances, similarities = self.prototype_layer(conv_output,
-                                                       self.prototypes)
-        minimum_distances = -self.max_pool(-distances)
-        prototype_activations = self.max_pool(similarities)
+        prototype_activations, minimum_distances, conv_output = self.prototype_activations(
+            x)
         return self.classifier(
             prototype_activations), minimum_distances, conv_output
 
@@ -140,3 +146,11 @@ class ProtoPNet(tf.Module):
 
         term_dict['l1'] = tf.norm(self.classifier.trainable_weights[0], 1)
         return term_dict
+
+    def features(self, x):
+        """Defined for implementing FeatureClassifierMixin"""
+        return self.prototype_activations(x)[0]
+
+    def classify_features(self, z):
+        """Defined for implementing FeatureClassifierMixin"""
+        return self.classifier(z)

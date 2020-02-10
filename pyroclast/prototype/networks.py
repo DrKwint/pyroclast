@@ -17,7 +17,7 @@ def mnist_conv():
         tf.keras.layers.Conv2D(oc,
                                ks,
                                strides,
-                               activation=tf.nn.leaky_relu,
+                               activation=tf.nn.relu,
                                padding='same')
         for (oc, ks, strides) in zip(output_channels, kernel_shapes, strides)
     ])

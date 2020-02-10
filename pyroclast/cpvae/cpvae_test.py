@@ -1,4 +1,7 @@
+import os.path as osp
+
 from absl.testing import parameterized
+
 from pyroclast.common.tf_util import setup_tfds
 from pyroclast.cpvae.cpvae import learn
 
@@ -32,4 +35,5 @@ class CpVAETest(parameterized.TestCase):
 
     def tearDown(self):
         import shutil
-        shutil.rmtree(self.args['output_dir'])
+        if osp.exists(self.args['output_dir']):
+            shutil.rmtree(self.args['output_dir'])
