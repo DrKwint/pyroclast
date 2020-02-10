@@ -25,11 +25,11 @@ class PrototypeModelTest(parameterized.TestCase):
         for batch in self.ds['train']:
             features = self.model.features(tf.cast(batch['image'], tf.float32))
             classification = self.model.classify_features(features)
-        # check that the features shape is what the mixin docs expect
-        assert features.shape == (self.args['batch_size'],
-                                  self.args['num_prototypes'])
-        assert classification.shape == (self.args['batch_size'],
-                                        self.ds['num_classes'])
+            # check that the features shape is what the mixin docs expect
+            assert features.shape == (self.args['batch_size'],
+                                      self.args['num_prototypes'])
+            assert classification.shape == (self.args['batch_size'],
+                                            self.ds['num_classes'])
 
     def test_usefulness_robustness(self):
         usefulness = self.model.usefulness(self.ds['test'])

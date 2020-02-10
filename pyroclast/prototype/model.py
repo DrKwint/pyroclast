@@ -5,7 +5,7 @@ from pyroclast.prototype.prototype_layer import PrototypeLayer
 from pyroclast.common.feature_classifier import FeatureClassifierMixin
 
 
-class ProtoPNet(tf.Module, FeatureClassifierMixin):
+class ProtoPNet(FeatureClassifierMixin, tf.Module):
     """Implementation of the classifier introduced in 'This Looks Like That:
     Deep Learning for Interpretable Image Recognition'"""
 
@@ -151,6 +151,6 @@ class ProtoPNet(tf.Module, FeatureClassifierMixin):
         """Defined for implementing FeatureClassifierMixin"""
         return self.prototype_activations(x)[0]
 
-    def classify_features(self, x):
+    def classify_features(self, z):
         """Defined for implementing FeatureClassifierMixin"""
-        return self.classifier(x)
+        return self.classifier(z)
