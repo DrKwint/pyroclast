@@ -1,7 +1,10 @@
+import os
+
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
+from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
 from pyroclast.common.util import dummy_context_mgr
 from pyroclast.prototype.model import ProtoPNet
@@ -13,8 +16,10 @@ def learn(data_dict,
           output_dir,
           debug,
           conv_stack='vgg19_conv',
-          epochs_phase_1=10,
-          epochs_phase_3=10,
+          max_epochs_phase_1=100,
+          patience_phase_1=5,
+          max_epochs_phase_3=100,
+          patience_phase_3=5,
           learning_rate=3e-3,
           cluster_coeff=0.8,
           l1_coeff=1e-4,
@@ -37,6 +42,21 @@ def learn(data_dict,
                       prototype_dim,
                       data_dict['num_classes'],
                       class_specific=is_class_specific)
+
+    # setup checkpointing
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+                                     model=model,
+                                     global_step=global_step)
+    ckpt_manager_phase_1 = tf.train.CheckpointManager(checkpoint,
+                                                      directory=os.path.join(
+                                                          output_dir,
+                                                          'phase1_model'),
+                                                      max_to_keep=3)
+    ckpt_manager_phase_3 = tf.train.CheckpointManager(checkpoint,
+                                                      directory=os.path.join(
+                                                          output_dir,
+                                                          'phase3_model'),
+                                                      max_to_keep=3)
 
     # define minibatch fn
     def run_minibatch(epoch, batch, phase, is_train=True):
@@ -68,7 +88,7 @@ def learn(data_dict,
             if 'separation' in loss_term_dict and phase == 1:
                 loss += separation_coeff * loss_term_dict['separation']
 
-            loss = tf.reduce_mean(loss)
+            mean_loss = tf.reduce_mean(loss)
 
         # calculate gradients for current loss
         if is_train:
@@ -83,7 +103,7 @@ def learn(data_dict,
                 train_vars = model.trainable_classifier_vars
 
             # calculate gradients and apply update
-            gradients = tape.gradient(loss, train_vars)
+            gradients = tape.gradient(mean_loss, train_vars)
             if clip_norm:
                 clipped_gradients, pre_clip_global_norm = tf.clip_by_global_norm(
                     gradients, clip_norm)
@@ -118,33 +138,63 @@ def learn(data_dict,
                                   separation_coeff *
                                   tf.reduce_mean(loss_term_dict['separation']),
                                   step=global_step)
-            tf.summary.scalar(prefix + "loss/total loss",
-                              loss,
+            tf.summary.scalar(prefix + "loss/mean final loss",
+                              mean_loss,
                               step=global_step)
+        loss_numerator = tf.reduce_sum(loss)
+        accuracy_numerator = tf.reduce_sum(
+            tf.cast(tf.equal(prediction, labels), tf.int32))
+        denominator = x.shape[0]
+        return loss_numerator, accuracy_numerator, denominator
 
     ### PHASE 1
     # run training loop
-    if debug: print("PHASE 1 - TRAINING CONV STACK AND PROTOTYPES")
-    for epoch in range(epochs_phase_1):
+    print("PHASE 1 - TRAINING CONV STACK AND PROTOTYPES")
+    early_stopping = EarlyStopping(patience_phase_1,
+                                   ckpt_manager_phase_1,
+                                   eps=0.03)
+    for epoch in range(max_epochs_phase_1):
         # train
         train_batches = data_dict['train']
         if debug:
-            print("Epoch", epoch)
-            print("TRAIN")
             train_batches = tqdm(train_batches, total=data_dict['train_bpe'])
+        print("Epoch", epoch)
+        print("TRAIN")
+        loss_numerator = 0
+        acc_numerator = 0
+        denominator = 0
         for batch in train_batches:
-            run_minibatch(epoch, batch, phase=1, is_train=True)
+            l, a, d = run_minibatch(epoch, batch, phase=1, is_train=True)
+            acc_numerator += a
+            loss_numerator += l
+            denominator += d
+        print("Train Accuracy:", float(acc_numerator) / float(denominator))
+        print("Train Loss:", float(loss_numerator) / float(denominator))
 
         # test
         test_batches = data_dict['test']
-        if debug:
-            print("TEST")
-            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        if debug: test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        print("TEST")
+        loss_numerator = 0
+        acc_numerator = 0
+        denominator = 0
         for batch in test_batches:
-            run_minibatch(epoch, batch, phase=1, is_train=False)
+            l, a, d = run_minibatch(epoch, batch, phase=1, is_train=False)
+            acc_numerator += a
+            loss_numerator += l
+            denominator += d
+        print("Test Accuracy:", float(acc_numerator) / float(denominator))
+        print("Test Loss:", float(loss_numerator) / float(denominator))
+
+        # checkpointing and early stopping
+        if early_stopping(epoch, float(loss_numerator) / float(denominator)):
+            break
+
+    # restore best parameters
+    checkpoint.restore(ckpt_manager_phase_1.latest_checkpoint).assert_consumed()
 
     ### PHASE 2
-    if debug: print("PHASE 2 - PUSHING PROTOTYPES")
+    print("PHASE 2 - PUSHING PROTOTYPES")
 
     def classification_rate(ds):
         numerator = 0.
@@ -192,22 +242,49 @@ def learn(data_dict,
           classification_rate(data_dict['train']))
 
     ### PHASE 3
-    if debug: print("PHASE 3 - TRAINING CLASSIFIER")
+    print("PHASE 3 - TRAINING CLASSIFIER")
+    early_stopping = EarlyStopping(patience_phase_3,
+                                   ckpt_manager_phase_3,
+                                   eps=0.03)
     # run training loop
-    for epoch in range(epochs_phase_3):
+    for epoch in range(max_epochs_phase_3):
         # train
         train_batches = data_dict['train']
         if debug:
-            print("Epoch", epoch)
-            print("TRAIN")
             train_batches = tqdm(train_batches, total=data_dict['train_bpe'])
+        print("Epoch", epoch)
+        print("TRAIN")
+        loss_numerator = 0
+        acc_numerator = 0
+        denominator = 0
         for batch in train_batches:
-            run_minibatch(epoch, batch, phase=3, is_train=True)
+            l, a, d = run_minibatch(epoch, batch, phase=3, is_train=True)
+            acc_numerator += a
+            loss_numerator += l
+            denominator += d
+        print("Train Accuracy:", float(acc_numerator) / float(denominator))
+        print("Train Loss:", float(loss_numerator) / float(denominator))
 
         # test
         test_batches = data_dict['test']
-        if debug:
-            print("TEST")
-            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        if debug: test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        print("TEST")
+        loss_numerator = 0
+        acc_numerator = 0
+        denominator = 0
         for batch in test_batches:
-            run_minibatch(epoch, batch, phase=3, is_train=False)
+            l, a, d = run_minibatch(epoch, batch, phase=3, is_train=False)
+            acc_numerator += a
+            loss_numerator += l
+            denominator += d
+        print("Test Accuracy:", float(acc_numerator) / float(denominator))
+        print("Test Loss:", float(loss_numerator) / float(denominator))
+
+        # checkpointing and early stopping
+        if early_stopping(epoch, float(loss_numerator) / float(denominator)):
+            break
+
+    # restore final parameters and print performance
+    checkpoint.restore(ckpt_manager_phase_3.latest_checkpoint).assert_consumed()
+    print("Final Train Accuracy:", classification_rate(data_dict['train']))
+    print("Final Test Accuracy:", classification_rate(data_dict['test']))
