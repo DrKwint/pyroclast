@@ -15,7 +15,16 @@ def register(name):
 
 def get_dataset_builder(name):
     """
-    If you want to register your own dataset outside datasets.py, you just need:
+    Args:
+        name (str): name under which a dataset has been registered
+
+    Returns:
+        data_dict_fn (dict): a function which takes kwargs and returns a data dictionary
+
+    Notes:
+        If you want to register your own dataset outside datasets.py, you can importy
+        the `register` decorator and use it identically to how it's used in this file.
+        Then, you can get the dataset from anywhere by importing this function.
 
     Usage Example:
     -------------
@@ -24,7 +33,6 @@ def get_dataset_builder(name):
     def your_dataset_define(**ds_kwargs):
         ...
         return dataset_fn
-
     """
     if callable(name):
         return name
