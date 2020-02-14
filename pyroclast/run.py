@@ -8,6 +8,7 @@ from tensorflow.python.client import device_lib
 
 from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
 from pyroclast.common.tf_util import setup_tfds
+from pyroclast.common.datasets import check_datasets, get_dataset_builder
 
 tf.compat.v1.enable_eager_execution()
 
@@ -59,9 +60,15 @@ def train(args, extra_args):
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, args.dataset)
     alg_kwargs.update(extra_args)
-    data_dict = setup_tfds(args.dataset, args.batch_size,
-                           args.resize_data_shape, args.data_limit,
-                           args.data_dir)
+    if check_datasets(args.dataset):
+        data_dict = get_dataset_builder(args.dataset)(args.batch_size,
+                                                      args.resize_data_shape,
+                                                      args.data_limit,
+                                                      args.data_dir)
+    else:
+        data_dict = setup_tfds(args.dataset, args.batch_size,
+                               args.resize_data_shape, args.data_limit,
+                               args.data_dir)
 
     print('Training {} on {} with arguments \n{}'.format(
         args.alg, args.dataset, alg_kwargs))
