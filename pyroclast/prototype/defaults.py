@@ -3,7 +3,11 @@ def caltech_birds2011():
 
 
 def mnist():
-    return dict(epochs_phase_1=5,
-                epochs_phase_3=5,
+    return dict(max_epochs_phase_1=20,
+                patience_phase_1=2,
+                max_epochs_phase_3=20,
+                patience_phase_3=3,
                 num_prototypes=100,
-                conv_stack='mnist_conv')
+                conv_stack='mnist_conv',
+                is_class_specific=True,
+                prototype_dim=64)
