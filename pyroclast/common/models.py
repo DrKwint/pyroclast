@@ -210,6 +210,13 @@ def celeba_gen(is_train=True):
     return tf.keras.Sequential(layers)
 
 
+def vgg19(**kwargs):
+    return tf.keras.applications.VGG19(include_top=False,
+                                       weights='imagenet',
+                                       input_shape=kwargs['shape'],
+                                       pooling=None)
+
+
 def get_network_builder(name):
     """
     If you want to register your own network outside models.py, you just need:
