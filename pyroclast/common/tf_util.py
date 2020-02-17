@@ -32,6 +32,7 @@ def setup_tfds(dataset,
         num_classes is the number of classes in the labels
     """
     data_dict, info = tfds.load(dataset, with_info=True, data_dir=data_dir)
+    data_dict['name'] = dataset
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
     data_dict['num_classes'] = info.features['label'].num_classes
@@ -238,3 +239,16 @@ def img_discretized_logistic_log_prob(mean,
     #logp = tf.math.log(
     #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
     return tf.reduce_sum(log_sum_exp(logp), [1, 2])
+
+
+def preprocess_dataset(module, dataset, filename, data_shape, key='image'):
+    if type(module) is str:
+        from pyroclast.common.models import get_network_builder
+        module = get_network_builder(module)(shape=data_shape)
+
+    def inner(batch_dict):
+        x = batch_dict[key]
+        batch_dict[key] = module(x)
+
+    writer = tf.data.experimental.TFRecordWriter(filename)
+    writer.write(dataset.map(inner))
