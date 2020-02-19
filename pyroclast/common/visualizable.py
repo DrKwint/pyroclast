@@ -98,3 +98,25 @@ class VisualizableMixin(abc.ABC):
                 result = tf.nn.softmax(result)
             grads = tape.gradient(result, x)
         return grads
+
+    def smooth_grad(self, x, n=50, sigma=0.01):
+        """Computes the smooth grad saliency-map
+
+        SmoothGrad works by averaging the gradient of n input images
+        that have been perturbed with Gausssian noise. Gaussian noise
+        is parameterized by the standard deviation (sigma).
+
+        Args:
+           x (np.array): shape [batch_size, ...data_shape]
+           n (int): The number of samples to collect
+           sigma (float): The standard deviation of the Gaussian noise
+
+        Returns:
+           sensitivity_map (np.array): shape [batch_size, ...data_shape]
+
+        """
+        gradients = np.array(
+            [x + np.random.normal(0, sigma, x.shape) for _ in range(n)])
+        gradients = np.sum(gradients, axis=0)
+        gradients /= n
+        return gradients
