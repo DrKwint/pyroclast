@@ -15,4 +15,4 @@ class GenericClassifier(tf.Module, FeatureClassifierMixin):
         return tf.squeeze(self.conv_stack(x))
 
     def classify_features(self, z):
-        return self.classify_features(z)
+        return self.classifier(z)

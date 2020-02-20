@@ -2,6 +2,7 @@ import os
 
 import tensorflow as tf
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 class dummy_context_mgr():
@@ -37,3 +38,22 @@ def img_postprocess(x):
 def ensure_dir_exists(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
+
+
+def heatmap(matrix, path, title):
+    fig, ax = plt.subplots(figsize=(matrix.shape[1], matrix.shape[0]))
+    plot = ax.pcolormesh(matrix, cmap='hot')
+    fig.colorbar(plot)
+    # We want to show all ticks...
+    # ax.set_xticks(np.arange(len(vipd[0])))
+    # ax.set_yticks(np.arange(len(variable_names)))
+    # ... and label them with the respective list entries
+    # ax.set_xticklabels(range(len(vipd[0])))
+    # ax.set_yticklabels(variable_names)
+    # Loop over data dimensions and create text annotations.
+    #for i in range(len(variable_names)):
+    #    for j in range(len(vipd[0])):
+    #        ax.text(j, i, f’{vipd[i,j]:,}’, ha=‘center’, va=‘center’)
+    ax.set_title(title)
+    plt.savefig(path)
+    plt.close(fig)

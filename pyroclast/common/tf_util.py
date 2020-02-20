@@ -34,7 +34,9 @@ def setup_tfds(dataset,
     data_dict, info = tfds.load(dataset, with_info=True, data_dir=data_dir)
     data_dict['name'] = dataset
     data_dict['train_bpe'] = info.splits['train'].num_examples // batch_size
+    data_dict['train_num'] = info.splits['train'].num_examples
     data_dict['test_bpe'] = info.splits['test'].num_examples // batch_size
+    data_dict['test_num'] = info.splits['test'].num_examples
     data_dict['num_classes'] = info.features['label'].num_classes
 
     def resize_ds_img(features):

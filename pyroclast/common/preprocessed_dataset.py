@@ -1,5 +1,8 @@
 import tensorflow as tf
 from tqdm import tqdm
+import os.path as osp
+import tensorflow_datasets as tfds
+import numpy as np
 
 
 def _float_feature(value):
@@ -22,46 +25,33 @@ class PreprocessedDataset(object):
                  label_key='label'):
         self.module = module
         self.base_ds = ds
-        self.path = filepath
 
-        # TODO: only save if it doesn't already exist
-        # TODO: make filepath implicit by hashing the dataset and module
-        self.save_tfrecord(data_key, label_key)
-        self.ds = self.load_tfrecord()
+        if not osp.exists(filepath +
+                          '_embeds.npy') or not osp.exists(filepath +
+                                                           '_labels.npy'):
+            self.save(filepath, data_key, label_key)
+        self.ds = self.load(filepath, data_key, label_key)
 
-    def __call__(self):
-        return self.ds
+    def __call__(self, batch_size):
+        return self.ds.shuffle(1024).batch(batch_size)
 
-    def save_tfrecord(self, data_key, label_key):
-        # write to disk
-        def serialize_example(data, label):
-            embed = self.module(tf.cast(data, tf.float32))
+    def save(self, base_path, data_key, label_key):
 
-            feature = {
-                'data': _float_feature(embed),
-                'label': _int64_feature(label)
-            }
+        def _inner(batch):
+            embed = self.module(tf.cast(batch[data_key], tf.float32))
+            label = batch[label_key]
+            return (embed, label)
 
-            example_proto = tf.train.Example(features=tf.train.Features(
-                feature=feature))
-            return example_proto.SerializeToString()
+        ds = tfds.as_numpy(self.base_ds.map(_inner).unbatch())
+        tuples = [x for x in tqdm(ds)]
+        embeds, labels = zip(*tuples)
+        np.save(base_path + '_embeds', np.array(embeds))
+        np.save(base_path + '_labels', np.array(labels))
 
-        def tf_serialize_example(d, l):
-            tf_string = tf.py_function(
-                serialize_example,
-                (d, l),  # pass these args to the above function.
-                tf.string)  # the return type is `tf.string`.
-            return tf.reshape(tf_string, ())  # The result is a scalar
-
-        #serialized_features_dataset = self.base_ds.map(
-        #    lambda x: tf_serialize_example(x[data_key], x[label_key]))
-        writer = tf.data.experimental.TFRecordWriter(self.path)
-        with tf.io.TFRecordWriter(self.path) as writer:
-            for x in tqdm(self.base_ds.unbatch()):
-                example = serialize_example(tf.expand_dims(x[data_key], 0),
-                                            tf.expand_dims(x[label_key], 0))
-                writer.write(example)
-
-    def load_tfrecord(self):
-        raw_dataset = tf.data.TFRecordDataset([self.path])
-        self.ds = raw_dataset
+    def load(self, base_path, data_key, label_key):
+        embeds = np.load(base_path + '_embeds.npy')
+        labels = np.load(base_path + '_labels.npy')
+        return tf.data.Dataset.from_tensors({
+            data_key: embeds,
+            label_key: labels
+        }).unbatch()

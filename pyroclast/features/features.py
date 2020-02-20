@@ -1,11 +1,15 @@
+import copy
 import os
+
 import tensorflow as tf
-from pyroclast.features.generic_classifier import GenericClassifier
+from tqdm import tqdm
+
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
-from pyroclast.common.util import dummy_context_mgr
-from tqdm import tqdm
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
+from pyroclast.common.util import dummy_context_mgr
+from pyroclast.features.generic_classifier import GenericClassifier
+from pyroclast.common.util import heatmap
 
 
 # define minibatch fn
@@ -37,9 +41,10 @@ def run_minibatch(model,
 
         # build loss calculate gradients and apply update
         mean_loss = tf.reduce_mean(classification_loss)
-        train_vars = model.trainable_variables
-        gradients = tape.gradient(mean_loss, train_vars)
-        optimizer.apply_gradients(zip(gradients, train_vars))
+        if is_train:
+            train_vars = model.trainable_variables
+            gradients = tape.gradient(mean_loss, train_vars)
+            optimizer.apply_gradients(zip(gradients, train_vars))
 
     # log to TensorBoard
     prefix = 'train_' if is_train else 'validate_'
@@ -67,16 +72,8 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
           train_conv_stack, checkpoint, ckpt_manager, debug):
     if train_conv_stack:
         train_model = model
-        train_data_dict = data_dict
     else:
         train_model = model.classifier
-        train_data_dict = data_dict
-        train_data_dict['train'] = PreprocessedDataset(
-            data_dict['train'], model.features,
-            'something' + data_dict['name'] + '_train')
-        train_data_dict['test'] = PreprocessedDataset(
-            data_dict['test'], model.features,
-            'something' + data_dict['name'] + '_test')
 
     # use the max epoch value in early_stopping
     for epoch in range(10000):
@@ -166,12 +163,26 @@ def learn(data_dict,
                                                   output_dir, 'phase1_model'),
                                               max_to_keep=3)
 
+    for x in data_dict['train']:
+        batch_size = x['label'].shape[0]
+        break
+    preprocessed_dataset = copy.copy(data_dict)
+    preprocessed_dataset['train'] = PreprocessedDataset(
+        data_dict['train'], model.features,
+        'vgg19' + data_dict['name'] + '_train')(batch_size)
+    preprocessed_dataset['test'] = PreprocessedDataset(
+        data_dict['test'], model.features,
+        'vgg19' + data_dict['name'] + '_test')(batch_size)
+
     if is_train:
         early_stopping = EarlyStopping(patience,
                                        ckpt_manager,
                                        eps=0.03,
                                        max_epochs=max_epochs)
-        train(data_dict, model, optimizer, global_step, writer, early_stopping,
-              train_conv_stack, checkpoint, ckpt_manager, debug)
-    usefulness = GenericClassifier.usefulness(data_dict['test'])
-    print(usefulness.shape)
+        train(preprocessed_dataset, model, optimizer, global_step, writer,
+              early_stopping, False, checkpoint, ckpt_manager, debug)
+    usefulness = model.usefulness(preprocessed_dataset['test'],
+                                  is_preprocessed=True)
+    print(tf.reduce_min(usefulness), tf.reduce_mean(usefulness),
+          tf.reduce_max(usefulness))
+    heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')

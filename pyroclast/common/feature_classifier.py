@@ -45,7 +45,7 @@ class FeatureClassifierMixin(abc.ABC):
         """
         pass
 
-    def usefulness(self, D):
+    def usefulness(self, D, is_preprocessed=False):
         """Finds maximal rho per feature/class pair such that the model is rho-useful over the dataset D
 
         Args:
@@ -68,7 +68,10 @@ class FeatureClassifierMixin(abc.ABC):
             return features(x)
 
         for d in D:
-            features = cast_and_get_features(d['image'])
+            if is_preprocessed:
+                features = d['image']
+            else:
+                features = cast_and_get_features(d['image'])
             num_classes = self.classify_features(features).shape[-1]
             break
 
@@ -78,7 +81,10 @@ class FeatureClassifierMixin(abc.ABC):
                 x (Tensor): f32 data with shape [N..HWC]
                 y (Tensor): int labels
             """
-            features = cast_and_get_features(x)
+            if is_preprocessed:
+                features = x
+            else:
+                features = cast_and_get_features(x)
             binary_labels = get_one_hot(y)
             einsum = tf.linalg.matmul(tf.expand_dims(features, -1),
                                       tf.expand_dims(binary_labels, -2))
