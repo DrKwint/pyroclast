@@ -3,6 +3,8 @@ import os
 import tensorflow as tf
 from PIL import Image
 import matplotlib.pyplot as plt
+from matplotlib import colors
+import numpy as np
 
 
 class dummy_context_mgr():
@@ -41,19 +43,21 @@ def ensure_dir_exists(dir_path):
 
 
 def heatmap(matrix, path, title):
+    X = np.hstack([
+        matrix.numpy(),
+        np.reshape(np.arange(matrix.shape[0]), [matrix.shape[0], 1])
+    ])
+    for i in range(matrix.shape[-1]):
+        X = X[X[:, i].argsort()]
+    matrix = X[:, :-1]
+    idxs = X[:, -1]
+
     fig, ax = plt.subplots(figsize=(matrix.shape[1], matrix.shape[0]))
-    plot = ax.pcolormesh(matrix, cmap='hot')
+    divnorm = colors.DivergingNorm(vcenter=0)
+    plot = ax.pcolormesh(matrix, cmap='seismic', norm=divnorm)
+    ax.set_yticks(np.arange(len(idxs)))
+    ax.set_yticklabels(idxs)
     fig.colorbar(plot)
-    # We want to show all ticks...
-    # ax.set_xticks(np.arange(len(vipd[0])))
-    # ax.set_yticks(np.arange(len(variable_names)))
-    # ... and label them with the respective list entries
-    # ax.set_xticklabels(range(len(vipd[0])))
-    # ax.set_yticklabels(variable_names)
-    # Loop over data dimensions and create text annotations.
-    #for i in range(len(variable_names)):
-    #    for j in range(len(vipd[0])):
-    #        ax.text(j, i, f’{vipd[i,j]:,}’, ha=‘center’, va=‘center’)
     ax.set_title(title)
     plt.savefig(path)
     plt.close(fig)

@@ -44,6 +44,7 @@ def compute_all_gradients(feature_fn, classify_fn, x, y):
                          watch_accessed_variables=False) as tape:
         tape.watch(x)
         features = feature_fn(x)
+        features = tf.reshape(features, [32, -1])
         fc_dot = tf.einsum('ij,ik->ijk', features, y)
     jacobian = tape.batch_jacobian(fc_dot, x)
     return jacobian

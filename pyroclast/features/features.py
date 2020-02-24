@@ -1,15 +1,15 @@
 import copy
 import os
 
+import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
-from pyroclast.common.util import dummy_context_mgr
+from pyroclast.common.util import dummy_context_mgr, heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
-from pyroclast.common.util import heatmap
 
 
 # define minibatch fn
@@ -136,7 +136,9 @@ def learn(data_dict,
           debug,
           learning_rate=3e-3,
           conv_stack_name='vgg19',
-          is_train=True,
+          is_train=False,
+          is_usefulness=False,
+          is_robustness=False,
           train_conv_stack=False,
           patience=2,
           max_epochs=10):
@@ -169,10 +171,10 @@ def learn(data_dict,
     preprocessed_dataset = copy.copy(data_dict)
     preprocessed_dataset['train'] = PreprocessedDataset(
         data_dict['train'], model.features,
-        'vgg19' + data_dict['name'] + '_train')(batch_size)
+        '.preprocessed_data/vgg19' + data_dict['name'] + '_train')(batch_size)
     preprocessed_dataset['test'] = PreprocessedDataset(
         data_dict['test'], model.features,
-        'vgg19' + data_dict['name'] + '_test')(batch_size)
+        '.preprocessed_data/vgg19' + data_dict['name'] + '_test')(batch_size)
 
     if is_train:
         early_stopping = EarlyStopping(patience,
@@ -181,8 +183,19 @@ def learn(data_dict,
                                        max_epochs=max_epochs)
         train(preprocessed_dataset, model, optimizer, global_step, writer,
               early_stopping, False, checkpoint, ckpt_manager, debug)
-    usefulness = model.usefulness(preprocessed_dataset['test'],
-                                  is_preprocessed=True)
-    print(tf.reduce_min(usefulness), tf.reduce_mean(usefulness),
-          tf.reduce_max(usefulness))
-    heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')
+
+    if is_usefulness:
+        usefulness = model.usefulness(preprocessed_dataset['test'],
+                                      is_preprocessed=True)
+        print(tf.math.reduce_any(tf.math.is_nan(usefulness)))
+        print(tf.reduce_min(usefulness), tf.reduce_mean(usefulness),
+              tf.reduce_max(usefulness))
+        heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')
+
+    if is_robustness:
+        print("robustness")
+        robustness = model.robustness(data_dict['test'].take(1), 1., np.inf)
+        print(tf.math.reduce_any(tf.math.is_nan(robustness)))
+        print(tf.reduce_min(robustness), tf.reduce_mean(robustness),
+              tf.reduce_max(robustness))
+        heatmap(robustness, 'gamma_robustness.png', 'gamma robustness')

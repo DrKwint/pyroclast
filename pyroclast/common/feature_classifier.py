@@ -61,6 +61,8 @@ class FeatureClassifierMixin(abc.ABC):
 
         def cast_and_get_features(x):
             x = tf.cast(x, tf.float32)
+            if is_preprocessed:
+                return x
             features = self.features
             if len(x.shape) > 4:
                 merge_dims = len(x.shape) - 3
@@ -74,30 +76,33 @@ class FeatureClassifierMixin(abc.ABC):
                 features = cast_and_get_features(d['image'])
             num_classes = self.classify_features(features).shape[-1]
             break
+        D = D.unbatch()
+        count = D.reduce(0., lambda x, y: x + 1)
+        sum_features = D.map(
+            lambda x: cast_and_get_features(x['image'])).reduce(
+                0., lambda x, y: x + y)
+        mean_features = sum_features / count
+        sum_labels = D.map(lambda x: get_one_hot(x['label'])).reduce(
+            0., lambda x, y: x + y)
+        mean_labels = sum_labels / count
 
-        def calc_fcdot(x, y):
-            """
-            Args:
-                x (Tensor): f32 data with shape [N..HWC]
-                y (Tensor): int labels
-            """
-            if is_preprocessed:
-                features = x
-            else:
-                features = cast_and_get_features(x)
-            binary_labels = get_one_hot(y)
-            einsum = tf.linalg.matmul(tf.expand_dims(features, -1),
-                                      tf.expand_dims(binary_labels, -2))
-            return einsum
-
-        rho = D.map(lambda x: calc_fcdot(x['image'], x['label']))
-        reduce_lambda = lambda x, y: (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf
-                                      .shape(y)[0])
-        rho, num_data = rho.reduce((0., 0), reduce_lambda)
-        rho = rho / float(num_data)
+        terms = D.map(lambda x: (cast_and_get_features(x[
+            'image']) - mean_features, get_one_hot(x['label']) - mean_labels))
+        numerator_part = terms.map(lambda x, y: tf.linalg.matmul(
+            tf.expand_dims(x, -1), tf.expand_dims(y, -2)))
+        numerator = numerator_part.reduce(0., lambda x, y: x + y)
+        denominator_left_part = terms.map(lambda x, y: x**2)
+        denominator_left = tf.math.sqrt(
+            denominator_left_part.reduce(0., lambda x, y: x + y))
+        denominator_right_part = terms.map(lambda x, y: y**2)
+        denominator_right = tf.math.sqrt(
+            denominator_right_part.reduce(0., lambda x, y: x + y))
+        rho = numerator / (
+            1e-10 + tf.linalg.matmul(tf.expand_dims(denominator_left, -1),
+                                     tf.expand_dims(denominator_right, -2)))
         return rho
 
-    def robustness(self, D, eps, norm):
+    def robustness(self, D, eps, norm, is_preprocessed=False):
         """Calculates the robustness of features in a network with respect to
         a dataset D and a perturbation class defined by norm and eps.
 
@@ -109,15 +114,28 @@ class FeatureClassifierMixin(abc.ABC):
         Returns:
            gamma (tf.Tensor): The robustness of each feature for each class. Of shape [num_features, num_classes].
         """
-        # get number of classes
-        for d in D:
-            features = self.features(tf.cast(d['image'], tf.float32))
-            num_classes = self.classify_features(features).shape[-1]
-            break
 
         def get_one_hot(x):
             return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
                            tf.float32)
+
+        def cast_and_get_features(x):
+            x = tf.cast(x, tf.float32)
+            if is_preprocessed:
+                return x
+            features = self.features
+            if len(x.shape) > 4:
+                merge_dims = len(x.shape) - 3
+                features = snt.BatchApply(self.features, merge_dims)
+            return features(x)
+
+        for d in D:
+            if is_preprocessed:
+                features = d['image']
+            else:
+                features = cast_and_get_features(d['image'])
+            num_classes = self.classify_features(features).shape[-1]
+            break
 
         # create adversarially perturbed dataset and calulate its usefulness
         D_adv = D.map(
