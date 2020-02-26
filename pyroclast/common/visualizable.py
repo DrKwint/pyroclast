@@ -102,6 +102,8 @@ class VisualizableMixin(abc.ABC):
     def smooth_grad(self, x, n=50, sigma=0.01):
         """Computes the smooth grad saliency-map
 
+        Implements the SmoothGRAD paper: https://arxiv.org/abs/1706.03825
+
         SmoothGrad works by averaging the gradient of n input images
         that have been perturbed with Gausssian noise. Gaussian noise
         is parameterized by the standard deviation (sigma).
