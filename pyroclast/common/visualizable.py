@@ -115,8 +115,20 @@ class VisualizableMixin(abc.ABC):
            sensitivity_map (np.array): shape [batch_size, ...data_shape]
 
         """
-        gradients = np.array(
-            [x + np.random.normal(0, sigma, x.shape) for _ in range(n)])
-        gradients = np.sum(gradients, axis=0)
+        tile_scheme = [n] + [1 for _ in enumerate(x.shape)]
+        x_dist = tf.tile(tf.constant(x)[None, :], tile_scheme)
+        x_dist += tf.random.normal(x_dist.shape, stddev=sigma)
+        x_dist = tf.reshape(x_dist, [-1, *x.shape[1:]])
+
+        with tf.GradientTape() as tape:
+            tape.watch(x_dist)
+            result = self.classify(x_dist)
+            gradients = tape.gradient(result, x_dist)
+
+        gradients = tf.reshape(gradients, [n] + x.shape)
+        print(x.shape, gradients.shape)
+        gradients = tf.math.reduce_sum(gradients, axis=0)
         gradients /= n
+        print(x.shape, gradients.shape)
+        assert (gradients.shape == x.shape)
         return gradients
