@@ -34,3 +34,6 @@ Mixin Functionality
 - :meth:`~pyroclast.common.visualizable.VisualizableMixin.sensitivity_map`
   Generates the sensitivity map of input :code:`x`. Optional
   softmaxing can be applied before completing the forward pass.
+
+- :meth:`~pyroclast.common.visualizable.VisualizableMixin.smooth_grad`
+  Generates the SmoothGRAD sensitivity map of input :code:`x`.
