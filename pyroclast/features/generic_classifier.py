@@ -9,7 +9,7 @@ class GenericClassifier(tf.Module, FeatureClassifierMixin):
         self.classifier = classifier
 
     def __call__(self, x):
-        return self.classifier(self.features())
+        return self.classifier(self.features(x))
 
     def features(self, x):
         return tf.squeeze(self.conv_stack(x))

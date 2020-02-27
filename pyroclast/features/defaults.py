@@ -1,2 +1,2 @@
 def mnist():
-    return dict()
+    return dict(conv_stack_name='ross_net')

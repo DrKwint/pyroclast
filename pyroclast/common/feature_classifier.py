@@ -67,6 +67,8 @@ class FeatureClassifierMixin(abc.ABC):
             if len(x.shape) > 4:
                 merge_dims = len(x.shape) - 3
                 features = snt.BatchApply(self.features, merge_dims)
+            elif len(x.shape) < 4:
+                x = tf.expand_dims(x, 0)
             return features(x)
 
         for d in D:
@@ -100,7 +102,7 @@ class FeatureClassifierMixin(abc.ABC):
         rho = numerator / (
             1e-10 + tf.linalg.matmul(tf.expand_dims(denominator_left, -1),
                                      tf.expand_dims(denominator_right, -2)))
-        return rho
+        return tf.squeeze(rho)
 
     def robustness(self, D, eps, norm, is_preprocessed=False):
         """Calculates the robustness of features in a network with respect to
@@ -127,6 +129,8 @@ class FeatureClassifierMixin(abc.ABC):
             if len(x.shape) > 4:
                 merge_dims = len(x.shape) - 3
                 features = snt.BatchApply(self.features, merge_dims)
+            elif len(x.shape) < 4:
+                x = tf.expand_dims(x, 0)
             return features(x)
 
         for d in D:
