@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-def fast_gradient_sign_method(feature_fn, classify_fn, x, y, eps, norm):
+def fast_gradient_sign_method(feature_fn, classify_fn, x, y, eps, norm, k=1):
     """
     Goodfellow et al.'s fast gradient adversarial attack method which assumes a
     neural network is mostly linear (i.e., activated with ReLUs or similar) and
@@ -13,16 +13,25 @@ def fast_gradient_sign_method(feature_fn, classify_fn, x, y, eps, norm):
         classify_fn (z -> y): where y has shape [NCl] and z identical to feature_fn
         x (Tensor): data, assumed to be [NHWCh]
         y (Tensor): labels, assumed int typed
-        eps (float): norm constraint on the delta
+        eps (float): total norm constraint on the delta
         norm (1, 2, or np.inf): norm choosing constraint set to optimize
+        k (int): number of steps for iteration
 
     Returns:
         perturbation (Tensor): adversarial perturbation which minimizes \
             feature/class outer product with shape [N,F,Cl,H,W,Ch] where each \
             datum (H,W,Ch) is optimized against each feature/class pair (F,Cl)
     """
-    jacobian = compute_all_gradients(feature_fn, classify_fn, x, y)
-    perturbation = linear_optimization(jacobian, eps, norm)
+    assert type(k) == int and k > 0
+    eps /= k
+    perturbation = None
+    perturbed_x = x
+    for _ in range(k):
+        jacobian = compute_all_gradients(feature_fn, classify_fn, perturbed_x,
+                                         y)
+        perturb_step = linear_optimization(jacobian, eps, norm)
+        perturbation = perturb_step if perturbation is None else perturbation + perturb_step
+        perturbed_x += perturb_step
     return perturbation
 
 
