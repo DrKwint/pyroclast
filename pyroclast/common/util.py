@@ -2,6 +2,9 @@ import os
 
 import tensorflow as tf
 from PIL import Image
+import matplotlib.pyplot as plt
+from matplotlib import colors
+import numpy as np
 
 
 class dummy_context_mgr():
@@ -37,3 +40,24 @@ def img_postprocess(x):
 def ensure_dir_exists(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
+
+
+def heatmap(matrix, path, title):
+    X = np.hstack([
+        matrix.numpy(),
+        np.reshape(np.arange(matrix.shape[0]), [matrix.shape[0], 1])
+    ])
+    for i in range(matrix.shape[-1]):
+        X = X[X[:, i].argsort()]
+    matrix = X[:, :-1]
+    idxs = X[:, -1]
+
+    fig, ax = plt.subplots(figsize=(matrix.shape[1], matrix.shape[0]))
+    divnorm = colors.DivergingNorm(vcenter=0)
+    plot = ax.pcolormesh(matrix, cmap='seismic', norm=divnorm)
+    ax.set_yticks(np.arange(len(idxs)))
+    ax.set_yticklabels(idxs)
+    fig.colorbar(plot)
+    ax.set_title(title)
+    plt.savefig(path)
+    plt.close(fig)
