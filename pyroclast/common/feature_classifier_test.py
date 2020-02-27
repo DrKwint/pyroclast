@@ -1,9 +1,10 @@
 import os.path as osp
+
 import tensorflow as tf
 from absl.testing import parameterized
 
-from pyroclast.common.tf_util import setup_tfds
 from pyroclast.common.feature_classifier import FeatureClassifierMixin
+from pyroclast.common.tf_util import setup_tfds
 
 
 class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
@@ -92,13 +93,26 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
 
     def test_usefulness_and_robustness(self):
         # usefulness
-        usefulness = self.model.usefulness(self.ds['train'])
-        assert usefulness.shape == [self.model.num_features, 10]
-        assert tf.math.reduce_any(tf.cast(usefulness, tf.bool))
+        usefulness = self.model.usefulness(
+            self.ds['train'].map(lambda x:
+                                 (tf.cast(x['image'], tf.float32), x['label'])),
+            self.ds['num_classes'])
+        assert usefulness.shape == [self.model.num_features,
+                                    10]  # has expected shape
+        assert tf.math.reduce_any(tf.cast(usefulness, tf.bool))  # not all 0
+        assert tf.math.reduce_max(usefulness) < 1.  # has expected max value
+        assert tf.math.reduce_min(usefulness) > -1.  # has expected max value
+        assert not tf.math.reduce_any(tf.math.is_nan(usefulness))  # not nan
 
         # robustness
-        robustness = self.model.robustness(self.ds['train'], 0.1, 2)
+        robustness = self.model.robustness(
+            self.ds['train'].map(lambda x:
+                                 (tf.cast(x['image'], tf.float32), x['label'])),
+            self.ds['num_classes'], 0.1, 2)
         assert usefulness.shape == robustness.shape
         mean_usefulness = tf.reduce_mean(usefulness)
         mean_robustness = tf.reduce_mean(robustness)
         assert mean_robustness != mean_usefulness
+        assert tf.math.reduce_max(robustness) < 1.  # has expected max value
+        assert tf.math.reduce_min(robustness) > -1.  # has expected max value
+        assert not tf.math.reduce_any(tf.math.is_nan(robustness))  # not nan
