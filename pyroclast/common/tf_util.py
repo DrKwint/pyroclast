@@ -1,10 +1,11 @@
+import functools
 import multiprocessing
 import os
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 import tensorflow_datasets as tfds
+import tensorflow_probability as tfp
 import tqdm
 
 
@@ -238,3 +239,44 @@ def img_discretized_logistic_log_prob(mean,
     #logp = tf.math.log(
     #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
     return tf.reduce_sum(log_sum_exp(logp), [1, 2])
+
+
+def correlation(a, b):
+    mean_a = tf.math.reduce_mean(a)
+    mean_b = tf.math.reduce_mean(b)
+
+    deviations_a = a - mean_a
+    deviations_b = b - mean_b
+
+    numerator = tf.math.reduce_sum(deviations_a * deviations_b)
+    denominator = tf.math.sqrt(tf.reduce_sum(
+        tf.math.square(deviations_a))) * tf.math.sqrt(
+            tf.reduce_sum(tf.math.square(deviations_b)))
+    return numerator / (denominator + 1e-12)
+
+
+class OnePassCorrelation(object):
+
+    def __init__(self):
+        self.n = 0
+        self.sum_product = 0.
+        self.sum_first = 0.
+        self.sum_second = 0.
+        self.sum_sq_first = 0.
+        self.sum_sq_second = 0.
+
+    def accumulate(self, a, b):
+        self.n += a.shape[0]
+        self.sum_product += tf.reduce_sum(a * b, axis=0)
+        self.sum_first += tf.reduce_sum(a, axis=0)
+        self.sum_second += tf.reduce_sum(b, axis=0)
+        self.sum_sq_first += tf.reduce_sum(a**2, axis=0)
+        self.sum_sq_second += tf.reduce_sum(b**2, axis=0)
+
+    def finalize(self):
+        numerator = (self.n * self.sum_product) - (self.sum_first *
+                                                   self.sum_second)
+        denominator = tf.math.sqrt(self.n * self.sum_sq_first - tf.math.square(
+            self.sum_first)) * tf.math.sqrt(self.n * self.sum_sq_second -
+                                            tf.math.square(self.sum_second))
+        return numerator / (denominator + 1e-12)
