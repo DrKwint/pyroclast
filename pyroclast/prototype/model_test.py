@@ -32,10 +32,17 @@ class PrototypeModelTest(parameterized.TestCase):
                                             self.ds['num_classes'])
 
     def test_usefulness_robustness(self):
-        usefulness = self.model.usefulness(self.ds['test'])
+        usefulness = self.model.usefulness(
+            self.ds['test'].map(lambda x:
+                                (tf.cast(x['image'], tf.float32), x['label'])),
+            self.ds['num_classes'])
         assert usefulness.shape == (self.args['num_prototypes'],
                                     self.ds['num_classes'])
 
-        robustness = self.model.robustness(self.ds['test'], eps=1., norm=2)
+        robustness = self.model.robustness(self.ds['test'].map(
+            lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                           self.ds['num_classes'],
+                                           eps=1.,
+                                           norm=2)
         assert robustness.shape == (self.args['num_prototypes'],
                                     self.ds['num_classes'])
