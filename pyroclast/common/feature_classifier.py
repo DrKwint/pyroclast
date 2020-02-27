@@ -1,9 +1,11 @@
 import abc
+
 import numpy as np
+import sonnet as snt
 import tensorflow as tf
 
 from pyroclast.common.adversarial import fast_gradient_sign_method
-import sonnet as snt
+from pyroclast.common.tf_util import OnePassCorrelation
 
 
 class FeatureClassifierMixin(abc.ABC):
@@ -45,7 +47,7 @@ class FeatureClassifierMixin(abc.ABC):
         """
         pass
 
-    def usefulness(self, D):
+    def usefulness(self, iterable, num_classes, is_preprocessed=False):
         """Finds maximal rho per feature/class pair such that the model is rho-useful over the dataset D
 
         Args:
@@ -55,43 +57,30 @@ class FeatureClassifierMixin(abc.ABC):
            rho (tf.Tensor): The usefulness of each feature for each class. Of shape [num_features, num_classes].
         """
 
-        def get_one_hot(x):
-            return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
-                           tf.float32)
-
-        def cast_and_get_features(x):
-            x = tf.cast(x, tf.float32)
+        def get_features(x):
+            if is_preprocessed:
+                return x
             features = self.features
             if len(x.shape) > 4:
                 merge_dims = len(x.shape) - 3
                 features = snt.BatchApply(self.features, merge_dims)
+            elif len(x.shape) < 4:
+                x = tf.expand_dims(x, 0)
             return features(x)
 
-        for d in D:
-            features = cast_and_get_features(d['image'])
-            num_classes = self.classify_features(features).shape[-1]
-            break
+        def get_one_hot(x, num_classes):
+            return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
+                           tf.float32)
 
-        def calc_fcdot(x, y):
-            """
-            Args:
-                x (Tensor): f32 data with shape [N..HWC]
-                y (Tensor): int labels
-            """
-            features = cast_and_get_features(x)
-            binary_labels = get_one_hot(y)
-            einsum = tf.linalg.matmul(tf.expand_dims(features, -1),
-                                      tf.expand_dims(binary_labels, -2))
-            return einsum
+        corr_calc = OnePassCorrelation()
+        for x, y in iterable:
+            labels = tf.expand_dims(get_one_hot(y, num_classes), -2)
+            features = tf.expand_dims(get_features(x), -1)
+            corr_calc.accumulate(labels, features)
 
-        rho = D.map(lambda x: calc_fcdot(x['image'], x['label']))
-        reduce_lambda = lambda x, y: (x[0] + tf.reduce_sum(y, axis=0), x[1] + tf
-                                      .shape(y)[0])
-        rho, num_data = rho.reduce((0., 0), reduce_lambda)
-        rho = rho / float(num_data)
-        return rho
+        return corr_calc.finalize()
 
-    def robustness(self, D, eps, norm):
+    def robustness(self, iterable, num_classes, eps, norm):
         """Calculates the robustness of features in a network with respect to
         a dataset D and a perturbation class defined by norm and eps.
 
@@ -103,30 +92,23 @@ class FeatureClassifierMixin(abc.ABC):
         Returns:
            gamma (tf.Tensor): The robustness of each feature for each class. Of shape [num_features, num_classes].
         """
-        # get number of classes
-        for d in D:
-            features = self.features(tf.cast(d['image'], tf.float32))
-            num_classes = self.classify_features(features).shape[-1]
-            break
 
-        def get_one_hot(x):
+        def get_one_hot(x, num_classes):
             return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
                            tf.float32)
 
         # create adversarially perturbed dataset and calulate its usefulness
-        D_adv = D.map(
-            lambda x: {
-                'image':
-                    tf.expand_dims(
-                        tf.expand_dims(tf.cast(x['image'], tf.float32), [1]),
-                        [1]) + fast_gradient_sign_method(
-                            self.features, self.classify_features,
-                            tf.cast(x['image'], tf.float32),
-                            get_one_hot(x['label']), eps, norm),
-                'label':
-                    tf.expand_dims(tf.expand_dims(x['label'], 1), 1)
-            })
-        adv_usefulness = self.usefulness(D_adv)
+        def adv_generator(D):
+            for x, y in D:
+                img = tf.cast(x, tf.float32)
+                labels = get_one_hot(y, num_classes)
+                adv_img = tf.expand_dims(tf.expand_dims(
+                    img, 1), 1) + fast_gradient_sign_method(
+                        self.features, self.classify_features, img, labels, eps,
+                        norm)
+                yield adv_img, tf.expand_dims(tf.expand_dims(y, 1), 1)
+
+        adv_usefulness = self.usefulness(adv_generator(iterable), num_classes)
 
         # create a mask with 1's where the class and feature line up in both
         # the data portion (first 2 dims) and the calulated usefulness (last 2 dims)
