@@ -25,6 +25,7 @@ class EarlyStopping(object):
         # Returns True when training should stop
         if self.max_epochs is not None and epoch >= self.max_epochs: return True
         if score * self._score_sign < self._best_score - self.eps:
+            self._best_score = score
             self.counter = 0
             self.ckpt_manager.save(checkpoint_number=epoch)
             return False

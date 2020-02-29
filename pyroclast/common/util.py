@@ -52,7 +52,7 @@ def heatmap(matrix, path, title):
     matrix = X[:, :-1]
     idxs = X[:, -1]
 
-    fig, ax = plt.subplots(figsize=(matrix.shape[1], matrix.shape[0]))
+    fig, ax = plt.subplots(figsize=(matrix.shape[1] // 2, matrix.shape[0] // 2))
     divnorm = colors.DivergingNorm(vcenter=0)
     plot = ax.pcolormesh(matrix, cmap='seismic', norm=divnorm)
     ax.set_yticks(np.arange(len(idxs)))

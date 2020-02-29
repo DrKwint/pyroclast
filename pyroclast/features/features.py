@@ -169,13 +169,6 @@ def learn(data_dict,
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
                                          epsilon=10e-4)
-    """
-    conv_stack = tf.keras.applications.VGG19(
-        include_top=False,
-        weights='imagenet',
-        input_shape=data_dict['shape'],
-        pooling=None)  #get_network_builder(conv_stack)()
-    """
     conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
@@ -186,7 +179,7 @@ def learn(data_dict,
                                      global_step=global_step)
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
-                                                  output_dir, 'phase1_model'),
+                                                  output_dir, 'features_model'),
                                               max_to_keep=3)
 
     if is_preprocessed:
@@ -213,17 +206,15 @@ def learn(data_dict,
               (not is_preprocessed), lambd, checkpoint, ckpt_manager, debug)
 
     if is_usefulness:
-        usefulness = model.usefulness(train_data['test'],
+        usefulness = model.usefulness(train_data['test'].map(
+            lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                      train_data['num_classes'],
                                       is_preprocessed=is_preprocessed)
-        print(tf.math.reduce_any(tf.math.is_nan(usefulness)))
-        print(tf.reduce_min(usefulness), tf.reduce_mean(usefulness),
-              tf.reduce_max(usefulness))
         heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')
 
     if is_robustness:
-        print("robustness")
-        robustness = model.robustness(data_dict['test'].take(1), 1., np.inf)
-        print(tf.math.reduce_any(tf.math.is_nan(robustness)))
-        print(tf.reduce_min(robustness), tf.reduce_mean(robustness),
-              tf.reduce_max(robustness))
+        robustness = model.robustness(
+            data_dict['test'].take(1).map(
+                lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+            data_dict['num_classes'], 1., np.inf)
         heatmap(robustness, 'gamma_robustness.png', 'gamma robustness')
