@@ -3,6 +3,7 @@ docs_build/
 .vscode
 data/
 .DS_Store
+.preprocessed_data
 
 # Test stuff
 feature_classifier_test
