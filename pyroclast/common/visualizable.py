@@ -12,6 +12,10 @@ class VisualizableMixin(abc.ABC):
     """
 
     @abc.abstractmethod
+    def logits(self, x):
+        pass
+
+    @abc.abstractmethod
     def classify(self, x):
         """Calculates output logits given an input tensor.
 
@@ -75,6 +79,22 @@ class VisualizableMixin(abc.ABC):
         TODO: This
         """
         pass
+
+    def logps(self, x):
+        """Symbolic TF variable returning an Nx1 vector of log-probabilities"""
+        logits = self.logits(x)
+        return logits - tf.math.reduce_logsumexp(logits, 1, keep_dims=True)
+
+    def certainty_sensitivity(self, x, num_classes):
+        with tf.GradientTape() as tape:
+            tape.watch(x)
+
+            mean_ce = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(
+                    logits=self.logits(x),
+                    labels=tf.ones(num_classes) / num_classes))
+        grads = tape.gradient(mean_ce, x)
+        return grads
 
     def sensitivity_map(self, x, softmax=False):
         """Calculates the sensitivity map by back propagating on the input
