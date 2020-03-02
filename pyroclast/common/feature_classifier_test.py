@@ -101,9 +101,9 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
                                     10]  # has expected shape
         assert tf.math.reduce_any(tf.cast(usefulness, tf.bool))  # not all 0
         assert tf.math.reduce_max(
-            usefulness) <= 1. + 1e5  # has expected max value
+            usefulness) <= 1. + 1e-5  # has expected max value
         assert tf.math.reduce_min(
-            usefulness) >= -1. - 1e5  # has expected max value
+            usefulness) >= -1. - 1e-5  # has expected max value
         assert not tf.math.reduce_any(tf.math.is_nan(usefulness))  # not nan
 
         # robustness
@@ -116,7 +116,7 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
         mean_robustness = tf.reduce_mean(robustness)
         assert mean_robustness != mean_usefulness
         assert tf.math.reduce_max(
-            robustness) <= 1. + 1e5  # has expected max value
+            robustness) <= 1. + 1e-5  # has expected max value
         assert tf.math.reduce_min(
-            robustness) >= -1. - 1e5  # has expected max value
+            robustness) >= -1. - 1e-5  # has expected max value
         assert not tf.math.reduce_any(tf.math.is_nan(robustness))  # not nan
