@@ -22,6 +22,7 @@ def run_minibatch(model,
                   batch,
                   num_classes,
                   lambd,
+                  alpha,
                   writer,
                   is_train=True):
     """
@@ -49,8 +50,13 @@ def run_minibatch(model,
         grad = inner_tape.gradient(y_hat, x)
         input_grad_reg_loss = tf.math.square(tf.norm(grad, 2))
 
+        grad_masked_y_hat = model(x * grad)
+        grad_masked_classification_loss = tf.nn.softmax_cross_entropy_with_logits(
+            labels=tf.one_hot(labels, num_classes), logits=grad_masked_y_hat)
+
         # total loss
-        total_loss = classification_loss + (lambd * input_grad_reg_loss)
+        total_loss = classification_loss + (lambd * input_grad_reg_loss) + (
+            alpha * grad_masked_classification_loss)
         mean_total_loss = tf.reduce_mean(total_loss)
 
     if is_train:
@@ -84,7 +90,7 @@ def run_minibatch(model,
 
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
-          train_conv_stack, lambd, checkpoint, ckpt_manager, debug):
+          train_conv_stack, lambd, alpha, checkpoint, ckpt_manager, debug):
     if train_conv_stack:
         train_model = model
     else:
@@ -110,6 +116,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
                                     batch,
                                     num_classes,
                                     lambd,
+                                    alpha,
                                     writer,
                                     is_train=True)
             acc_numerator += a
@@ -134,6 +141,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
                                     batch,
                                     num_classes,
                                     lambd,
+                                    alpha,
                                     writer,
                                     is_train=False)
             acc_numerator += a
@@ -187,6 +195,7 @@ def learn(data_dict,
           patience=2,
           max_epochs=10,
           lambd=0.,
+          alpha=0.,
           model_save_name=''):
     model, optimizer, global_step, checkpoint, ckpt_manager = build_savable_objects(
         conv_stack_name, data_dict, learning_rate, output_dir, model_save_name)
@@ -213,7 +222,8 @@ def learn(data_dict,
                                        eps=0.03,
                                        max_epochs=max_epochs)
         train(train_data, model, optimizer, global_step, writer, early_stopping,
-              (not is_preprocessed), lambd, checkpoint, ckpt_manager, debug)
+              (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager,
+              debug)
 
     if is_usefulness:
         usefulness = model.usefulness(train_data['test'].map(
