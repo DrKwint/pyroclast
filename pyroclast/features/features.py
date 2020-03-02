@@ -46,7 +46,7 @@ def run_minibatch(model,
             classification_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=tf.one_hot(labels, num_classes), logits=y_hat)
 
-        if alpha != 0.:
+        if lambd != 0.:
             # input gradient regularization
             grad = inner_tape.gradient(y_hat, x)
             input_grad_reg_loss = tf.math.square(tf.norm(grad, 2))
