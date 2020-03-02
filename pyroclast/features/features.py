@@ -14,7 +14,7 @@ from pyroclast.features.networks import ross_net
 
 
 # define minibatch fn
-@tf.function
+#@tf.function
 def run_minibatch(model,
                   optimizer,
                   global_step,
@@ -22,6 +22,7 @@ def run_minibatch(model,
                   batch,
                   num_classes,
                   lambd,
+                  alpha,
                   writer,
                   is_train=True):
     """
@@ -49,8 +50,13 @@ def run_minibatch(model,
         grad = inner_tape.gradient(y_hat, x)
         input_grad_reg_loss = tf.math.square(tf.norm(grad, 2))
 
+        grad_masked_y_hat = model(x * grad)
+        grad_masked_classification_loss = tf.nn.softmax_cross_entropy_with_logits(
+            labels=tf.one_hot(labels, num_classes), logits=grad_masked_y_hat)
+
         # total loss
-        total_loss = classification_loss + (lambd * input_grad_reg_loss)
+        total_loss = classification_loss + (lambd * input_grad_reg_loss) + (
+            alpha * grad_masked_classification_loss)
         mean_total_loss = tf.reduce_mean(total_loss)
         global_step.assign_add(1)
 
@@ -85,7 +91,7 @@ def run_minibatch(model,
 
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
-          train_conv_stack, lambd, checkpoint, ckpt_manager, debug):
+          train_conv_stack, lambd, alpha, checkpoint, ckpt_manager, debug):
     if train_conv_stack:
         train_model = model
     else:
@@ -111,6 +117,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
                                     batch,
                                     num_classes,
                                     lambd,
+                                    alpha,
                                     writer,
                                     is_train=True)
             acc_numerator += a
@@ -135,6 +142,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
                                     batch,
                                     num_classes,
                                     lambd,
+                                    alpha,
                                     writer,
                                     is_train=False)
             acc_numerator += a
@@ -151,6 +159,29 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     checkpoint.restore(ckpt_manager.latest_checkpoint).assert_consumed()
 
 
+def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
+                          model_save_name):
+    global_step = tf.compat.v1.train.get_or_create_global_step()
+    conv_stack = get_network_builder(conv_stack_name)()
+    classifier = tf.keras.Sequential(
+        [tf.keras.layers.Dense(data_dict['num_classes'])])
+    model = GenericClassifier(conv_stack, classifier, 'test_model')
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
+                                         beta_1=0.5,
+                                         epsilon=10e-4)
+    save_dict = {
+        model_save_name + 'optimizer': optimizer,
+        model_save_name + 'model': model,
+        model_save_name + 'global_step': global_step
+    }
+    checkpoint = tf.train.Checkpoint(**save_dict)
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=os.path.join(
+                                                  output_dir, 'features_model'),
+                                              max_to_keep=3)
+    return model, optimizer, global_step, checkpoint, ckpt_manager
+
+
 def learn(data_dict,
           seed,
           output_dir,
@@ -164,25 +195,13 @@ def learn(data_dict,
           train_conv_stack=False,
           patience=2,
           max_epochs=10,
-          lambd=0.):
+          lambd=0.,
+          alpha=0.,
+          model_save_name=''):
+    model, optimizer, global_step, checkpoint, ckpt_manager = build_savable_objects(
+        conv_stack_name, data_dict, learning_rate, output_dir, model_save_name)
     writer = tf.summary.create_file_writer(output_dir)
-    global_step = tf.compat.v1.train.get_or_create_global_step()
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
-                                         beta_1=0.5,
-                                         epsilon=10e-4)
-    conv_stack = get_network_builder(conv_stack_name)()
-    classifier = tf.keras.Sequential(
-        [tf.keras.layers.Dense(data_dict['num_classes'])])
-    model = GenericClassifier(conv_stack, classifier)
     # setup checkpointing
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer,
-                                     model=model,
-                                     global_step=global_step)
-    ckpt_manager = tf.train.CheckpointManager(checkpoint,
-                                              directory=os.path.join(
-                                                  output_dir, 'features_model'),
-                                              max_to_keep=3)
-
     if is_preprocessed:
         for x in data_dict['train']:
             batch_size = x['label'].shape[0]
@@ -204,7 +223,8 @@ def learn(data_dict,
                                        eps=0.03,
                                        max_epochs=max_epochs)
         train(train_data, model, optimizer, global_step, writer, early_stopping,
-              (not is_preprocessed), lambd, checkpoint, ckpt_manager, debug)
+              (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager,
+              debug)
 
     if is_usefulness:
         usefulness = model.usefulness(train_data['test'].map(
