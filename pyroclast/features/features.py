@@ -56,6 +56,11 @@ def run_minibatch(model,
                 grad_masked_classification_loss = tf.nn.softmax_cross_entropy_with_logits(
                     labels=tf.one_hot(labels, num_classes),
                     logits=grad_masked_y_hat)
+            else:
+                grad_masked_classification_loss = 0.
+        else:
+            input_grad_reg_loss = 0.
+            grad_masked_classification_loss = 0.
 
         # total loss
         total_loss = classification_loss + (lambd * input_grad_reg_loss) + (
