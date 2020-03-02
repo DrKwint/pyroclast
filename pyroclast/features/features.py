@@ -52,6 +52,7 @@ def run_minibatch(model,
         # total loss
         total_loss = classification_loss + (lambd * input_grad_reg_loss)
         mean_total_loss = tf.reduce_mean(total_loss)
+        global_step.assign_add(1)
 
     if is_train:
         train_vars = model.trainable_variables
@@ -71,7 +72,7 @@ def run_minibatch(model,
                           tf.reduce_mean(classification_loss),
                           step=global_step)
         tf.summary.scalar(prefix + "loss/mean input gradient regularization",
-                          tf.reduce_mean(input_grad_reg_loss),
+                          lambd * tf.reduce_mean(input_grad_reg_loss),
                           step=global_step)
         tf.summary.scalar(prefix + "loss/mean total loss",
                           mean_total_loss,
