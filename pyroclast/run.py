@@ -30,36 +30,37 @@ def parse_cmdline_kwargs(args):
     return {k: parse(v) for k, v in parse_unknown_args(args).items()}
 
 
-def get_alg_module(alg, submodule=None):
-    submodule = submodule or alg
+def get_module(module_name, submodule=None):
+    submodule = submodule or module_name
     try:
-        # first try to import the alg module from baselines
-        alg_module = import_module('.'.join(['pyroclast', alg, submodule]))
+        # first try to import the module from baselines
+        module = import_module('.'.join(['pyroclast', module_name, submodule]))
     except ImportError:
-        print('failed to import from {}'.format('.'.join(['pyroclast', alg])))
+        print('failed to import from {}'.format('.'.join(
+            ['pyroclast', module_name])))
         assert False
 
-    return alg_module
+    return module
 
 
-def get_learn_function(alg):
-    return get_alg_module(alg).learn
+def get_task_function(module, func_name):
+    return getattr(get_module(module), func_name)
 
 
-def get_learn_function_defaults(alg, dataset):
+def get_task_function_defaults(module_name, dataset):
     try:
-        alg_defaults = get_alg_module(alg, 'defaults')
-        kwargs = getattr(alg_defaults, dataset)()
+        module_defaults = get_module(module_name, 'defaults')
+        kwargs = getattr(module_defaults, dataset)()
     except (ImportError, AttributeError):
         kwargs = {}
     return kwargs
 
 
-def train(args, extra_args):
+def run_task(args, extra_args):
     # load data
-    learn = get_learn_function(args.alg)
-    alg_kwargs = get_learn_function_defaults(args.alg, args.dataset)
-    alg_kwargs.update(extra_args)
+    task_func = get_task_function(args.module, args.task)
+    module_kwargs = get_task_function_defaults(args.module, args.dataset)
+    module_kwargs.update(extra_args)
     if check_datasets(args.dataset):
         data_dict = get_dataset_builder(args.dataset)(args.batch_size,
                                                       args.resize_data_shape,
@@ -70,13 +71,14 @@ def train(args, extra_args):
                                args.resize_data_shape, args.data_limit,
                                args.data_dir)
 
-    print('Training {} on {} with arguments \n{}'.format(
-        args.alg, args.dataset, alg_kwargs))
-    model = learn(data_dict,
-                  seed=args.seed,
-                  output_dir=args.output_dir,
-                  debug=args.debug,
-                  **alg_kwargs)
+    print('Running {} on {} with arguments \n{}'.format(args.task, args.module,
+                                                        args.dataset,
+                                                        module_kwargs))
+    model = task_func(data_dict,
+                      seed=args.seed,
+                      output_dir=args.output_dir,
+                      debug=args.debug,
+                      **module_kwargs)
 
     return model
 
@@ -100,7 +102,7 @@ def main(args):
                 'extra_args': extra_args
             }, p_file)
 
-    model = train(args, extra_args)
+    model = run_task(args, extra_args)
 
 
 if __name__ == '__main__':
