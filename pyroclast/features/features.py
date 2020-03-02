@@ -168,7 +168,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
 
 
 def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
-                          model_save_name):
+                          model_name):
     global_step = tf.compat.v1.train.get_or_create_global_step()
     conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
@@ -178,9 +178,9 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
                                          beta_1=0.5,
                                          epsilon=10e-4)
     save_dict = {
-        model_save_name + 'optimizer': optimizer,
-        model_save_name + 'model': model,
-        model_save_name + 'global_step': global_step
+        model_name + 'optimizer': optimizer,
+        model_name + 'model': model,
+        model_name + 'global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
@@ -197,17 +197,14 @@ def learn(data_dict,
           learning_rate=3e-3,
           conv_stack_name='vgg19',
           is_preprocessed=False,
-          is_train=False,
-          is_usefulness=False,
-          is_robustness=False,
           train_conv_stack=False,
           patience=2,
           max_epochs=10,
           lambd=0.,
           alpha=0.,
-          model_save_name=''):
+          model_name=''):
     model, optimizer, global_step, checkpoint, ckpt_manager = build_savable_objects(
-        conv_stack_name, data_dict, learning_rate, output_dir, model_save_name)
+        conv_stack_name, data_dict, learning_rate, output_dir, model_name)
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
     if is_preprocessed:
@@ -225,25 +222,43 @@ def learn(data_dict,
     else:
         train_data = data_dict
 
-    if is_train:
-        early_stopping = EarlyStopping(patience,
-                                       ckpt_manager,
-                                       eps=0.03,
-                                       max_epochs=max_epochs)
-        train(train_data, model, optimizer, global_step, writer, early_stopping,
-              (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager,
-              debug)
+    early_stopping = EarlyStopping(patience,
+                                   ckpt_manager,
+                                   eps=0.03,
+                                   max_epochs=max_epochs)
+    train(train_data, model, optimizer, global_step, writer, early_stopping,
+          (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
 
-    if is_usefulness:
-        usefulness = model.usefulness(train_data['test'].map(
-            lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-                                      train_data['num_classes'],
-                                      is_preprocessed=is_preprocessed)
-        heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')
+    usefulness = model.usefulness(train_data['test'].map(
+        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                  train_data['num_classes'],
+                                  is_preprocessed=is_preprocessed)
+    heatmap(usefulness, model_name + '_rho_usefulness.png', 'rho usefulness')
 
-    if is_robustness:
-        robustness = model.robustness(
-            data_dict['test'].take(1).map(
-                lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-            data_dict['num_classes'], 1., np.inf)
-        heatmap(robustness, 'gamma_robustness.png', 'gamma robustness')
+    return model
+
+
+def plot_input_grads(data_dict,
+                     seed,
+                     output_dir,
+                     debug,
+                     conv_stack_name='vgg19'):
+    args = locals()
+    args['learning_rate'] = 2e-4
+    args['train_conv_stack'] = True
+    args['patience'] = 5
+    args['max_epochs'] = 50
+
+    args_template = args
+    models = {'mnist_normal': learn(**args)}
+    for lambd in [1e0, 1e1, 1e2]:
+        for alpha in [0, 1e0, 1e1, 1e2]:
+            args = copy.copy(args_template)
+            args['lambd'] = lambd
+            args['alpha'] = alpha
+            model_name = 'mnist_lambd{}_alpha{}'.format(lambd, alpha)
+            models[model_name] = learn(**args)
+
+    from pyroclast.common.plot import plot_grads
+    plot_grads(data_dict['test'], models.values(), models.keys(),
+               data_dict['shape'], data_dict['num_classes'])

@@ -59,7 +59,7 @@ def imshow_gradient(grad, image_shape, percentile=99, **kwargs):
         vmin = -span
         vmax = span
         image = np.clip((image - vmin) / (vmax - vmin), -1, 1) * span
-    imshow_kw = {'cmap': 'gray', 'interpolation': 'none'}
+    imshow_kw = {'cmap': 'seismic', 'interpolation': 'none'}
     imshow_kw.update(kwargs)
     plt.xticks([])
     plt.yticks([])
