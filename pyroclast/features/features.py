@@ -250,13 +250,17 @@ def plot_input_grads(data_dict,
     args['max_epochs'] = 50
 
     args_template = args
-    models = {'mnist_normal': learn(**args)}
+    model_name = 'mnist_normal'
+    args['output_dir'] = model_name
+    models = {model_name: learn(**args)}
+
     for lambd in [1e0, 1e1, 1e2]:
         for alpha in [0, 1e0, 1e1, 1e2]:
             args = copy.copy(args_template)
             args['lambd'] = lambd
             args['alpha'] = alpha
             model_name = 'mnist_lambd{}_alpha{}'.format(lambd, alpha)
+            args['output_dir'] = model_name
             models[model_name] = learn(**args)
 
     from pyroclast.common.plot import plot_grads
