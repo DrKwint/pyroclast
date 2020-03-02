@@ -182,7 +182,13 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
                                               directory=os.path.join(
                                                   output_dir, 'features_model'),
                                               max_to_keep=3)
-    return model, optimizer, global_step, checkpoint, ckpt_manager
+    return {
+        'model': model,
+        'optimizer': optimizer,
+        'global_step': global_step,
+        'checkpoint': checkpoint,
+        'ckpt_manager': ckpt_manager
+    }
 
 
 def learn(data_dict,
@@ -201,8 +207,15 @@ def learn(data_dict,
           lambd=0.,
           alpha=0.,
           model_save_name=''):
-    model, optimizer, global_step, checkpoint, ckpt_manager = build_savable_objects(
-        conv_stack_name, data_dict, learning_rate, output_dir, model_save_name)
+    objects = build_savable_objects(conv_stack_name, data_dict, learning_rate,
+                                    output_dir, model_save_name)
+
+    model = objects['model']
+    optimizer = objects['optimizer']
+    global_step = objects['global_step']
+    checkpoint = objects['checkpoint']
+    ckpt_manager = objects['ckpt_manager']
+
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
     if is_preprocessed:

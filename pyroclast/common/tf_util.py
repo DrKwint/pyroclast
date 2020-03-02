@@ -283,3 +283,24 @@ class OnePassCorrelation(object):
             self.sum_first)) * tf.math.sqrt(self.n * self.sum_sq_second -
                                             tf.math.square(self.sum_second))
         return numerator / (denominator + 1e-12)
+
+
+def load_model(module,
+               model_save_name,
+               data_dict,
+               conv_stack_name='ross_net',
+               learning_rate=1e-4):
+    output_dir = __file__ + '/../../' + model_save_name
+    build_savable_objects_func = getattr(module, 'build_savable_objects')
+    if build_savable_objects_func is None:
+        raise Exception(
+            "Given module does not have a `build_savable_objects` method.")
+    objects = build_savable_objects_func(conv_stack_name, data_dict,
+                                         learning_rate, output_dir,
+                                         model_save_name)
+
+    if objects['ckpt_manager'].latest_checkpoint is not None:
+        objects['checkpoint'].restore(objects['ckpt_manager'].latest_checkpoint)
+    else:
+        print("Wrong directory?")
+    return objects['model']
