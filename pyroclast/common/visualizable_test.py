@@ -21,7 +21,7 @@ class BasicMnistVisualizable(VisualizableMixin, tf.Module):
         x = self.dense_layer(x)
         return x
 
-    def classify(self, x):
+    def logits(self, x):
         return self(x)
 
     @property

@@ -12,7 +12,7 @@ class VisualizableMixin(abc.ABC):
     """
 
     @abc.abstractmethod
-    def classify(self, x):
+    def logits(self, x):
         """Calculates output logits given an input tensor.
 
         Args:
@@ -76,6 +76,22 @@ class VisualizableMixin(abc.ABC):
         """
         pass
 
+    def logps(self, x):
+        """Symbolic TF variable returning an Nx1 vector of log-probabilities"""
+        logits = self.logits(x)
+        return logits - tf.math.reduce_logsumexp(logits, 1, keep_dims=True)
+
+    def certainty_sensitivity(self, x, num_classes):
+        with tf.GradientTape() as tape:
+            tape.watch(x)
+
+            mean_ce = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(
+                    logits=self.logits(x),
+                    labels=tf.ones(num_classes) / num_classes))
+        grads = tape.gradient(mean_ce, x)
+        return grads
+
     def sensitivity_map(self, x, softmax=False):
         """Calculates the sensitivity map by back propagating on the input
         data x.
@@ -93,7 +109,7 @@ class VisualizableMixin(abc.ABC):
         """
         with tf.GradientTape() as tape:
             tape.watch(x)
-            result = self.classify(x)
+            result = self.logits(x)
             if softmax:
                 result = tf.nn.softmax(result)
             grads = tape.gradient(result, x)
@@ -123,7 +139,7 @@ class VisualizableMixin(abc.ABC):
 
         with tf.GradientTape() as tape:
             tape.watch(x_dist)
-            result = self.classify(x_dist)
+            result = self.logits(x_dist)
             gradients = tape.gradient(result, x_dist)
 
         gradients = tf.reshape(gradients, [n] + x.shape)
