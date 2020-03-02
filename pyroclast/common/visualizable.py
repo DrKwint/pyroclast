@@ -139,7 +139,7 @@ class VisualizableMixin(abc.ABC):
 
         with tf.GradientTape() as tape:
             tape.watch(x_dist)
-            result = self.classify(x_dist)
+            result = self.logits(x_dist)
             gradients = tape.gradient(result, x_dist)
 
         gradients = tf.reshape(gradients, [n] + x.shape)
