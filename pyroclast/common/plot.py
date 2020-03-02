@@ -1,31 +1,23 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 
 
-def plot_grads(images, models, model_names, image_shape, **kw):
+def plot_grads(images, models, model_names, image_shape, num_classes, **kw):
     fig = plt.figure(figsize=(len(images), len(images) + 1))
     for i in range(len(images)):
         plt.subplot(len(models) + 1, len(images), i + 1)
         imshow_example(images[i], image_shape)
         if i == 0: sidetext('Images')
     for j in range(len(models)):
-        grads = models[j].certainty_sensitivity(images)
+        grads = models[j].certainty_sensitivity(images, num_classes)
         for i in range(len(images)):
             plt.subplot(
                 len(models) + 1, len(images), (j + 1) * len(images) + i + 1)
             imshow_gradient(grads[i], image_shape, **kw)
-            if i == 0: sidetext(model_labels[model_names[j]])
-
-
-model_labels = {
-    'normal': 'Normal',
-    'distilled': 'Distilled',
-    'doubleback': r'Grad Reg ($y$)',
-    'insensitive': r'Grad Reg ($\frac{1}{K}$)',
-    'advtrain': 'Adv. Trained',
-    'double-advtrain': 'Both Defenses',
-    'double_advtrain': 'Both Defenses',
-}
+            if i == 0: sidetext(model_names[j])
+    plt.subplots_adjust(hspace=0.05, wspace=0.05)
+    return fig
 
 
 def sidetext(text, fontsize=8):
@@ -45,7 +37,7 @@ def sidetext(text, fontsize=8):
 
 
 def imshow_example(x, image_shape, **kwargs):
-    image = x.reshape(image_shape)
+    image = tf.reshape(x, image_shape)
     imshow_kw = {'interpolation': 'none'}
     if len(image_shape) == 2:
         imshow_kw['cmap'] = 'gray'
@@ -58,7 +50,7 @@ def imshow_example(x, image_shape, **kwargs):
 
 
 def imshow_gradient(grad, image_shape, percentile=99, **kwargs):
-    image = grad.reshape(image_shape)
+    image = tf.reshape(grad, image_shape)
     if len(image_shape) == 3:
         # Convert RGB gradient to diverging BW gradient (ensuring the span isn't thrown off by outliers).
         # copied from https://github.com/PAIR-code/saliency/blob/master/saliency/visualization.py

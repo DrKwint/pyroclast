@@ -13,10 +13,6 @@ class VisualizableMixin(abc.ABC):
 
     @abc.abstractmethod
     def logits(self, x):
-        pass
-
-    @abc.abstractmethod
-    def classify(self, x):
         """Calculates output logits given an input tensor.
 
         Args:
@@ -113,7 +109,7 @@ class VisualizableMixin(abc.ABC):
         """
         with tf.GradientTape() as tape:
             tape.watch(x)
-            result = self.classify(x)
+            result = self.logits(x)
             if softmax:
                 result = tf.nn.softmax(result)
             grads = tape.gradient(result, x)
