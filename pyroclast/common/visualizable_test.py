@@ -68,7 +68,10 @@ class VisualizableMixinTest(parameterized.TestCase):
     def test_smooth_grad_map(self):
         for batch in self.ds['train']:
             x = tf.cast(batch['image'], tf.float32)
-            y = self.model(x)
-            input_sensitivity_maps = self.model.smooth_grad(x, n=3)
+            input_sensitivity_maps = self.model.smooth_grad(
+                x,
+                lambda x: self.model.certainty_sensitivity(
+                    x, self.ds['num_classes']),
+                n=3)
             assert input_sensitivity_maps is not None
             assert input_sensitivity_maps.shape[0:3] == x.shape[0:3]
