@@ -41,6 +41,8 @@ class PrototypeModelTest(parameterized.TestCase):
 
         robustness = self.model.robustness(self.ds['test'].map(
             lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                           0,
+                                           0,
                                            self.ds['num_classes'],
                                            eps=1.,
                                            norm=2)
