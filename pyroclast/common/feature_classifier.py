@@ -106,7 +106,6 @@ class FeatureClassifierMixin(abc.ABC):
                 forward_fn = lambda x: self.features(x)[:, feature_idx
                                                        ] * labels[:, class_idx]
                 adv_img = img + fast_gradient_method(forward_fn, img, eps, norm)
-                print(adv_img.shape)
                 yield adv_img, y
 
         adv_usefulness = self.usefulness(adv_generator(iterable), num_classes)
