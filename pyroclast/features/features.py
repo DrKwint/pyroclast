@@ -249,7 +249,6 @@ def plot_input_grads(data_dict,
     args['train_conv_stack'] = True
     args['patience'] = 5
     args['max_epochs'] = 50
-    args['batch_size'] = 256
 
     args_template = args
 
@@ -283,4 +282,4 @@ def plot_input_grads(data_dict,
     import matplotlib.pyplot as plt
     fig = plot_grads(data_dict['test'], models.values(), models.keys(),
                      data_dict['shape'], data_dict['num_classes'])
-    plt.save_fig('input_grads.png')
+    plt.savefig('input_grads.png')
