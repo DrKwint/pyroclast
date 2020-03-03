@@ -233,7 +233,8 @@ def learn(data_dict,
         lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
                                   train_data['num_classes'],
                                   is_preprocessed=is_preprocessed)
-    heatmap(usefulness, model_name + '_rho_usefulness.png', 'rho usefulness')
+    heatmap(usefulness, output_dir + '/' + model_name + '_rho_usefulness.png',
+            'rho usefulness')
 
     return model
 
@@ -248,21 +249,38 @@ def plot_input_grads(data_dict,
     args['train_conv_stack'] = True
     args['patience'] = 5
     args['max_epochs'] = 50
+    args['batch_size'] = 256
 
     args_template = args
-    model_name = 'mnist_normal'
-    args['output_dir'] = model_name
-    models = {model_name: learn(**args)}
+
+    if not os.path.exists('mnist_normal'):
+        model_name = 'mnist_normal'
+        args['output_dir'] = model_name
+        models = {model_name: learn(**args)}
 
     for lambd in [1e0, 1e1, 1e2]:
         for alpha in [0, 1e0, 1e1, 1e2]:
             args = copy.copy(args_template)
             args['lambd'] = lambd
             args['alpha'] = alpha
-            model_name = 'mnist_lambd{}_alpha{}'.format(lambd, alpha)
+            model_name = 'mnist_lambd{%E}_alpha{%E}'.format(lambd, alpha)
             args['output_dir'] = model_name
-            models[model_name] = learn(**args)
+            if not os.path.exists(model_name):
+                models[model_name] = learn(**args)
+            else:
+                model, _, _, checkpoint, ckpt_manager = build_savable_objects(
+                    args['conv_stack_name'], args['data_dict'],
+                    args['learning_rate'], args['output_dir'],
+                    args['model_name'])
+                if ckpt_manager.latest_checkpoint is not None:
+                    checkpoint.restore(ckpt_manager.latest_checkpoint)
+                else:
+                    print(
+                        "Wrong directory for output_dir {}?".format(output_dir))
+                models[model_name] = model
 
     from pyroclast.common.plot import plot_grads
-    plot_grads(data_dict['test'], models.values(), models.keys(),
-               data_dict['shape'], data_dict['num_classes'])
+    import matplotlib.pyplot as plt
+    fig = plot_grads(data_dict['test'], models.values(), models.keys(),
+                     data_dict['shape'], data_dict['num_classes'])
+    plt.save_fig('input_grads.png')
