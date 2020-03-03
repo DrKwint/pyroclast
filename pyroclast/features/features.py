@@ -252,10 +252,11 @@ def plot_input_grads(data_dict,
 
     args_template = args
 
+    models = {}
     if not os.path.exists('mnist_normal'):
         model_name = 'mnist_normal'
         args['output_dir'] = model_name
-        models = {model_name: learn(**args)}
+        models[model_name] = learn(**args)
 
     for lambd in [1e0, 1e1, 1e2]:
         for alpha in [0., 1e0, 1e1, 1e2]:
