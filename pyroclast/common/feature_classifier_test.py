@@ -108,8 +108,8 @@ class FeatureClassifierMixinTest(parameterized.TestCase):
 
         # robustness
         robustness = self.model.robustness(
-            self.ds['train'].map(lambda x:
-                                 (tf.cast(x['image'], tf.float32), x['label'])),
+            self.ds['train'].map(
+                lambda x: (tf.cast(x['image'], tf.float32), x['label'])), 0, 0,
             self.ds['num_classes'], 0.1, 2)
         assert usefulness.shape == robustness.shape
         mean_usefulness = tf.reduce_mean(usefulness)
