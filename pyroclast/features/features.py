@@ -269,8 +269,7 @@ def plot_input_grads(data_dict,
             else:
                 model, _, _, checkpoint, ckpt_manager = build_savable_objects(
                     args['conv_stack_name'], args['data_dict'],
-                    args['learning_rate'], args['output_dir'],
-                    args['model_name'])
+                    args['learning_rate'], args['output_dir'], model_name)
                 if ckpt_manager.latest_checkpoint is not None:
                     checkpoint.restore(ckpt_manager.latest_checkpoint)
                 else:
