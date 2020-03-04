@@ -4,7 +4,7 @@ import numpy as np
 import sonnet as snt
 import tensorflow as tf
 
-from pyroclast.common.adversarial import fast_gradient_sign_method
+from pyroclast.common.adversarial import fast_gradient_method
 from pyroclast.common.tf_util import OnePassCorrelation
 
 
@@ -80,7 +80,8 @@ class FeatureClassifierMixin(abc.ABC):
 
         return corr_calc.finalize()
 
-    def robustness(self, iterable, num_classes, eps, norm):
+    def robustness(self, iterable, feature_idx, class_idx, num_classes, eps,
+                   norm):
         """Calculates the robustness of features in a network with respect to
         a dataset D and a perturbation class defined by norm and eps.
 
@@ -102,24 +103,10 @@ class FeatureClassifierMixin(abc.ABC):
             for x, y in D:
                 img = tf.cast(x, tf.float32)
                 labels = get_one_hot(y, num_classes)
-                adv_img = tf.expand_dims(tf.expand_dims(
-                    img, 1), 1) + fast_gradient_sign_method(
-                        self.features, self.classify_features, img, labels, eps,
-                        norm)
-                yield adv_img, tf.expand_dims(tf.expand_dims(y, 1), 1)
+                forward_fn = lambda x: self.features(x)[:, feature_idx
+                                                       ] * labels[:, class_idx]
+                adv_img = img + fast_gradient_method(forward_fn, img, eps, norm)
+                yield adv_img, y
 
         adv_usefulness = self.usefulness(adv_generator(iterable), num_classes)
-
-        # create a mask with 1's where the class and feature line up in both
-        # the data portion (first 2 dims) and the calulated usefulness (last 2 dims)
-        # because we were only adversarially attacking one class/feature pair at a time
-        idxs = np.array([[[i, j, i, j]
-                          for j in range(adv_usefulness.shape[1])]
-                         for i in range(adv_usefulness.shape[0])])
-        idxs = np.reshape(idxs, [-1, 4])
-        mask = np.zeros_like(adv_usefulness)
-        mask[tuple(idxs.T)] = 1.
-        # apply mask and reduce over the calulated usefulness dims (last 2)
-        adv_usefulness = tf.reduce_sum(tf.reduce_sum(adv_usefulness * mask, -1),
-                                       -1)
         return adv_usefulness
