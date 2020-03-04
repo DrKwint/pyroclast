@@ -288,9 +288,11 @@ class OnePassCorrelation(object):
 def load_model(module,
                model_save_name,
                data_dict,
+               output_dir=__file__ + '/../../../',
                conv_stack_name='ross_net',
                learning_rate=1e-4):
-    output_dir = __file__ + '/../../' + model_save_name
+    # model_dir = os.abspath(os.path.normpath(output_dir + model_save_name))
+    # print('model_dir', model_dir)
     build_savable_objects_func = getattr(module, 'build_savable_objects')
     if build_savable_objects_func is None:
         raise Exception(
@@ -299,8 +301,12 @@ def load_model(module,
                                          learning_rate, output_dir,
                                          model_save_name)
 
+    print('objects', objects)
+    print('latest', objects['ckpt_manager'].latest_checkpoint)
+
     if objects['ckpt_manager'].latest_checkpoint is not None:
-        objects['checkpoint'].restore(objects['ckpt_manager'].latest_checkpoint)
+        objects['checkpoint'].restore(
+            objects['ckpt_manager'].latest_checkpoint).expect_partial()
     else:
         print("Wrong directory?")
     return objects['model']

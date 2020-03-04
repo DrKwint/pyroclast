@@ -173,19 +173,21 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
     conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
-    model = GenericClassifier(conv_stack, classifier, 'test_model')
+    model = GenericClassifier(conv_stack, classifier, model_save_name)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
                                          epsilon=10e-4)
     save_dict = {
-        model_save_name + 'optimizer': optimizer,
-        model_save_name + 'model': model,
-        model_save_name + 'global_step': global_step
+        model_save_name + '_optimizer': optimizer,
+        model_save_name + '_model': model,
+        model_save_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
+
+    print('my_dir', os.path.join(output_dir, model_save_name))
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
-                                                  output_dir, 'features_model'),
+                                                  output_dir, model_save_name),
                                               max_to_keep=3)
     return {
         'model': model,
