@@ -1,12 +1,14 @@
 import copy
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
+from pyroclast.common.plot import plot_grads
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
 from pyroclast.common.util import dummy_context_mgr, heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
@@ -14,7 +16,7 @@ from pyroclast.features.networks import ross_net
 
 
 # define minibatch fn
-#@tf.function
+@tf.function
 def run_minibatch(model,
                   optimizer,
                   global_step,
@@ -278,8 +280,51 @@ def plot_input_grads(data_dict,
                         "Wrong directory for output_dir {}?".format(output_dir))
                 models[model_name] = model
 
-    from pyroclast.common.plot import plot_grads
-    import matplotlib.pyplot as plt
     fig = plot_grads(data_dict['test'], models.values(), models.keys(),
                      data_dict['shape'], data_dict['num_classes'])
     plt.savefig('input_grads.png')
+
+
+def visualize_feature_perturbations(data_dict,
+                                    seed,
+                                    output_dir,
+                                    debug,
+                                    conv_stack_name='tiny_net'):
+    model, _, _, checkpoint, ckpt_manager = build_savable_objects(
+        conv_stack_name, data_dict, 1e-4, output_dir, 'mnist_lambd1')
+    if ckpt_manager.latest_checkpoint is not None:
+        checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
+    else:
+        print("Wrong directory for output_dir {}?".format(output_dir))
+
+    # calculate usefulness
+    """
+    usefulness = model.usefulness(
+        data_dict['train'].map(lambda x:
+                               (tf.cast(x['image'], tf.float32), x['label'])),
+        data_dict['num_classes'])
+    heatmap(usefulness,
+            output_dir + '/' + 'mnist_lambd1' + '_rho_usefulness.png',
+            'rho usefulness')
+    """
+
+    for batch in data_dict['train']:
+        original = tf.cast(tf.expand_dims(batch['image'][0], 0), tf.float32)
+        features_len = model.features(original).shape[0]
+        found = model.input_search(
+            original,
+            model.features(original) + 1. * tf.one_hot(247, features_len))
+        break
+
+    plt.imshow(tf.squeeze(original))
+    print(tf.reduce_min(original), tf.reduce_max(original))
+    plt.savefig('original')
+    plt.close()
+    plt.imshow(tf.squeeze(found))
+    print(tf.reduce_min(found), tf.reduce_max(found))
+    plt.savefig('found')
+    plt.close()
+    plt.imshow(tf.squeeze(found - original))
+    print(tf.reduce_min(found - original), tf.reduce_max(found - original))
+    plt.savefig('diff')
+    plt.close()

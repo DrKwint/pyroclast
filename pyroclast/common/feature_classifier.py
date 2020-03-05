@@ -110,3 +110,29 @@ class FeatureClassifierMixin(abc.ABC):
 
         adv_usefulness = self.usefulness(adv_generator(iterable), num_classes)
         return adv_usefulness
+
+    def input_search(self, x, feature_target, search_method='fgm'):
+        if search_method == 'fgm':
+            max_iters = 80
+            print('mean x', tf.reduce_mean(x))
+
+            def forward_fn(inp):
+                target = tf.norm(feature_target - self.features(inp), 2)
+                anchor = tf.norm(x - inp, 2)
+                print(target, anchor)
+                return target + anchor
+
+            #forward_fn = lambda _x: tf.norm(feature_target - self.features(_x),
+            #                                2) + 0.1 * tf.norm(x - _x, 2)
+            x += tf.random.normal(x.shape)
+            for i in range(1, max_iters + 1):
+                print('forward_fn', forward_fn(x))
+                delta = fast_gradient_method(forward_fn, x,
+                                             forward_fn(x) / max_iters, np.inf)
+                x += delta
+                print('mean delta', tf.reduce_min(delta), tf.reduce_mean(delta))
+                print('mean x', tf.reduce_mean(x))
+
+        else:
+            raise NotImplementedError()
+        return x
