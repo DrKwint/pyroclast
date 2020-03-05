@@ -4,20 +4,12 @@ import tensorflow as tf
 
 
 def plot_grads(images, models, model_names, image_shape, num_classes, **kw):
-    fig = plt.figure(figsize=(len(images), len(images) + 1))
-    for i in range(len(images)):
-        plt.subplot(len(models) + 1, len(images), i + 1)
-        imshow_example(images[i], image_shape)
-        if i == 0: side_text('Images')
+    image_tensors = [images]
     for j in range(len(models)):
-        grads = models[j].certainty_sensitivity(images, num_classes)
-        for i in range(len(images)):
-            plt.subplot(
-                len(models) + 1, len(images), (j + 1) * len(images) + i + 1)
-            imshow_gradient(grads[i], image_shape, **kw)
-            if i == 0: side_text(model_names[j])
-    plt.subplots_adjust(hspace=0.05, wspace=0.05)
-    return fig
+        image_tensors.append(models[j].certainty_sensitivity(
+            images, num_classes))
+    plot_images(image_tensors)
+    plt.show()
 
 
 def imshow_example(x, image_shape, **kwargs):
