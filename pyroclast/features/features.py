@@ -175,21 +175,29 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
     conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
-    model = GenericClassifier(conv_stack, classifier, 'test_model')
+    model = GenericClassifier(conv_stack, classifier, model_save_name)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
                                          epsilon=10e-4)
     save_dict = {
-        model_name + 'optimizer': optimizer,
-        model_name + 'model': model,
-        model_name + 'global_step': global_step
+        model_save_name + '_optimizer': optimizer,
+        model_save_name + '_model': model,
+        model_save_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
+
+    print('my_dir', os.path.join(output_dir, model_save_name))
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
-                                                  output_dir, 'features_model'),
+                                                  output_dir, model_save_name),
                                               max_to_keep=3)
-    return model, optimizer, global_step, checkpoint, ckpt_manager
+    return {
+        'model': model,
+        'optimizer': optimizer,
+        'global_step': global_step,
+        'checkpoint': checkpoint,
+        'ckpt_manager': ckpt_manager
+    }
 
 
 def learn(data_dict,
@@ -204,9 +212,14 @@ def learn(data_dict,
           max_epochs=10,
           lambd=0.,
           alpha=0.,
-          model_name=''):
-    model, optimizer, global_step, checkpoint, ckpt_manager = build_savable_objects(
-        conv_stack_name, data_dict, learning_rate, output_dir, model_name)
+          model_save_name=''):
+    objects = build_savable_objects(conv_stack_name, data_dict, learning_rate,
+                                    output_dir, model_save_name)
+    model = objects['model']
+    optimizer = objects['optimizer']
+    global_step = objects['global_step']
+    checkpoint = objects['checkpoint']
+    ckpt_manager = objects['ckpt_manager']
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
     if is_preprocessed:
