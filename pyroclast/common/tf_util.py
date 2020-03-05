@@ -291,8 +291,6 @@ def load_model(module,
                output_dir=__file__ + '/../../../',
                conv_stack_name='ross_net',
                learning_rate=1e-4):
-    # model_dir = os.abspath(os.path.normpath(output_dir + model_save_name))
-    # print('model_dir', model_dir)
     build_savable_objects_func = getattr(module, 'build_savable_objects')
     if build_savable_objects_func is None:
         raise Exception(
@@ -300,9 +298,6 @@ def load_model(module,
     objects = build_savable_objects_func(conv_stack_name, data_dict,
                                          learning_rate, output_dir,
                                          model_save_name)
-
-    print('objects', objects)
-    print('latest', objects['ckpt_manager'].latest_checkpoint)
 
     if objects['ckpt_manager'].latest_checkpoint is not None:
         objects['checkpoint'].restore(
