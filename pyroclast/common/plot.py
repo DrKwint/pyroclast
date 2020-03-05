@@ -8,32 +8,16 @@ def plot_grads(images, models, model_names, image_shape, num_classes, **kw):
     for i in range(len(images)):
         plt.subplot(len(models) + 1, len(images), i + 1)
         imshow_example(images[i], image_shape)
-        if i == 0: sidetext('Images')
+        if i == 0: side_text('Images')
     for j in range(len(models)):
         grads = models[j].certainty_sensitivity(images, num_classes)
         for i in range(len(images)):
             plt.subplot(
                 len(models) + 1, len(images), (j + 1) * len(images) + i + 1)
             imshow_gradient(grads[i], image_shape, **kw)
-            if i == 0: sidetext(model_names[j])
+            if i == 0: side_text(model_names[j])
     plt.subplots_adjust(hspace=0.05, wspace=0.05)
     return fig
-
-
-def sidetext(text, fontsize=8):
-    left, width = 0, .5
-    bottom, height = .25, .5
-    right = left + width
-    top = bottom + height
-    ax = plt.gca()
-    ax.text(left,
-            0.5 * (bottom + top),
-            text,
-            ha='right',
-            va='center',
-            rotation='vertical',
-            transform=ax.transAxes,
-            fontsize=fontsize)
 
 
 def imshow_example(x, image_shape, **kwargs):
@@ -64,3 +48,80 @@ def imshow_gradient(grad, image_shape, percentile=99, **kwargs):
     plt.xticks([])
     plt.yticks([])
     return plt.imshow(image, **imshow_kw)
+
+
+def plot_images(image_tensors, row_labels=None, col_labels=None):
+    """Plot images in a list or grid
+
+    When this has run, the matplotlib.plt state is ready to be shown
+    or saved to an image.
+
+    Args:
+       image_tensors (tf.Tensor | list(tf.Tensor) | list(list(tf.Tensor)): Tensors that hold image information. In order of (row, col).
+       row_labels (None | list(str)): Labels for the rows
+       col_labels (None | list(str)): Labels for the columns
+
+    """
+
+    if type(image_tensors) != list:
+        image_tensors = [[image_tensors]]
+    elif type(image_tensors[0]) != list:
+        image_tensors = [image_tensors]
+
+    nrows = len(image_tensors)
+    ncols = max([len(x) for x in image_tensors])
+
+    if row_labels is not None:
+        assert len(row_labels) == nrows
+        for row_idx, label in enumerate(row_labels):
+            index = row_idx * ncols + 1
+            plt.subplot(nrows, ncols, index)
+            side_text(label)
+
+    if col_labels is not None:
+        assert len(col_labels) == ncols
+        for col_idx, label in enumerate(col_labels):
+            index = col_idx + 1
+            plt.subplot(nrows, ncols, index)
+            top_text(label)
+
+    for row_idx, row in enumerate(image_tensors):
+        for col_idx, image_tensor in enumerate(row):
+            index = row_idx * ncols + col_idx + 1
+            axes = plt.subplot(nrows, ncols, index)
+            squeezed_tensor = tf.squeeze(image_tensor)
+
+            plt.xticks([])
+            plt.yticks([])
+            plt.imshow(squeezed_tensor)
+
+
+def top_text(text, fontsize=8):
+    left, width = 0.25, 0.5
+    bottom, height = 1, 0.5
+    right = left + width
+    top = bottom + height
+    ax = plt.gca()
+    ax.text(0.5 * (left + right),
+            bottom,
+            text,
+            ha='center',
+            va='bottom',
+            transform=ax.transAxes,
+            fontsize=fontsize)
+
+
+def side_text(text, fontsize=8):
+    left, width = 0, .5
+    bottom, height = .25, .5
+    right = left + width
+    top = bottom + height
+    ax = plt.gca()
+    ax.text(left,
+            0.5 * (bottom + top),
+            text,
+            ha='right',
+            va='center',
+            rotation='vertical',
+            transform=ax.transAxes,
+            fontsize=fontsize)

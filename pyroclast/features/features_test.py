@@ -18,9 +18,15 @@ class PrototypeModelTest(parameterized.TestCase):
 
         self.ds = setup_tfds('mnist', self.args['batch_size'], None,
                              self.args['data_limit'])
-        self.model, self.optimizer, self.global_step, self.checkpoint, self.ckpt_manager = build_savable_objects(
-            self.args['conv_stack_name'], self.ds, 0.0001,
-            self.args['output_dir'], self.args['model_save_name'])
+        objects = build_savable_objects(self.args['conv_stack_name'], self.ds,
+                                        0.0001, self.args['output_dir'],
+                                        self.args['model_save_name'])
+
+        self.model = objects['model']
+        self.optimizer = objects['optimizer']
+        self.global_step = objects['global_step']
+        self.checkpoint = objects['checkpoint']
+        self.ckpt_manager = objects['ckpt_manager']
 
     def test_basic_functionality(self):
         for batch in self.ds['train']:
