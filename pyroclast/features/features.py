@@ -191,6 +191,7 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, model_dir,
         model_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
+
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
                                                   model_dir, model_name),
@@ -224,6 +225,7 @@ def learn(data_dict,
     global_step = objects['global_step']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
+
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
     if is_preprocessed:
