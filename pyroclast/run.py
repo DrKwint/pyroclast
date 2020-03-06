@@ -67,9 +67,12 @@ def run_task(args, extra_args):
                                                       args.data_limit,
                                                       args.data_dir)
     else:
-        data_dict = setup_tfds(args.dataset, args.batch_size,
-                               args.resize_data_shape, args.data_limit,
-                               args.data_dir)
+        data_dict = setup_tfds(args.dataset,
+                               args.batch_size,
+                               args.resize_data_shape,
+                               args.data_limit,
+                               args.data_dir,
+                               shuffle_seed=args.seed)
 
     print('Running {} on {} with arguments \n{}'.format(args.task, args.module,
                                                         args.dataset,
@@ -87,6 +90,9 @@ def main(args):
     arg_parser = common_arg_parser()
     args, unknown_args = arg_parser.parse_known_args(args)
     extra_args = parse_cmdline_kwargs(unknown_args)
+
+    if args.seed is not None:
+        tf.random.set_seed(args.seed)
 
     if args.debug:
         print(device_lib.list_local_devices())

@@ -14,7 +14,7 @@ class GenericClassifier(tf.Module, VisualizableMixin, FeatureClassifierMixin):
         return self.classifier(self.features(x))
 
     def features(self, x):
-        return tf.squeeze(self.conv_stack(x))
+        return self.conv_stack(x)
 
     def classify_features(self, z):
         return self.classifier(z)

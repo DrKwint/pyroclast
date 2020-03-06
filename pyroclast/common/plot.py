@@ -50,7 +50,7 @@ def imshow_gradient(grad, image_shape, percentile=99, **kwargs):
     return plt.imshow(image, **imshow_kw)
 
 
-def plot_images(image_tensors, row_labels=None, col_labels=None):
+def plot_images(image_tensors, row_labels=None, col_labels=None, cmap=None):
     """Plot images in a list or grid
 
     When this has run, the matplotlib.plt state is ready to be shown
@@ -70,6 +70,8 @@ def plot_images(image_tensors, row_labels=None, col_labels=None):
 
     nrows = len(image_tensors)
     ncols = max([len(x) for x in image_tensors])
+
+    kwargs = {'cmap': cmap}
 
     if row_labels is not None:
         assert len(row_labels) == nrows
@@ -93,7 +95,7 @@ def plot_images(image_tensors, row_labels=None, col_labels=None):
 
             plt.xticks([])
             plt.yticks([])
-            plt.imshow(squeezed_tensor)
+            plt.imshow(squeezed_tensor, **kwargs)
 
 
 def top_text(text, fontsize=8):
