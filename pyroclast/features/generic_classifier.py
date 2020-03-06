@@ -19,6 +19,9 @@ class GenericClassifier(tf.Module, VisualizableMixin, FeatureClassifierMixin):
     def classify_features(self, z):
         return self.classifier(z)
 
+    def get_classification_module(self):
+        return self.classifier
+
     def logits(self, x):
         return self(x)
 

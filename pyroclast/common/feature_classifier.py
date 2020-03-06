@@ -47,6 +47,32 @@ class FeatureClassifierMixin(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
+    def get_classification_module(self):
+        """Returns the variables in the final classification layer
+
+        returns:
+           feature_variables (tf.Module): The classification module
+        """
+        pass
+
+    def feature_importance_for_class(self, data_dict, class_idx):
+        """Finds the relative importance of features to a given class
+
+        Note: Sorting is in the descending direction.
+
+        returns:
+           feature_ids (tf.Tensor): The ids of the features, sorted by weight in dense layer.
+           weights (tf.Tensor): The weights of each feature, unsorted.
+        """
+        classifier_module = self.get_classification_module()
+        dense_kernel = list(
+            filter(lambda v: 'dense' in v.name and 'kernel' in v.name,
+                   classifier_module.variables))[-1]
+        weights = tf.squeeze(dense_kernel[:, class_idx])
+        feature_ids = tf.argsort(weights, direction='DESCENDING')
+        return (feature_ids, weights)
+
     def usefulness(self, iterable, num_classes, is_preprocessed=False):
         """Finds maximal rho per feature/class pair such that the model is rho-useful over the dataset D
 
@@ -117,8 +143,9 @@ class FeatureClassifierMixin(abc.ABC):
             forward_fn = lambda _x: tf.norm(feature_target - self.features(_x),
                                             2)  # + 0.1 * tf.norm(x - _x, 2)
             for i in range(1, max_iters + 1):
-                print('forward_fn', forward_fn(x))
-                delta = fast_gradient_method(forward_fn, x, 0.001, 2)
+                if i % 100 == 0:
+                    print('forward_fn', forward_fn(x))
+                delta = fast_gradient_method(forward_fn, x, 0.0001, 2)
                 x += delta
                 if forward_fn(x) < 1:
                     break

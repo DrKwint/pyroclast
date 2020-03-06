@@ -8,8 +8,70 @@ from pyroclast.common.adversarial import fast_gradient_method
 from pyroclast.features.features import build_savable_objects
 
 
-def visualize_perturbation(data_dict, seed, output_dir, debug, module_name,
-                           model_name, norm, data_index, epsilon, **kwargs):
+def visualize_perturbation_feature(data_dict, seed, output_dir, debug,
+                                   module_name, model_name, norm, data_index,
+                                   class_idx, epsilon, **kwargs):
+    module = importlib.import_module(module_name)
+    model = load_model(module,
+                       model_name,
+                       data_dict,
+                       output_dir=output_dir,
+                       **kwargs)
+    for batch_data in data_dict['train']:
+        x = batch_data['image'][0]
+        y = batch_data['label'][0]
+        break
+    x = tf.cast(x, dtype=tf.float32) / 255.
+    x = tf.reshape(x, [1] + x.shape)
+
+    pred = model(x)
+
+    feature_ids, weights = model.feature_importance_for_class(
+        data_dict, class_idx)
+
+    num_classes = 10
+    epsilons = [0.01, 0.1, 1.0, 10, 100]
+    num_features_to_visualize = 3
+
+    def get_one_hot(x, num_classes):
+        return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
+                       tf.float32)
+
+    images = []
+
+    row_labels = [
+        'Feature %d / Weight %.2f' % (f, weights[f])
+        for f in feature_ids[:num_features_to_visualize]
+    ]
+
+    col_labels = ['Original'] + ['e = %.2f' % e for e in epsilons]
+
+    for feature_idx in feature_ids[:num_features_to_visualize]:
+        print('feature_idx', feature_idx)
+        num_features = weights.shape[0]
+        mask = get_one_hot(feature_idx, num_features)
+        features = model.features(x)
+        forward_fn = lambda f: tf.math.reduce_sum(f * weights * mask)
+        perturbations = [
+            fast_gradient_method(forward_fn, features, eps, norm)
+            for eps in epsilons
+        ]
+        inputs = [model.input_search(x, p) for p in perturbations]
+        images.append([x] + inputs)
+
+    classes = [[tf.argmax(model(x)) for x in y] for y in images]
+    print(classes)
+
+    plot_images(images,
+                row_labels=row_labels,
+                col_labels=col_labels,
+                cmap='gray')
+    plt.show()
+
+
+def visualize_perturbation_class(data_dict, seed, output_dir, debug,
+                                 module_name, model_name, norm, data_index,
+                                 class_idx, epsilon, **kwargs):
     module = importlib.import_module(module_name)
     model = load_model(module,
                        model_name,
@@ -38,7 +100,7 @@ def visualize_perturbation(data_dict, seed, output_dir, debug, module_name,
 
     labels = get_one_hot(y, num_classes)
 
-    forward_fn = lambda x: -tf.gather(model(x), pred_idx, axis=1)
+    forward_fn = lambda x: tf.gather(model(x), pred_idx, axis=1)
 
     epsilons = [0.01, 0.02, 0.03]
     # epsilons = [0.01, 0.1, 1]
@@ -63,7 +125,6 @@ def visualize_perturbation(data_dict, seed, output_dir, debug, module_name,
     plot_images([perturbed, perturbations],
                 row_labels=row_labels,
                 col_labels=col_labels)
-
     plt.show()
 
 
