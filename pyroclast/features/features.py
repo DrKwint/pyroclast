@@ -1,12 +1,15 @@
 import copy
 import os
+import re
 
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
+from pyroclast.common.plot import plot_grads
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
 from pyroclast.common.util import dummy_context_mgr, heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
@@ -14,7 +17,7 @@ from pyroclast.features.networks import ross_net
 
 
 # define minibatch fn
-#@tf.function
+@tf.function
 def run_minibatch(model,
                   optimizer,
                   global_step,
@@ -167,27 +170,30 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     checkpoint.restore(ckpt_manager.latest_checkpoint).assert_consumed()
 
 
-def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
-                          model_save_name):
+def build_savable_objects(conv_stack_name, data_dict, learning_rate, model_dir,
+                          model_name):
     global_step = tf.compat.v1.train.get_or_create_global_step()
-    conv_stack = get_network_builder(conv_stack_name)()
+    if conv_stack_name == 'vgg19':
+        conv_stack = get_network_builder(conv_stack_name)(shape=[32, 32, 3])
+    else:
+        conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
-    model = GenericClassifier(conv_stack, classifier, model_save_name)
+
+    clean = lambda varStr: re.sub('\W|^(?=\d)', '_', varStr)
+    model = GenericClassifier(conv_stack, classifier, clean(model_name))
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
                                          epsilon=10e-4)
     save_dict = {
-        model_save_name + '_optimizer': optimizer,
-        model_save_name + '_model': model,
-        model_save_name + '_global_step': global_step
+        model_name + '_optimizer': optimizer,
+        model_name + '_model': model,
+        model_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
-
-    print('my_dir', os.path.join(output_dir, model_save_name))
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
-                                                  output_dir, model_save_name),
+                                                  model_dir, model_name),
                                               max_to_keep=3)
     return {
         'model': model,
@@ -205,24 +211,19 @@ def learn(data_dict,
           learning_rate=3e-3,
           conv_stack_name='vgg19',
           is_preprocessed=False,
-          is_train=False,
-          is_usefulness=False,
-          is_robustness=False,
           train_conv_stack=False,
           patience=2,
           max_epochs=10,
           lambd=0.,
           alpha=0.,
-          model_save_name=''):
+          model_name='generic_classifier'):
     objects = build_savable_objects(conv_stack_name, data_dict, learning_rate,
-                                    output_dir, model_save_name)
-
+                                    output_dir, model_name)
     model = objects['model']
     optimizer = objects['optimizer']
     global_step = objects['global_step']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
-
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
     if is_preprocessed:
@@ -240,25 +241,120 @@ def learn(data_dict,
     else:
         train_data = data_dict
 
-    if is_train:
-        early_stopping = EarlyStopping(patience,
-                                       ckpt_manager,
-                                       eps=0.03,
-                                       max_epochs=max_epochs)
-        train(train_data, model, optimizer, global_step, writer, early_stopping,
-              (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager,
-              debug)
+    early_stopping = EarlyStopping(patience,
+                                   ckpt_manager,
+                                   eps=0.03,
+                                   max_epochs=max_epochs)
+    train(train_data, model, optimizer, global_step, writer, early_stopping,
+          (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
 
-    if is_usefulness:
-        usefulness = model.usefulness(train_data['test'].map(
-            lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-                                      train_data['num_classes'],
-                                      is_preprocessed=is_preprocessed)
-        heatmap(usefulness, 'rho_usefulness.png', 'rho usefulness')
+    usefulness = model.usefulness(train_data['test'].map(
+        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                  train_data['num_classes'],
+                                  is_preprocessed=is_preprocessed)
+    heatmap(usefulness, output_dir + '/' + model_name + '_rho_usefulness.png',
+            'rho usefulness')
 
-    if is_robustness:
-        robustness = model.robustness(
-            data_dict['test'].take(1).map(
-                lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-            data_dict['num_classes'], 1., np.inf)
-        heatmap(robustness, 'gamma_robustness.png', 'gamma robustness')
+    return model
+
+
+def plot_input_grads(data_dict,
+                     seed,
+                     output_dir,
+                     debug,
+                     conv_stack_name='vgg19'):
+    args = locals()
+    args['learning_rate'] = 2e-4
+    args['train_conv_stack'] = True
+    args['patience'] = 5
+    args['max_epochs'] = 50
+
+    args_template = args
+
+    models = {}
+    if not os.path.exists('mnist_normal'):
+        model_name = 'mnist_normal'
+        models[model_name] = learn(**args)
+
+    for lambd in [1e0, 1e1, 1e2]:
+        for alpha in [0., 1e0, 1e1, 1e2]:
+            args = copy.copy(args_template)
+            args['lambd'] = lambd
+            args['alpha'] = alpha
+            model_name = 'mnist_lambd{:1.0e}_alpha{:1.0e}'.format(lambd, alpha)
+            if not os.path.exists(model_name):
+                models[model_name] = learn(**args)
+            else:
+                objects = build_savable_objects(args['conv_stack_name'],
+                                                args['data_dict'],
+                                                args['learning_rate'],
+                                                args['output_dir'], model_name)
+                model = objects['model']
+                checkpoint = objects['checkpoint']
+                ckpt_manager = objects['ckpt_manager']
+                if ckpt_manager.latest_checkpoint is not None:
+                    checkpoint.restore(ckpt_manager.latest_checkpoint)
+                else:
+                    print(
+                        "Wrong directory for output_dir {}?".format(model_name))
+                models[model_name] = model
+
+    for batch in data_dict['test']:
+        fig = plot_grads(tf.cast(batch['image'], tf.float32),
+                         list(models.values()), list(models.keys()),
+                         data_dict['shape'], data_dict['num_classes'])
+    plt.savefig('input_grads.png')
+
+
+def visualize_feature_perturbations(data_dict,
+                                    seed,
+                                    output_dir,
+                                    debug,
+                                    conv_stack_name='tiny_net'):
+    objects = build_savable_objects(conv_stack_name, data_dict, 2e-4,
+                                    output_dir, 'generic_classifier')
+    model = objects['model']
+    checkpoint = objects['checkpoint']
+    ckpt_manager = objects['ckpt_manager']
+    if ckpt_manager.latest_checkpoint is not None:
+        checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
+    else:
+        print("Wrong directory for output_dir {}?".format(output_dir))
+
+    # calculate usefulness
+    """
+    usefulness = model.usefulness(
+        data_dict['train'].map(lambda x:
+                               (tf.cast(x['image'], tf.float32), x['label'])),
+        data_dict['num_classes'])
+    heatmap(usefulness,
+            output_dir + '/' + 'mnist_lambd1' + '_rho_usefulness.png',
+            'rho usefulness')
+    """
+
+    for batch in data_dict['train']:
+        original = tf.cast(tf.expand_dims(batch['image'][0], 0), tf.float32)
+        features = model.features(original)
+        features_len = features.shape[0]
+        max_feature = tf.argmax(features)
+        print(max_feature)
+        found = model.input_search(
+            original,
+            model.features(original) *
+            (tf.ones(features_len) - tf.one_hot(max_feature, features_len)))
+        print(model.features(original)[max_feature])
+        print(model.features(found)[max_feature])
+        break
+
+    plt.imshow(tf.squeeze(original))
+    print(tf.reduce_min(original), tf.reduce_max(original))
+    plt.savefig('original')
+    plt.close()
+    plt.imshow(tf.squeeze(found))
+    print(tf.reduce_min(found), tf.reduce_max(found))
+    plt.savefig('found')
+    plt.close()
+    plt.imshow(tf.squeeze(found - original))
+    print(tf.reduce_min(found - original), tf.reduce_max(found - original))
+    plt.savefig('diff')
+    plt.close()

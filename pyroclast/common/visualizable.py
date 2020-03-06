@@ -1,6 +1,7 @@
 import abc
 import numpy as np
 import tensorflow as tf
+import sonnet as snt
 
 
 class VisualizableMixin(abc.ABC):
@@ -115,6 +116,33 @@ class VisualizableMixin(abc.ABC):
             grads = tape.gradient(result, x)
         return grads
 
+    def smooth(self, x, map_fn, n=50, sigma=0.01):
+        """Computes the smooth version of a saliency-map
+
+        Implements the smoothing operation defined in the SmoothGRAD
+        paper: https://arxiv.org/abs/1706.03825
+
+        The operation works by averaging maps of n input
+        images that have been perturbed with Gausssian noise. Gaussian
+        noise is parameterized by the standard deviation (sigma).
+
+        Args:
+           x (np.array): shape [batch_size, ...data_shape]
+           n (int): The number of samples to collect
+           sigma (float): The standard deviation of the Gaussian noise
+
+        Returns:
+           smooth_map (np.array): shape [batch_size, ...data_shape]
+
+        """
+        x_noise = tf.random.normal([n] + [1 for _ in enumerate(x.shape)],
+                                   stddev=sigma)
+        maps = snt.BatchApply(map_fn)(x + x_noise)
+        maps = tf.math.reduce_sum(maps, axis=0)
+        maps /= n
+        assert (maps.shape == x.shape)
+        return maps
+
     def smooth_grad(self, x, n=50, sigma=0.01):
         """Computes the smooth grad saliency-map
 
@@ -130,20 +158,7 @@ class VisualizableMixin(abc.ABC):
            sigma (float): The standard deviation of the Gaussian noise
 
         Returns:
-           sensitivity_map (np.array): shape [batch_size, ...data_shape]
+           smooth_grad_map (np.array): shape [batch_size, ...data_shape]
         """
-        tile_scheme = [n] + [1 for _ in enumerate(x.shape)]
-        x_dist = tf.tile(tf.constant(x)[None, :], tile_scheme)
-        x_dist += tf.random.normal(x_dist.shape, stddev=sigma)
-        x_dist = tf.reshape(x_dist, [-1, *x.shape[1:]])
 
-        with tf.GradientTape() as tape:
-            tape.watch(x_dist)
-            result = self.logits(x_dist)
-            gradients = tape.gradient(result, x_dist)
-
-        gradients = tf.reshape(gradients, [n] + x.shape)
-        gradients = tf.math.reduce_sum(gradients, axis=0)
-        gradients /= n
-        assert (gradients.shape == x.shape)
-        return gradients
+        return self.smooth(x, self.sensitivity_map, n, sigma)
