@@ -210,6 +210,7 @@ def celeba_gen(is_train=True):
     return tf.keras.Sequential(layers)
 
 
+@register('vgg19')
 def vgg19(**kwargs):
     return tf.keras.applications.VGG19(include_top=False,
                                        weights='imagenet',

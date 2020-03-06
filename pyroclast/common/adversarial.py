@@ -20,7 +20,7 @@ def fast_gradient_method(forward_fn, x, eps, norm):
     """
     jacobian = compute_all_gradients(forward_fn, x)
     perturbation = linear_optimization(jacobian, eps, norm)
-    return perturbation
+    return -perturbation
 
 
 def compute_all_gradients(forward_fn, x):
