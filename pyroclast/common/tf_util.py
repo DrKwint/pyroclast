@@ -40,23 +40,33 @@ def setup_tfds(dataset,
     data_dict['test_num'] = info.splits['test'].num_examples
     data_dict['num_classes'] = info.features['label'].num_classes
 
-    def resize_ds_img(features):
-        features['image'] = tf.image.resize(features['image'],
-                                            resize_data_shape)
-        # I'm not actually sure if this bit with the mask is right at all, but it's needed for batching right now
-        if 'segmentation_mask' in features:
-            features['segmentation_mask'] = tf.image.resize(
-                features['segmentation_mask'], resize_data_shape)
-        return features
-
     if resize_data_shape is None:
         data_dict['shape'] = info.features['image'].shape
     else:
+
+        def resize_ds_img(features):
+            features['image'] = tf.image.resize(features['image'],
+                                                resize_data_shape)
+            # I'm not actually sure if this bit with the mask is right at all, but it's needed for batching right now
+            if 'segmentation_mask' in features:
+                features['segmentation_mask'] = tf.image.resize(
+                    features['segmentation_mask'], resize_data_shape)
+            return features
+
         data_dict['train'] = data_dict['train'].map(resize_ds_img)
         data_dict['test'] = data_dict['test'].map(resize_ds_img)
         data_dict['shape'] = resize_data_shape + [
             info.features['image'].shape[-1]
         ]
+
+    if info.features['image'].dtype == tf.uint8:
+
+        def uint8tofloat32(features):
+            features['image'] = tf.cast(features['image'], tf.float32) / 255.
+            return features
+
+        data_dict['train'] = data_dict['train'].map(uint8tofloat32)
+        data_dict['test'] = data_dict['test'].map(uint8tofloat32)
 
     data_dict['train'] = data_dict['train'].shuffle(
         1024, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(

@@ -14,6 +14,7 @@ from pyroclast.common.preprocessed_dataset import PreprocessedDataset
 from pyroclast.common.util import dummy_context_mgr, heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
 from pyroclast.features.networks import ross_net
+from pyroclast.common.plot import plot_images
 
 
 # define minibatch fn
@@ -337,24 +338,21 @@ def visualize_feature_perturbations(data_dict,
         features = model.features(original)
         features_len = features.shape[0]
         max_feature = tf.argmax(features)
-        print(max_feature)
         found = model.input_search(
             original,
             model.features(original) *
-            (tf.ones(features_len) - tf.one_hot(max_feature, features_len)))
-        print(model.features(original)[max_feature])
-        print(model.features(found)[max_feature])
+            (tf.ones(features_len) - tf.one_hot(max_feature, features_len)),
+            debug=debug)
         break
 
-    plt.imshow(tf.squeeze(original))
-    print(tf.reduce_min(original), tf.reduce_max(original))
-    plt.savefig('original')
-    plt.close()
-    plt.imshow(tf.squeeze(found))
-    print(tf.reduce_min(found), tf.reduce_max(found))
-    plt.savefig('found')
-    plt.close()
-    plt.imshow(tf.squeeze(found - original))
-    print(tf.reduce_min(found - original), tf.reduce_max(found - original))
-    plt.savefig('diff')
-    plt.close()
+    original_value = model.features(original)[max_feature]
+    found_value = model.features(found)[max_feature]
+
+    plot_images([original, found, found - original],
+                row_labels=['feature {}'.format(max_feature)],
+                col_labels=[
+                    'original @ {}'.format(original_value),
+                    'found @ {}'.format(found_value), 'diff'
+                ])
+    plt.savefig('feature_perturbation')
+    plt.show()
