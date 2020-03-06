@@ -192,8 +192,6 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, model_dir,
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
 
-    # print('my_dir', os.path.join(output_dir, model_save_name))
-
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
                                                   model_dir, model_name),
