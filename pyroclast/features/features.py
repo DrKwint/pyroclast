@@ -1,5 +1,6 @@
 import copy
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -175,7 +176,9 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
     conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
-    model = GenericClassifier(conv_stack, classifier, model_name)
+
+    clean = lambda varStr: re.sub('\W|^(?=\d)','_', varStr)
+    model = GenericClassifier(conv_stack, classifier, clean(model_name))
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
                                          epsilon=10e-4)
@@ -185,8 +188,6 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
         model_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)
-
-    print('my_dir', os.path.join(output_dir, model_name))
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
                                                   output_dir, model_name),
@@ -212,9 +213,9 @@ def learn(data_dict,
           max_epochs=10,
           lambd=0.,
           alpha=0.,
-          model_save_name='generic_classifier'):
+          model_name='generic_classifier'):
     objects = build_savable_objects(conv_stack_name, data_dict, learning_rate,
-                                    output_dir, model_save_name)
+                                    output_dir, model_name)
     model = objects['model']
     optimizer = objects['optimizer']
     global_step = objects['global_step']
@@ -270,7 +271,6 @@ def plot_input_grads(data_dict,
     models = {}
     if not os.path.exists('mnist_normal'):
         model_name = 'mnist_normal'
-        args['output_dir'] = model_name
         models[model_name] = learn(**args)
 
     for lambd in [1e0, 1e1, 1e2]:
@@ -279,22 +279,25 @@ def plot_input_grads(data_dict,
             args['lambd'] = lambd
             args['alpha'] = alpha
             model_name = 'mnist_lambd{:1.0e}_alpha{:1.0e}'.format(lambd, alpha)
-            args['output_dir'] = model_name
             if not os.path.exists(model_name):
                 models[model_name] = learn(**args)
             else:
-                model, _, _, checkpoint, ckpt_manager = build_savable_objects(
+                objects = build_savable_objects(
                     args['conv_stack_name'], args['data_dict'],
                     args['learning_rate'], args['output_dir'], model_name)
+                model = objects['model']
+                checkpoint = objects['checkpoint']
+                ckpt_manager = objects['ckpt_manager']
                 if ckpt_manager.latest_checkpoint is not None:
                     checkpoint.restore(ckpt_manager.latest_checkpoint)
                 else:
                     print(
-                        "Wrong directory for output_dir {}?".format(output_dir))
+                        "Wrong directory for output_dir {}?".format(model_name))
                 models[model_name] = model
 
-    fig = plot_grads(data_dict['test'], models.values(), models.keys(),
-                     data_dict['shape'], data_dict['num_classes'])
+    for batch in data_dict['test']:
+        fig = plot_grads(tf.cast(batch['image'], tf.float32), list(models.values()), list(models.keys()),
+                         data_dict['shape'], data_dict['num_classes'])
     plt.savefig('input_grads.png')
 
 
