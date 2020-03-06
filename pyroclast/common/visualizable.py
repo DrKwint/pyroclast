@@ -161,4 +161,4 @@ class VisualizableMixin(abc.ABC):
            smooth_grad_map (np.array): shape [batch_size, ...data_shape]
         """
 
-        return self.smooth(x, lambda x_i: self.sensitivity_map(x_i), n, sigma)
+        return self.smooth(x, self.sensitivity_map, n, sigma)
