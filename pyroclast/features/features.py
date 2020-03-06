@@ -170,14 +170,17 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     checkpoint.restore(ckpt_manager.latest_checkpoint).assert_consumed()
 
 
-def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
+def build_savable_objects(conv_stack_name, data_dict, learning_rate, model_dir,
                           model_name):
     global_step = tf.compat.v1.train.get_or_create_global_step()
-    conv_stack = get_network_builder(conv_stack_name)()
+    if conv_stack_name == 'vgg19':
+        conv_stack = get_network_builder(conv_stack_name)(shape=[32, 32, 3])
+    else:
+        conv_stack = get_network_builder(conv_stack_name)()
     classifier = tf.keras.Sequential(
         [tf.keras.layers.Dense(data_dict['num_classes'])])
 
-    clean = lambda varStr: re.sub('\W|^(?=\d)','_', varStr)
+    clean = lambda varStr: re.sub('\W|^(?=\d)', '_', varStr)
     model = GenericClassifier(conv_stack, classifier, clean(model_name))
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
                                          beta_1=0.5,
@@ -190,7 +193,7 @@ def build_savable_objects(conv_stack_name, data_dict, learning_rate, output_dir,
     checkpoint = tf.train.Checkpoint(**save_dict)
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
                                               directory=os.path.join(
-                                                  output_dir, model_name),
+                                                  model_dir, model_name),
                                               max_to_keep=3)
     return {
         'model': model,
@@ -282,9 +285,10 @@ def plot_input_grads(data_dict,
             if not os.path.exists(model_name):
                 models[model_name] = learn(**args)
             else:
-                objects = build_savable_objects(
-                    args['conv_stack_name'], args['data_dict'],
-                    args['learning_rate'], args['output_dir'], model_name)
+                objects = build_savable_objects(args['conv_stack_name'],
+                                                args['data_dict'],
+                                                args['learning_rate'],
+                                                args['output_dir'], model_name)
                 model = objects['model']
                 checkpoint = objects['checkpoint']
                 ckpt_manager = objects['ckpt_manager']
@@ -296,7 +300,8 @@ def plot_input_grads(data_dict,
                 models[model_name] = model
 
     for batch in data_dict['test']:
-        fig = plot_grads(tf.cast(batch['image'], tf.float32), list(models.values()), list(models.keys()),
+        fig = plot_grads(tf.cast(batch['image'], tf.float32),
+                         list(models.values()), list(models.keys()),
                          data_dict['shape'], data_dict['num_classes'])
     plt.savefig('input_grads.png')
 
@@ -306,8 +311,11 @@ def visualize_feature_perturbations(data_dict,
                                     output_dir,
                                     debug,
                                     conv_stack_name='tiny_net'):
-    model, _, _, checkpoint, ckpt_manager = build_savable_objects(
-        conv_stack_name, data_dict, 1e-4, output_dir, 'mnist_lambd1')
+    objects = build_savable_objects(conv_stack_name, data_dict, 2e-4,
+                                    output_dir, 'generic_classifier')
+    model = objects['model']
+    checkpoint = objects['checkpoint']
+    ckpt_manager = objects['ckpt_manager']
     if ckpt_manager.latest_checkpoint is not None:
         checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
     else:
@@ -326,10 +334,16 @@ def visualize_feature_perturbations(data_dict,
 
     for batch in data_dict['train']:
         original = tf.cast(tf.expand_dims(batch['image'][0], 0), tf.float32)
-        features_len = model.features(original).shape[0]
+        features = model.features(original)
+        features_len = features.shape[0]
+        max_feature = tf.argmax(features)
+        print(max_feature)
         found = model.input_search(
             original,
-            model.features(original) + 1. * tf.one_hot(247, features_len))
+            model.features(original) *
+            (tf.ones(features_len) - tf.one_hot(max_feature, features_len)))
+        print(model.features(original)[max_feature])
+        print(model.features(found)[max_feature])
         break
 
     plt.imshow(tf.squeeze(original))
