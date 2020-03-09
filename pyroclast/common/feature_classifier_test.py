@@ -40,6 +40,9 @@ class BasicMnistFeatureClassifier(FeatureClassifierMixin, tf.Module):
     def classify_features(self, f):
         return self.dense_layer(f)
 
+    def get_classification_module(self):
+        return self.dense_layer
+
 
 class FeatureClassifierMixinTest(parameterized.TestCase):
 

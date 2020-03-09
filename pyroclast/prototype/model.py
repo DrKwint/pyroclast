@@ -154,3 +154,7 @@ class ProtoPNet(FeatureClassifierMixin, tf.Module):
     def classify_features(self, z):
         """Defined for implementing FeatureClassifierMixin"""
         return self.classifier(z)
+
+    def get_classification_module(self):
+        """Defined for implementing FeatureClassifierMixin"""
+        return self.classifier
