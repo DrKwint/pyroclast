@@ -2,6 +2,7 @@ import importlib
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.tf_util import load_model
 from pyroclast.common.plot import plot_images
 from pyroclast.common.adversarial import fast_gradient_method
@@ -30,11 +31,11 @@ def visualize_perturbation_feature(data_dict, seed, output_dir, debug,
         data_dict, class_idx)
 
     num_classes = 10
-    epsilons = [0.0001, 0.001, 0.01]
+    epsilons = [0.1, 1, 2, 4, 8, 16]
     num_features_to_visualize = 3
 
     def get_one_hot(x, num_classes):
-        return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
+        return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=0),
                        tf.float32)
 
     images = []
@@ -51,12 +52,17 @@ def visualize_perturbation_feature(data_dict, seed, output_dir, debug,
         num_features = weights.shape[0]
         mask = get_one_hot(feature_idx, num_features)
         features = model.features(x)
-        forward_fn = lambda f: tf.math.reduce_sum(f * weights * mask)
         perturbations = [
-            fast_gradient_method(forward_fn, features, eps, norm)
+            features -
+            tf.expand_dims(get_one_hot(feature_idx, num_features) * eps, 0)
             for eps in epsilons
         ]
-        inputs = [model.input_search(x, p) for p in perturbations]
+
+        inputs = []
+        for p, eps in zip(perturbations, epsilons):
+            print('Epsilon ', eps)
+            early_stopping = EarlyStopping(10, eps=0.00001, max_epochs=100000)
+            inputs.append(model.input_search(x, p, early_stopping))
         images.append([x] + inputs)
 
     classes = [[tf.argmax(model(x)) for x in y] for y in images]
