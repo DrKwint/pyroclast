@@ -30,7 +30,7 @@ def visualize_perturbation_feature(data_dict, seed, output_dir, debug,
         data_dict, class_idx)
 
     num_classes = 10
-    epsilons = [0.01, 0.1, 1.0, 10, 100]
+    epsilons = [0.0001, 0.001, 0.01]
     num_features_to_visualize = 3
 
     def get_one_hot(x, num_classes):
