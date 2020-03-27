@@ -262,11 +262,11 @@ class OnePassCorrelation(object):
 
     def __init__(self):
         self.n = 0
-        self.sum_product = 0.
-        self.sum_first = 0.
-        self.sum_second = 0.
-        self.sum_sq_first = 0.
-        self.sum_sq_second = 0.
+        self.sum_product = np.array(0., dtype=np.float64)
+        self.sum_first = np.array(0., dtype=np.float64)
+        self.sum_second = np.array(0., dtype=np.float64)
+        self.sum_sq_first = np.array(0., dtype=np.float64)
+        self.sum_sq_second = np.array(0., dtype=np.float64)
 
     def accumulate(self, a, b):
         self.n += a.shape[0]
