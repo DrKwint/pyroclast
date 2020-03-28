@@ -7,6 +7,7 @@ def mnist():
         'model_name': 'mnist_basic',
         'norm': np.inf,
         'data_index': 0,
+        'class_idx': 0,
     }
 
 
@@ -16,4 +17,5 @@ def cifar10():
         'model_name': 'cifar10_basic',
         'norm': np.inf,
         'data_index': 0,
+        'class_idx': 0,
     }

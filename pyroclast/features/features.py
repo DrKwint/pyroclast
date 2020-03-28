@@ -108,8 +108,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     else:
         train_model = model.classifier
 
-    # use the max epoch value in early_stopping
-    for epoch in range(10000):
+    for epoch in range(early_stopping.max_epochs):
         # train
         train_batches = data_dict['train']
         num_classes = data_dict['num_classes']

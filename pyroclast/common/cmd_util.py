@@ -36,9 +36,15 @@ def common_arg_parser():
     parser.add_argument('--dataset', help='dataset', type=str, default='mnist')
     parser.add_argument('--module',
                         help="""The module with the
-    given task. Actually resolves to pyroclast.module.module to
-    search for the task.""",
+                        given task. Actually resolves to pyroclast.module.module to
+                        search for the task.""",
                         type=str)
+    parser.add_argument('--submodule',
+                        help="""The submodule used. Changes the resolution to
+                        pyroclast.module.submodule. pyroclast.module.defaults is still
+                        used.""",
+                        type=str,
+                        default=None)
     parser.add_argument('--seed', help='RNG seed', type=int, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--resize_data_shape',
