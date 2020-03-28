@@ -2,10 +2,5 @@
 workers = 1
 default-scheduler-url = "https://pyroclast-luigi.gilgi.org/"
 
-[ShellConfig]
-preamble_path = "pyroclast_tasks/hcc_preamble.sh"
-tmp_path_prefix = "/work/scott/equint/tmp"
-keep_tmp_files = true
-
 [TrainTask]
 base_path = '/common/scott/equint/pyroclast/'

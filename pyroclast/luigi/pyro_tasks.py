@@ -7,7 +7,7 @@ import random
 from pyroclast.luigi.train_task import TrainTask
 
 
-class TopTask(luigi.Task):
+class TopTask(luigi.WrapperTask):
 
     def requires(self):
         return self.train_tasks()
@@ -26,6 +26,3 @@ class TopTask(luigi.Task):
             for arg_vals in itertools.product(*arg_dict.values())
         ]
         return [TrainTask(**a) for a in args]
-
-    def complete(self):
-        return False
