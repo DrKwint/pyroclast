@@ -34,7 +34,7 @@ class TrainTask(luigi.Task):
         cmd_str += ' --batch_size {}'.format(self.batch_size)
         cmd_str += ' --learning_rate {}'.format(self.learning_rate)
         cmd_str += ' --seed {}'.format(self.seed)
-        subprocess.run(cmd_str.split(' '), check=True, capture_output=True)
+        subprocess.run(cmd_str.split(' '), check=True)
 
     def output(self):
         return {
