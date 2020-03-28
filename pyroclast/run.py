@@ -44,8 +44,8 @@ def get_module(module_name, submodule=None):
     return module
 
 
-def get_task_function(module, func_name):
-    return getattr(get_module(module), func_name)
+def get_task_function(module, func_name, submodule=None):
+    return getattr(get_module(module, submodule), func_name)
 
 
 def get_task_function_defaults(module_name, dataset):
@@ -59,7 +59,7 @@ def get_task_function_defaults(module_name, dataset):
 
 def run_task(args, extra_args):
     # load data
-    task_func = get_task_function(args.module, args.task)
+    task_func = get_task_function(args.module, args.task, args.submodule)
     module_kwargs = get_task_function_defaults(args.module, args.dataset)
     module_kwargs.update(extra_args)
     if check_datasets(args.dataset):
