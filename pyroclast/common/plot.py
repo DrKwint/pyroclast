@@ -1,14 +1,26 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 
-def plot_grads(images, models, model_names, image_shape, num_classes, **kw):
-    image_tensors = [images]
+def plot_grads(images,
+               models,
+               model_names,
+               image_shape,
+               num_classes,
+               debug=False,
+               **kw):
+    image_tensors = [[x] for x in tf.split(images, images.shape[0])]
     for j in range(len(models)):
-        image_tensors.append(models[j].certainty_sensitivity(
-            images, num_classes))
-    plot_images(image_tensors)
+        output = tf.split(models[j].certainty_sensitivity(images, num_classes),
+                          images.shape[0])
+        for i, o in enumerate(output):
+            image_tensors[i].append(o)
+
+    plot_images(image_tensors,
+                col_labels=['original'] + model_names,
+                cmap='seismic')
     plt.show()
 
 

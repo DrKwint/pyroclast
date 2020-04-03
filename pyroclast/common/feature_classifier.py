@@ -3,6 +3,7 @@ import abc
 import numpy as np
 import sonnet as snt
 import tensorflow as tf
+from tqdm import tqdm
 
 from pyroclast.common.adversarial import fast_gradient_method
 from pyroclast.common.tf_util import OnePassCorrelation
@@ -73,7 +74,11 @@ class FeatureClassifierMixin(abc.ABC):
         feature_ids = tf.argsort(weights, direction='DESCENDING')
         return (feature_ids, weights)
 
-    def usefulness(self, iterable, num_classes, is_preprocessed=False):
+    def usefulness(self,
+                   iterable,
+                   num_classes,
+                   is_preprocessed=False,
+                   debug=False):
         """Finds maximal rho per feature/class pair such that the model is rho-useful over the dataset D
 
         Args:
@@ -99,6 +104,9 @@ class FeatureClassifierMixin(abc.ABC):
                            tf.float32)
 
         corr_calc = OnePassCorrelation()
+        if debug:
+            print("Calculating usefulness...")
+            iterable = tqdm(iterable)
         for x, y in iterable:
             labels = tf.expand_dims(get_one_hot(y, num_classes), -2)
             features = tf.expand_dims(get_features(x), -1)

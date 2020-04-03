@@ -1,0 +1,6 @@
+[core]
+workers = 1
+default-scheduler-url = "https://pyroclast-luigi.gilgi.org/"
+
+[TrainTask]
+base_path = '/common/scott/equint/pyroclast/'

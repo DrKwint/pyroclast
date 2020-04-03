@@ -273,37 +273,38 @@ def plot_input_grads(data_dict,
     args_template = args
 
     models = {}
-    if not os.path.exists('mnist_normal'):
-        model_name = 'mnist_normal'
-        models[model_name] = learn(**args)
-
-    for lambd in [1e0, 1e1, 1e2]:
-        for alpha in [0., 1e0, 1e1, 1e2]:
+    for lambd in [0., 1e0, 1e1, 1e2]:
+        for alpha in [0., 1e0, 1e1]:
+            if lambd == 0. and alpha > 0.:
+                continue
             args = copy.copy(args_template)
             args['lambd'] = lambd
             args['alpha'] = alpha
             model_name = 'mnist_lambd{:1.0e}_alpha{:1.0e}'.format(lambd, alpha)
-            if not os.path.exists(model_name):
-                models[model_name] = learn(**args)
+            objects = build_savable_objects(
+                args['conv_stack_name'], args['data_dict'],
+                args['learning_rate'],
+                os.path.join(args['output_dir'], model_name), model_name)
+            model = objects['model']
+            checkpoint = objects['checkpoint']
+            ckpt_manager = objects['ckpt_manager']
+            if ckpt_manager.latest_checkpoint is not None:
+                checkpoint.restore(
+                    ckpt_manager.latest_checkpoint).expect_partial()
             else:
-                objects = build_savable_objects(args['conv_stack_name'],
-                                                args['data_dict'],
-                                                args['learning_rate'],
-                                                args['output_dir'], model_name)
-                model = objects['model']
-                checkpoint = objects['checkpoint']
-                ckpt_manager = objects['ckpt_manager']
-                if ckpt_manager.latest_checkpoint is not None:
-                    checkpoint.restore(ckpt_manager.latest_checkpoint)
-                else:
-                    print(
-                        "Wrong directory for output_dir {}?".format(model_name))
-                models[model_name] = model
+                print("Wrong directory for output_dir {}?".format(model_name))
+                continue
+            model_name = 'lambda {}\nalpha {}'.format(lambd, alpha)
+            models[model_name] = model
 
     for batch in data_dict['test']:
-        fig = plot_grads(tf.cast(batch['image'], tf.float32),
-                         list(models.values()), list(models.keys()),
-                         data_dict['shape'], data_dict['num_classes'])
+        fig = plot_grads(tf.cast(batch['image'][:5], tf.float32) / 255.,
+                         list(models.values()),
+                         list(models.keys()),
+                         data_dict['shape'],
+                         data_dict['num_classes'],
+                         debug=debug)
+        break
     plt.savefig('input_grads.png')
 
 
@@ -313,7 +314,7 @@ def visualize_feature_perturbations(data_dict,
                                     debug,
                                     conv_stack_name='tiny_net'):
     objects = build_savable_objects(conv_stack_name, data_dict, 2e-4,
-                                    output_dir, 'generic_classifier')
+                                    output_dir, 'features_model')
     model = objects['model']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
@@ -323,28 +324,27 @@ def visualize_feature_perturbations(data_dict,
         print("Wrong directory for output_dir {}?".format(output_dir))
 
     # calculate usefulness
-    """
-    usefulness = model.usefulness(
-        data_dict['train'].map(lambda x:
-                               (tf.cast(x['image'], tf.float32), x['label'])),
-        data_dict['num_classes'])
+    usefulness = model.usefulness(data_dict['train'].map(
+        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
+                                  data_dict['num_classes'],
+                                  debug=debug)
     heatmap(usefulness,
             output_dir + '/' + 'mnist_lambd1' + '_rho_usefulness.png',
             'rho usefulness')
-    """
 
     for batch in data_dict['train']:
+        if batch['label'][0] != 9:
+            continue
         original = tf.cast(tf.expand_dims(batch['image'][0], 0), tf.float32)
         features = model.features(original)
-        features_len = features.shape[0]
-        max_feature = tf.argmax(features)
-        print(max_feature)
         found = model.input_search(
             original,
             model.features(original) *
-            (tf.ones(features_len) - tf.one_hot(max_feature, features_len)))
-        print(model.features(original)[max_feature])
-        print(model.features(found)[max_feature])
+            (1. - tf.one_hot(85, features.shape[-1])))
+        print('Original value:', tf.squeeze(model.features(original))[85])
+        print('Found value:', tf.squeeze(model.features(found))[85])
+        print('Original class logits', model.logits(original))
+        print('Found class logits', model.logits(found))
         break
 
     plt.imshow(tf.squeeze(original))

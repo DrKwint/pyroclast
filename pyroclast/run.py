@@ -2,13 +2,14 @@ import json
 import os
 import sys
 from importlib import import_module
+from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
 from pyroclast.common.cmd_util import common_arg_parser, parse_unknown_args
-from pyroclast.common.tf_util import setup_tfds
 from pyroclast.common.datasets import check_datasets, get_dataset_builder
+from pyroclast.common.tf_util import setup_tfds
 
 tf.compat.v1.enable_eager_execution()
 
@@ -34,7 +35,7 @@ def get_module(module_name, submodule=None):
     submodule = submodule or module_name
     try:
         # first try to import the module from baselines
-        module = import_module('.'.join(['pyroclast', module_name, submodule]))
+        module = import_module('.'.join(['pyroclast', module_name]))
     except ImportError:
         print('failed to import from {}'.format('.'.join(
             ['pyroclast', module_name])))
@@ -109,6 +110,9 @@ def main(args):
             }, p_file)
 
     model = run_task(args, extra_args)
+
+    # signal completion
+    (Path(args.output_dir) + 'done').touch()
 
 
 if __name__ == '__main__':
