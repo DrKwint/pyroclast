@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import sklearn
-from sklearn import tree
+from sklearn
 
 from pyroclast.cpvae.util import ensure_dir_exists
 

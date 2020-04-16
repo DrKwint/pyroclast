@@ -3,7 +3,6 @@ import os
 import re
 
 import matplotlib.pyplot as plt
-import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -11,9 +10,8 @@ from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
 from pyroclast.common.plot import plot_grads
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
-from pyroclast.common.util import dummy_context_mgr, heatmap
+from pyroclast.common.util import heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
-from pyroclast.features.networks import ross_net
 
 
 # define minibatch fn

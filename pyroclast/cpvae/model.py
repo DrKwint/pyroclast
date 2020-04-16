@@ -1,7 +1,5 @@
 import numpy as np
-import sklearn.tree
 import tensorflow as tf
-import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
 
 from pyroclast.common.tf_util import img_discretized_logistic_log_prob

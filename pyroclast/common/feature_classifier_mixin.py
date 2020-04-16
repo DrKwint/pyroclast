@@ -1,6 +1,5 @@
 import abc
 
-import numpy as np
 import sonnet as snt
 import tensorflow as tf
 from tqdm import tqdm
@@ -34,7 +33,6 @@ class FeatureClassifierMixin(abc.ABC):
         Returns:
            features (tf.Tensor): Features of each data in the input [batch_size, num_features]
         """
-        pass
 
     @abc.abstractmethod
     def classify_features(self, features):
@@ -46,7 +44,6 @@ class FeatureClassifierMixin(abc.ABC):
         Returns:
            logits (tf.Tensor): Output of shape [batch_size, num_classes]
         """
-        pass
 
     @abc.abstractmethod
     def get_classification_module(self):
@@ -55,7 +52,6 @@ class FeatureClassifierMixin(abc.ABC):
         returns:
            feature_variables (tf.Module): The classification module
         """
-        pass
 
     def feature_importance_for_class(self, data_dict, class_idx):
         """Finds the relative importance of features to a given class

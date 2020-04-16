@@ -1,7 +1,5 @@
 import os
 
-import tensorflow as tf
-from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import numpy as np
@@ -22,19 +20,6 @@ def center_crop(x, crop_size):
     j = int(round((h - crop_size) / 2.))
     i = int(round((w - crop_size) / 2.))
     return x[j:j + crop_size, i:i + crop_size]
-
-
-def img_preprocess(d, crop_size):
-    x = center_crop(d['image'], crop_size)
-    d['image'] = (tf.cast(x, tf.float32) / 127.5) - 1
-    return d
-
-
-def img_postprocess(x):
-    if len(x.shape) == 3 and x.shape[-1] == 3:
-        return Image.fromarray(((x + 1) * 127.5).astype('uint8'), mode='RGB')
-    else:
-        return Image.fromarray(((x + 1) * 127.5).astype('uint8'))
 
 
 def ensure_dir_exists(dir_path):

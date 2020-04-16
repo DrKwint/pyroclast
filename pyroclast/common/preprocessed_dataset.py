@@ -15,7 +15,7 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
 
-class PreprocessedDataset(object):
+class PreprocessedDataset():
 
     def __init__(self,
                  ds,
