@@ -112,7 +112,7 @@ def main(args):
     model = run_task(args, extra_args)
 
     # signal completion
-    (Path(args.output_dir) + 'done').touch()
+    (Path(args.output_dir) / 'done').touch()
 
 
 if __name__ == '__main__':

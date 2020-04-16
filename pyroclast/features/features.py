@@ -26,7 +26,7 @@ def run_minibatch(model,
                   num_classes,
                   lambd,
                   alpha,
-                  writer,
+                  writer=None,
                   is_train=True):
     """
     Args:
@@ -44,6 +44,7 @@ def run_minibatch(model,
         with tf.GradientTape() as inner_tape:
             inner_tape.watch(x)
             y_hat = model(x)
+            prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
 
             # classification loss
             classification_loss = tf.nn.softmax_cross_entropy_with_logits(
@@ -77,28 +78,49 @@ def run_minibatch(model,
         optimizer.apply_gradients(zip(gradients, train_vars))
 
     # log to TensorBoard
-    prefix = 'train_' if is_train else 'validate_'
-    with writer.as_default():
-        prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
-        classification_rate = tf.reduce_mean(
-            tf.cast(tf.equal(prediction, labels), tf.float32))
-        tf.summary.scalar(prefix + "classification_rate",
-                          classification_rate,
-                          step=global_step)
-        tf.summary.scalar(prefix + "loss/mean classification",
-                          tf.reduce_mean(classification_loss),
-                          step=global_step)
-        tf.summary.scalar(prefix + "loss/mean input gradient regularization",
-                          lambd * tf.reduce_mean(input_grad_reg_loss),
-                          step=global_step)
-        tf.summary.scalar(prefix + "loss/mean total loss",
-                          mean_total_loss,
-                          step=global_step)
+    if writer is not None:
+        prefix = 'train_' if is_train else 'validate_'
+        with writer.as_default():
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(prediction, labels), tf.float32))
+            tf.summary.scalar(prefix + "classification_rate",
+                              classification_rate,
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean classification",
+                              tf.reduce_mean(classification_loss),
+                              step=global_step)
+            tf.summary.scalar(prefix +
+                              "loss/mean input gradient regularization",
+                              lambd * tf.reduce_mean(input_grad_reg_loss),
+                              step=global_step)
+            tf.summary.scalar(prefix + "loss/mean total loss",
+                              mean_total_loss,
+                              step=global_step)
     loss_numerator = tf.reduce_sum(classification_loss)
     accuracy_numerator = tf.reduce_sum(
         tf.cast(tf.equal(prediction, labels), tf.int32))
     denominator = x.shape[0]
     return loss_numerator, accuracy_numerator, denominator
+
+
+def calculate_loss(dataset, model, num_classes, lambd, alpha):
+    loss_numerator = 0
+    loss_denominator = 0
+    dummy_var = tf.Variable(initial_value=0)
+    for batch in dataset:
+        l, _, d = run_minibatch(model,
+                                optimizer=None,
+                                global_step=dummy_var,
+                                epoch=0,
+                                batch=batch,
+                                num_classes=num_classes,
+                                lambd=lambd,
+                                alpha=alpha,
+                                writer=None,
+                                is_train=False)
+        loss_numerator += l
+        loss_denominator += d
+    return loss_numerator / float(loss_denominator)
 
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
@@ -108,7 +130,8 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     else:
         train_model = model.classifier
 
-    for epoch in range(early_stopping.max_epochs):
+    base_epoch = global_step // (data_dict['train_bpe'] + data_dict['test_bpe'])
+    for epoch in range(base_epoch + 1, early_stopping.max_epochs):
         # train
         train_batches = data_dict['train']
         num_classes = data_dict['num_classes']
@@ -224,6 +247,12 @@ def learn(data_dict,
     global_step = objects['global_step']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
+    early_stopping = EarlyStopping(patience,
+                                   ckpt_manager=ckpt_manager,
+                                   eps=0.03,
+                                   max_epochs=max_epochs)
+    if ckpt_manager.latest_checkpoint is not None:
+        checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
 
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
@@ -242,19 +271,8 @@ def learn(data_dict,
     else:
         train_data = data_dict
 
-    early_stopping = EarlyStopping(patience,
-                                   ckpt_manager,
-                                   eps=0.03,
-                                   max_epochs=max_epochs)
     train(train_data, model, optimizer, global_step, writer, early_stopping,
           (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
-
-    usefulness = model.usefulness(train_data['test'].map(
-        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-                                  train_data['num_classes'],
-                                  is_preprocessed=is_preprocessed)
-    heatmap(usefulness, output_dir + '/' + model_name + '_rho_usefulness.png',
-            'rho usefulness')
 
     return model
 

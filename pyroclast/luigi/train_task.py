@@ -4,8 +4,6 @@ import subprocess
 
 
 class TrainTask(luigi.Task):
-    base_path = luigi.Parameter()
-
     dataset = luigi.Parameter()
     batch_size = luigi.IntParameter()
     seed = luigi.IntParameter()
@@ -34,13 +32,11 @@ class TrainTask(luigi.Task):
         cmd_str += ' --batch_size {}'.format(self.batch_size)
         cmd_str += ' --learning_rate {}'.format(self.learning_rate)
         cmd_str += ' --seed {}'.format(self.seed)
+        cmd_str += ' --lambd {}'.format(self.lambd)
         subprocess.run(cmd_str.split(' '), check=True)
 
     def output(self):
         return {
             "success":
-                luigi.LocalTarget(
-                    osp.join(self.get_output_dir(), 'final_log.txt')),
-            "model":
-                luigi.LocalTarget(osp.join(self.get_output_dir(), 'model'))
+                luigi.LocalTarget(osp.join(self.get_output_dir(), 'done'))
         }
