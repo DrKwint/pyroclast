@@ -40,17 +40,12 @@ jedi==0.16.0
 Jinja2==2.10.3
 joblib==0.14.1
 jsonschema==3.2.0
-jupyter==1.0.0
-jupyter-client==6.0.0
-jupyter-console==6.1.0
-jupyter-core==4.6.3
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
 kiwisolver==1.1.0
 lazy-object-proxy==1.4.3
 lockfile==0.12.2
 luigi==2.8.12
-luigi-runner==0.1
 Markdown==3.1.1
 MarkupSafe==1.1.1
 matplotlib==3.1.2
