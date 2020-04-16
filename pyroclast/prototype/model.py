@@ -55,8 +55,8 @@ class ProtoPNet(FeatureClassifierMixin, tf.Module):
             self.prototype_class_identity = np.zeros(
                 [num_prototypes, num_classes], dtype=np.float32)
             for j in range(num_prototypes):
-                self.prototype_class_identity[j,
-                                              j // num_prototypes_per_class] = 1
+                self.prototype_class_identity[j, j //
+                                              num_prototypes_per_class] = 1
 
             # create classifier
             classifier_kernel_init = lambda shape, dtype: -0.5 * tf.ones(

@@ -45,9 +45,7 @@ class DDT(tf.Module):
                                      rounded=True)
 
 
-def get_decision_tree_boundaries(tree,
-                                 feature_num,
-                                 class_num,
+def get_decision_tree_boundaries(tree, feature_num, class_num,
                                  boundary_val=100):
     """
     Args:

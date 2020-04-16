@@ -51,7 +51,8 @@ def build_model(optimizer_name, encoder_name, decoder_name, learning_rate,
 def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
                                      latent_dimension):
     # update class stats
-    if len(labels.shape) > 1: labels = np.argmax(labels, axis=1)
+    if len(labels.shape) > 1:
+        labels = np.argmax(labels, axis=1)
     class_locs = np.zeros([class_num, latent_dimension])
     class_scales = np.zeros([class_num, latent_dimension])
     sum_sq = tf.square(scale_diag) + tf.square(loc)
