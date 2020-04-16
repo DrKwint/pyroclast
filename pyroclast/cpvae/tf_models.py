@@ -12,15 +12,12 @@ class VAEEncoder(tf.keras.Model):
         self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
         self.scale = tf.keras.layers.Dense(latent_dim,
                                            name='encoder_scale_diag_raw')
+        self.flatten = tf.keras.layers.Flatten()
 
     def call(self, x):
-        embed = tf.reshape(self.net(x), [x.shape[0], -1])
+        embed = self.flatten(self.net(x))
         inv_softplus_scale = self.scale(embed)
-        if not tf.reduce_all(tf.math.is_finite(inv_softplus_scale)):
-            print("inv_softplus_scale encoder ISN'T FINITE")
         scale = tf.nn.softplus(inv_softplus_scale) + 1e-6
-        if not tf.reduce_all(tf.math.is_finite(scale)):
-            print("scale encoder ISN'T FINITE")
         return self.loc(embed), scale
 
 
@@ -37,11 +34,13 @@ class VAEDecoder(tf.keras.Model):
                                           3,
                                           padding="same",
                                           name='decoder_loc')
-        self.log_scale = tf.keras.layers.Conv2D(output_channels,
-                                                3,
-                                                padding="same",
-                                                name='decoder_log_scale')
+        self.inv_softplus_scale = tf.keras.layers.Conv2D(
+            output_channels,
+            3,
+            padding="same",
+            name='decoder_inv_softplus_scale')
 
     def call(self, z):
         latent = self.net(z)
-        return self.loc(latent), self.log_scale(latent)
+        return self.loc(latent), tf.nn.softplus(
+            self.inv_softplus_scale(latent)) + 1e-6

@@ -5,31 +5,28 @@ import sklearn
 import tensorflow as tf
 
 from pyroclast.common.util import ensure_dir_exists
-from pyroclast.cpvae.model import CpVAE
-from pyroclast.cpvae.ddt import (get_decision_tree_boundaries,
-                                 transductive_box_inference)
-from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 from pyroclast.cpvae.ddt import DDT
+from pyroclast.cpvae.distributions import (DISCRETIZED_LOGISTIC_FN,
+                                           GAUSSIAN_POSTERIOR_FN,
+                                           GAUSSIAN_PRIOR_FN)
+from pyroclast.cpvae.model import TreeVAE
+from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 
 
-def build_model(optimizer_name, encoder_name, decoder_name, learning_rate,
-                num_classes, num_channels, latent_dim, output_dist,
-                max_tree_depth, max_tree_leaf_nodes):
+def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
+                           learning_rate, num_classes, num_channels, latent_dim,
+                           output_dist, max_tree_depth, model_dir, model_name):
     # model
     encoder = VAEEncoder(encoder_name, latent_dim)
     decoder = VAEDecoder(decoder_name, num_channels)
-    decision_tree = sklearn.tree.DecisionTreeClassifier(
-        max_depth=max_tree_depth,
-        min_weight_fraction_leaf=0.01,
-        max_leaf_nodes=max_tree_leaf_nodes)
-    ddt = DDT(decision_tree, num_classes)
-    model = CpVAE(encoder,
-                  decoder,
-                  ddt,
-                  latent_dimension=latent_dim,
-                  class_num=num_classes,
-                  box_num=max_tree_leaf_nodes,
-                  output_dist=output_dist)
+    ddt = DDT(max_tree_depth)
+    model = TreeVAE(encoder=encoder,
+                    posterior_fn=GAUSSIAN_POSTERIOR_FN,
+                    decoder=decoder,
+                    classifier=ddt,
+                    prior=GAUSSIAN_PRIOR_FN(latent_dim),
+                    output_distribution_fn=DISCRETIZED_LOGISTIC_FN,
+                    use_analytic_classifier=True)
 
     # optimizer
     if optimizer_name == 'adam':
@@ -45,7 +42,27 @@ def build_model(optimizer_name, encoder_name, decoder_name, learning_rate,
     # global_step
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
-    return model, optimizer, global_step
+    # checkpoint
+    save_dict = {
+        model_name + '_optimizer': optimizer,
+        model_name + '_model': model,
+        model_name + '_global_step': global_step
+    }
+    checkpoint = tf.train.Checkpoint(**save_dict)
+
+    # checkpoint manager
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=model_dir,
+                                              max_to_keep=3)
+
+    return {
+        'model': model,
+        'optimizer': optimizer,
+        'global_step': global_step,
+        'checkpoint': checkpoint,
+        'ckpt_manager': ckpt_manager,
+        'classifier': ddt
+    }
 
 
 def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,

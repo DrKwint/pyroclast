@@ -1,6 +1,13 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
+import tqdm
 import tensorflow_datasets as tfds
+
+import tensorflow_datasets as tfds
+
+tfd = tfp.distributions
+tfb = tfp.bijectors
 
 
 def setup_tfds(dataset,

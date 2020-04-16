@@ -7,7 +7,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
-from pyroclast.common.models import get_network_builder
+from pyroclast.features.networks import get_network_builder
 from pyroclast.common.plot import plot_grads
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
 from pyroclast.common.util import heatmap
