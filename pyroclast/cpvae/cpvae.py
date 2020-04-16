@@ -1,4 +1,4 @@
-import functools
+import json
 import os
 import os.path as osp
 
@@ -8,12 +8,9 @@ from PIL import Image
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
-from pyroclast.common.util import dummy_context_mgr
 from pyroclast.cpvae.ddt import DDT
 from pyroclast.cpvae.util import build_saveable_objects
 from pyroclast.util import direct
-
-from pympler import muppy, summary
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -53,6 +50,7 @@ def setup(data_dict,
     global_step = objects['global_step']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
+    classifier = objects['classifier']
     writer = tf.summary.create_file_writer(output_dir)
 
     # load trained model, if available
@@ -64,24 +62,24 @@ def setup(data_dict,
         raise Exception("Model not loaded")
 
     # train a ddt
-    model.classifier.update_model_tree(data_dict['train'],
-                                       model.posterior,
-                                       oversample=oversample,
-                                       debug=debug)
-    model.classifier.save_dot(output_dir, 'initial')
+    classifier.update_model_tree(data_dict['train'],
+                                 model.encode,
+                                 oversample=oversample,
+                                 debug=debug)
+    classifier.save_dot(output_dir, 'initial')
     return model, optimizer, global_step, writer, checkpoint, ckpt_manager
 
 
 def outer_run_minibatch(
-    model,
-    optimizer,
-    global_step,
-    alpha,
-    beta,
-    gamma,
-    writer,
-    clip_norm=0.,
-    is_debug=False,
+        model,
+        optimizer,
+        global_step,
+        alpha,
+        beta,
+        gamma,
+        writer,
+        clip_norm=0.,
+        is_debug=False,
 ):
 
     def run_minibatch(epoch, data, labels, is_train=True, prefix='train'):
@@ -91,17 +89,15 @@ def outer_run_minibatch(
 
         with tf.GradientTape() as tape:
             global_step.assign_add(1)
-            x_hat_loc, y_hat, z_posterior, x_hat_scale = model(x)
+            z_posterior, y_hat = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
 
             distortion, rate = model.vae_loss(x,
-                                              x_hat_loc,
-                                              x_hat_scale,
                                               z_posterior,
-                                              y=labels)
+                                              y=labels,
+                                              training=is_train)
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels, logits=y_hat)
-            # classification_loss = classification_loss * float(epoch > gamma_delay)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
 
@@ -151,22 +147,22 @@ def outer_run_minibatch(
 
 
 def eval(
-    data_dict,
-    model,
-    optimizer,
-    global_step,
-    writer,
-    alpha,
-    beta,
-    gamma,
-    clip_norm,
-    tree_update_period,
-    num_samples,
-    checkpoint,
-    ckpt_manager,
-    output_dir,
-    oversample,
-    debug,
+        data_dict,
+        model,
+        optimizer,
+        global_step,
+        writer,
+        alpha,
+        beta,
+        gamma,
+        clip_norm,
+        tree_update_period,
+        num_samples,
+        checkpoint,
+        ckpt_manager,
+        output_dir,
+        oversample,
+        debug,
 ):
     run_minibatch_fn = outer_run_minibatch(model,
                                            optimizer,
@@ -204,7 +200,7 @@ def eval(
 
 def sample(model, num_samples, epoch, output_dir):
     for i in range(num_samples):
-        im = np.squeeze(model.sample()[0])
+        im = np.squeeze(model.sample_prior()[0])
         im = np.minimum(1., np.maximum(0., im))
         im = Image.fromarray((255. * im).astype(np.uint8))
         im.save(
@@ -213,7 +209,7 @@ def sample(model, num_samples, epoch, output_dir):
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
           alpha, beta, gamma, clip_norm, tree_update_period, num_samples,
-          checkpoint, ckpt_manager, output_dir, oversample, debug):
+          output_dir, oversample, debug):
     output_log_file = "file://" + osp.join(output_dir, 'train_log.txt')
     run_minibatch_fn = outer_run_minibatch(model,
                                            optimizer,
@@ -292,7 +288,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
             if debug:
                 tf.print('Updating decision tree')
             score = model.classifier.update_model_tree(data_dict['train'],
-                                                       model.posterior,
+                                                       model.encode,
                                                        oversample=oversample,
                                                        debug=debug)
             tf.print("Accuracy at DDT fit from sampling:",
@@ -304,28 +300,28 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
 
 
 def learn(
-    data_dict,
-    encoder,
-    decoder,
-    seed=None,
-    latent_dim=64,
-    epochs=1000,
-    oversample=1,
-    max_tree_depth=5,
-    max_tree_leaf_nodes=16,
-    tree_update_period=3,
-    optimizer='rmsprop',  # adam or rmsprop
-    learning_rate=3e-4,
-    output_dist='l2',  # disc_logistic or l2 or bernoulli
-    output_dir='./',
-    num_samples=5,
-    clip_norm=0.,
-    alpha=1.,
-    beta=1.,
-    gamma=1.,
-    gamma_delay=0,
-    patience=12,
-    debug=False):
+        data_dict,
+        encoder,
+        decoder,
+        seed=None,
+        latent_dim=64,
+        epochs=1000,
+        oversample=1,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=3e-4,
+        output_dist='l2',  # disc_logistic or l2 or bernoulli
+        output_dir='./',
+        num_samples=5,
+        clip_norm=0.,
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        gamma_delay=0,
+        patience=12,
+        debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
         data_dict,
         optimizer,
@@ -346,78 +342,33 @@ def learn(
                                    max_epochs=epochs)
     model = train(data_dict, model, optimizer, global_step, writer,
                   early_stopping, alpha, beta, gamma, clip_norm,
-                  tree_update_period, num_samples, checkpoint, ckpt_manager,
-                  output_dir, oversample, debug)
+                  tree_update_period, num_samples, output_dir, oversample,
+                  debug)
     return model
 
 
 @direct
-def direct_leaf_walk(
-    data_dict,
-    encoder,
-    decoder,
-    seed,
-    latent_dim,
-    epochs,
-    oversample,
-    max_tree_depth,
-    max_tree_leaf_nodes,
-    tree_update_period,
-    optimizer,  # adam or rmsprop
-    learning_rate,
-    output_dist,  # disc_logistic or l2 or bernoulli
-    output_dir,
-    num_samples,
-    clip_norm,
-    alpha,
-    beta,
-    gamma,
-    gamma_delay=0,
-    patience=12,
-    debug=False):
-    model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
-        data_dict,
-        optimizer,
-        encoder,
-        decoder,
-        learning_rate,
-        latent_dim,
-        output_dist,
-        max_tree_depth,
-        max_tree_leaf_nodes,
-        output_dir,
-        oversample,
-        debug,
-        expect_load=True)
-    loss = eval(data_dict, model, optimizer, global_step, writer, alpha, beta,
-                gamma, clip_norm, tree_update_period, num_samples, checkpoint,
-                ckpt_manager, output_dir, oversample, debug)
-
-
-@direct
 def direct_eval(
-    data_dict,
-    encoder,
-    decoder,
-    seed,
-    latent_dim,
-    epochs,
-    oversample,
-    max_tree_depth,
-    max_tree_leaf_nodes,
-    tree_update_period,
-    optimizer,  # adam or rmsprop
-    learning_rate,
-    output_dist,  # disc_logistic or l2 or bernoulli
-    output_dir,
-    num_samples,
-    clip_norm,
-    alpha,
-    beta,
-    gamma,
-    gamma_delay=0,
-    patience=12,
-    debug=False):
+        data_dict,
+        encoder,
+        decoder,
+        seed,
+        latent_dim,
+        oversample,
+        max_tree_depth,
+        max_tree_leaf_nodes,
+        tree_update_period,
+        optimizer,  # adam or rmsprop
+        learning_rate,
+        output_dist,  # disc_logistic or l2 or bernoulli
+        output_dir,
+        num_samples,
+        clip_norm,
+        alpha,
+        beta,
+        gamma,
+        gamma_delay=0,
+        debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
         data_dict,
         optimizer,
@@ -435,38 +386,36 @@ def direct_eval(
     loss = eval(data_dict, model, optimizer, global_step, writer, alpha, beta,
                 gamma, clip_norm, tree_update_period, num_samples, checkpoint,
                 ckpt_manager, output_dir, oversample, debug)
-    import json
     with open(osp.join(output_dir, 'final_loss.json'), 'w') as json_file:
         json.dump(loss, json_file)
 
 
 @direct
 def direct_learn(
-    data_dict,
-    encoder,
-    decoder,
-    seed=None,
-    latent_dim=64,
-    epochs=1000,
-    oversample=10,
-    max_tree_depth=5,
-    max_tree_leaf_nodes=16,
-    tree_update_period=3,
-    optimizer='rmsprop',  # adam or rmsprop
-    learning_rate=3e-4,
-    output_dist='l2',  # disc_logistic or l2 or bernoulli
-    output_dir='./',
-    num_samples=5,
-    clip_norm=0.,
-    alpha=1.,
-    beta=1.,
-    gamma=1.,
-    gamma_delay=0,
-    patience=12,
-    batch_size=128,
-    debug=False):
+        data_dict,
+        encoder,
+        decoder,
+        seed=None,
+        latent_dim=64,
+        epochs=1000,
+        oversample=10,
+        max_tree_depth=5,
+        max_tree_leaf_nodes=16,
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=3e-4,
+        output_dist='l2',  # disc_logistic or l2 or bernoulli
+        output_dir='./',
+        num_samples=5,
+        clip_norm=0.,
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        patience=12,
+        batch_size=128,
+        debug=False):
     tf.random.set_seed(seed)
-    model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
+    model, optimizer, global_step, writer, _, ckpt_manager = setup(
         data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
         output_dist, max_tree_depth, max_tree_leaf_nodes, output_dir,
         oversample, debug)
@@ -477,6 +426,6 @@ def direct_learn(
                                    max_epochs=epochs)
     model = train(data_dict, model, optimizer, global_step, writer,
                   early_stopping, alpha, beta, gamma, clip_norm,
-                  tree_update_period, num_samples, checkpoint, ckpt_manager,
-                  output_dir, oversample, debug)
+                  tree_update_period, num_samples, output_dir, oversample,
+                  debug)
     return model

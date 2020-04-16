@@ -5,9 +5,12 @@ import sklearn
 import tensorflow as tf
 
 from pyroclast.common.util import ensure_dir_exists
-from pyroclast.cpvae.model import CpVAE
-from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 from pyroclast.cpvae.ddt import DDT
+from pyroclast.cpvae.distributions import (DISCRETIZED_LOGISTIC_FN,
+                                           GAUSSIAN_POSTERIOR_FN,
+                                           GAUSSIAN_PRIOR_FN)
+from pyroclast.cpvae.model import TreeVAE
+from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 
 
 def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
@@ -17,13 +20,13 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
     encoder = VAEEncoder(encoder_name, latent_dim)
     decoder = VAEDecoder(decoder_name, num_channels)
     ddt = DDT(max_tree_depth)
-    model = CpVAE(encoder,
-                  decoder,
-                  ddt,
-                  latent_dimension=latent_dim,
-                  class_num=num_classes,
-                  output_dist=output_dist,
-                  is_class_prior=True)
+    model = TreeVAE(encoder=encoder,
+                    posterior_fn=GAUSSIAN_POSTERIOR_FN,
+                    decoder=decoder,
+                    classifier=ddt,
+                    prior=GAUSSIAN_PRIOR_FN(latent_dim),
+                    output_distribution_fn=DISCRETIZED_LOGISTIC_FN,
+                    use_analytic_classifier=True)
 
     # optimizer
     if optimizer_name == 'adam':
@@ -57,7 +60,8 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
         'optimizer': optimizer,
         'global_step': global_step,
         'checkpoint': checkpoint,
-        'ckpt_manager': ckpt_manager
+        'ckpt_manager': ckpt_manager,
+        'classifier': ddt
     }
 
 

@@ -4,7 +4,6 @@ import numpy as np
 import sklearn
 import tensorflow as tf
 import tensorflow_probability as tfp
-from sklearn import tree
 from tqdm import tqdm
 
 tfd = tfp.distributions
@@ -17,10 +16,13 @@ class DDT(tf.Module):
         self.decision_tree = sklearn.tree.DecisionTreeClassifier(
             max_depth=max_depth)
 
-    def __call__(self, loc, scale_diag):
+    def classify_analytic(self, loc, scale_diag):
         return transductive_box_inference(loc, scale_diag, self.dims,
                                           self.threshold, self.leaf_class_prob,
                                           self.r_mask)
+
+    def classify_numerical(self, z_posterior):
+        raise Exception()
 
     def update_model_tree(self, ds, posterior_fn, oversample, debug):
         repeated_ds = ds.repeat(oversample)
@@ -50,13 +52,13 @@ class DDT(tf.Module):
                                      rounded=True)
 
 
-def get_decision_tree_boundaries(tree):
+def get_decision_tree_boundaries(dtree):
     # grab tree features
-    children_left = tree.tree_.children_left
-    children_right = tree.tree_.children_right
-    feature = tree.tree_.feature
-    threshold = tree.tree_.threshold
-    value = tree.tree_.value
+    children_left = dtree.tree_.children_left
+    children_right = dtree.tree_.children_right
+    feature = dtree.tree_.feature
+    threshold = dtree.tree_.threshold
+    value = dtree.tree_.value
 
     # calculate useful numbers
     leaves = np.where(children_left == -1)[0]

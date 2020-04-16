@@ -3,7 +3,6 @@ import tensorflow as tf
 from absl.testing import parameterized
 
 from pyroclast.common.tf_util import setup_tfds
-from pyroclast.cpvae.model import CpVAE
 from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 from pyroclast.cpvae.ddt import DDT
 
