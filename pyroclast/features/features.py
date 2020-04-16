@@ -16,6 +16,89 @@ from pyroclast.features.generic_classifier import GenericClassifier
 from pyroclast.features.networks import ross_net
 
 
+# define minibatch fn
+@tf.function
+def run_minibatch(model,
+                  optimizer,
+                  global_step,
+                  epoch,
+                  batch,
+                  num_classes,
+                  lambd,
+                  alpha,
+                  writer,
+                  is_train=True):
+    """
+    Args:
+        model (tf.Module):
+        optimizer (tf.Optimizer):
+        global_step (Tensor):
+        epoch (int): Epoch of training for logging
+        batch (dict): dict from dataset
+        writer (tf.summary.SummaryWriter):
+        is_train (bool): Optional, run backwards pass if True
+    """
+    x = tf.cast(batch['image'], tf.float32) / 255.
+    labels = tf.cast(batch['label'], tf.int32)
+    with tf.GradientTape() as tape:
+        with tf.GradientTape() as inner_tape:
+            inner_tape.watch(x)
+            y_hat = model(x)
+
+            # classification loss
+            classification_loss = tf.nn.softmax_cross_entropy_with_logits(
+                labels=tf.one_hot(labels, num_classes), logits=y_hat)
+
+        if lambd != 0.:
+            # input gradient regularization
+            grad = inner_tape.gradient(y_hat, x)
+            input_grad_reg_loss = tf.math.square(tf.norm(grad, 2))
+
+            if alpha != 0.:
+                grad_masked_y_hat = model(x * grad)
+                grad_masked_classification_loss = tf.nn.softmax_cross_entropy_with_logits(
+                    labels=tf.one_hot(labels, num_classes),
+                    logits=grad_masked_y_hat)
+            else:
+                grad_masked_classification_loss = 0.
+        else:
+            input_grad_reg_loss = 0.
+            grad_masked_classification_loss = 0.
+
+        # total loss
+        total_loss = classification_loss + (lambd * input_grad_reg_loss) + (
+            alpha * grad_masked_classification_loss)
+        mean_total_loss = tf.reduce_mean(total_loss)
+        global_step.assign_add(1)
+
+    if is_train:
+        train_vars = model.trainable_variables
+        gradients = tape.gradient(mean_total_loss, train_vars)
+        optimizer.apply_gradients(zip(gradients, train_vars))
+
+    # log to TensorBoard
+    prefix = 'train_' if is_train else 'validate_'
+    with writer.as_default():
+        prediction = tf.math.argmax(y_hat, axis=-1, output_type=tf.int32)
+        classification_rate = tf.reduce_mean(
+            tf.cast(tf.equal(prediction, labels), tf.float32))
+        tf.summary.scalar(prefix + "classification_rate",
+                          classification_rate,
+                          step=global_step)
+        tf.summary.scalar(prefix + "loss/mean classification",
+                          tf.reduce_mean(classification_loss),
+                          step=global_step)
+        tf.summary.scalar(prefix + "loss/mean input gradient regularization",
+                          lambd * tf.reduce_mean(input_grad_reg_loss),
+                          step=global_step)
+        tf.summary.scalar(prefix + "loss/mean total loss",
+                          mean_total_loss,
+                          step=global_step)
+    loss_numerator = tf.reduce_sum(classification_loss)
+    accuracy_numerator = tf.reduce_sum(
+        tf.cast(tf.equal(prediction, labels), tf.int32))
+    denominator = x.shape[0]
+    return loss_numerator, accuracy_numerator, denominator
 
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
@@ -25,8 +108,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     else:
         train_model = model.classifier
 
-    base_epoch = global_step // (data_dict['train_bpe'] + data_dict['test_bpe'])
-    for epoch in range(base_epoch + 1, early_stopping.max_epochs):
+    for epoch in range(early_stopping.max_epochs):
         # train
         train_batches = data_dict['train']
         num_classes = data_dict['num_classes']
@@ -87,6 +169,41 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     checkpoint.restore(ckpt_manager.latest_checkpoint).assert_consumed()
 
 
+def build_savable_objects(conv_stack_name, data_dict, learning_rate, model_dir,
+                          model_name):
+    global_step = tf.compat.v1.train.get_or_create_global_step()
+    if conv_stack_name == 'vgg19':
+        conv_stack = get_network_builder(conv_stack_name)(shape=[32, 32, 3])
+    else:
+        conv_stack = get_network_builder(conv_stack_name)()
+    classifier = tf.keras.Sequential(
+        [tf.keras.layers.Dense(data_dict['num_classes'])])
+
+    clean = lambda varStr: re.sub('\W|^(?=\d)', '_', varStr)
+    model = GenericClassifier(conv_stack, classifier, clean(model_name))
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
+                                         beta_1=0.5,
+                                         epsilon=10e-4)
+    save_dict = {
+        model_name + '_optimizer': optimizer,
+        model_name + '_model': model,
+        model_name + '_global_step': global_step
+    }
+    checkpoint = tf.train.Checkpoint(**save_dict)
+
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=os.path.join(
+                                                  model_dir, model_name),
+                                              max_to_keep=3)
+    return {
+        'model': model,
+        'optimizer': optimizer,
+        'global_step': global_step,
+        'checkpoint': checkpoint,
+        'ckpt_manager': ckpt_manager
+    }
+
+
 def learn(data_dict,
           seed,
           output_dir,
@@ -107,12 +224,6 @@ def learn(data_dict,
     global_step = objects['global_step']
     checkpoint = objects['checkpoint']
     ckpt_manager = objects['ckpt_manager']
-    early_stopping = EarlyStopping(patience,
-                                   ckpt_manager=ckpt_manager,
-                                   eps=0.03,
-                                   max_epochs=max_epochs)
-    if ckpt_manager.latest_checkpoint is not None:
-        checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
 
     writer = tf.summary.create_file_writer(output_dir)
     # setup checkpointing
@@ -131,6 +242,10 @@ def learn(data_dict,
     else:
         train_data = data_dict
 
+    early_stopping = EarlyStopping(patience,
+                                   ckpt_manager,
+                                   eps=0.03,
+                                   max_epochs=max_epochs)
     train(train_data, model, optimizer, global_step, writer, early_stopping,
           (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
 

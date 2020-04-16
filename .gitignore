@@ -4,6 +4,7 @@ docs_build/
 data/
 .DS_Store
 .preprocessed_data
+tmp/
 
 # Test stuff
 feature_classifier_test
