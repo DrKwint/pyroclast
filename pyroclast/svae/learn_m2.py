@@ -1,6 +1,5 @@
 from pyroclast.svae.models import build_classifier, build_encoder, build_decoder
 from pyroclast.svae.m2vae import M2VAE
-from pyroclast.common.data_registry import get_dataset
 
 import tensorflow as tf
 import tensorflow_probability as tfp

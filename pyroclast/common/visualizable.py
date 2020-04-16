@@ -1,5 +1,4 @@
 import abc
-import numpy as np
 import tensorflow as tf
 import sonnet as snt
 
@@ -22,7 +21,6 @@ class VisualizableMixin(abc.ABC):
         Returns:
             logits (tf.Tensor): shape [batch_size, num_classes]
         """
-        pass
 
     @property
     @abc.abstractmethod
@@ -35,7 +33,6 @@ class VisualizableMixin(abc.ABC):
         Returns:
            conv_layers (iterable of tf.Module): An iterable of layers in the convolution stack
         """
-        pass
 
     def activation_map(self, x, layer_index=-1):
         """Calculates the activation map of a layer of the convolution stack
@@ -140,7 +137,7 @@ class VisualizableMixin(abc.ABC):
         maps = snt.BatchApply(map_fn)(x + x_noise)
         maps = tf.math.reduce_sum(maps, axis=0)
         maps /= n
-        assert (maps.shape == x.shape)
+        assert maps.shape == x.shape
         return maps
 
     def smooth_grad(self, x, n=50, sigma=0.01):

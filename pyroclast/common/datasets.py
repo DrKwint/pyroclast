@@ -36,7 +36,7 @@ def get_dataset_builder(name):
     """
     if callable(name):
         return name
-    elif name in mapping:
+    if name in mapping:
         return mapping[name]
     else:
         raise ValueError('Unknown dataset: {}'.format(name))

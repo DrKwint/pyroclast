@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from pyroclast.prototype.prototype_layer import PrototypeLayer
-from pyroclast.common.feature_classifier import FeatureClassifierMixin
+from pyroclast.common.feature_classifier_mixin import FeatureClassifierMixin
 
 
 class ProtoPNet(FeatureClassifierMixin, tf.Module):

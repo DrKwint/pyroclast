@@ -3,7 +3,6 @@ import os
 import re
 
 import matplotlib.pyplot as plt
-import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -11,9 +10,8 @@ from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.common.models import get_network_builder
 from pyroclast.common.plot import plot_grads
 from pyroclast.common.preprocessed_dataset import PreprocessedDataset
-from pyroclast.common.util import dummy_context_mgr, heatmap
+from pyroclast.common.util import heatmap
 from pyroclast.features.generic_classifier import GenericClassifier
-from pyroclast.features.networks import ross_net
 
 
 # define minibatch fn
@@ -79,7 +77,7 @@ def run_minibatch(model,
     # log to TensorBoard
     prefix = 'train_' if is_train else 'validate_'
     with writer.as_default():
-        prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
+        prediction = tf.math.argmax(y_hat, axis=-1, output_type=tf.int32)
         classification_rate = tf.reduce_mean(
             tf.cast(tf.equal(prediction, labels), tf.float32))
         tf.summary.scalar(prefix + "classification_rate",
@@ -248,13 +246,6 @@ def learn(data_dict,
                                    max_epochs=max_epochs)
     train(train_data, model, optimizer, global_step, writer, early_stopping,
           (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
-
-    usefulness = model.usefulness(train_data['test'].map(
-        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-                                  train_data['num_classes'],
-                                  is_preprocessed=is_preprocessed)
-    heatmap(usefulness, output_dir + '/' + model_name + '_rho_usefulness.png',
-            'rho usefulness')
 
     return model
 

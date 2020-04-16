@@ -60,7 +60,7 @@ class VisualizableMixinTest(parameterized.TestCase):
     def test_sensitivity_map(self):
         for batch in self.ds['train']:
             x = tf.cast(batch['image'], tf.float32)
-            y = self.model(x)
+            self.model(x)
             input_sensitivity_maps = self.model.sensitivity_map(x)
             assert input_sensitivity_maps is not None
             assert input_sensitivity_maps.shape[0:3] == x.shape[0:3]
