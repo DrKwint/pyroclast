@@ -62,6 +62,5 @@ def arg_parser():
     """
     Create an empty argparse.ArgumentParser.
     """
-    import argparse
     return argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)

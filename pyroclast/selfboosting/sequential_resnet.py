@@ -1,7 +1,5 @@
-#import sonnet as snt
+import sonnet as snt
 import tensorflow as tf
-
-from pyroclast.selfboosting.residual_boosting_module import ResidualBoostingModule
 
 EPS = 1e-10
 

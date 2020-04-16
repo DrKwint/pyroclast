@@ -173,7 +173,8 @@ def learn(data_dict,
 
         # test
         test_batches = data_dict['test']
-        if debug: test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        if debug:
+            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
         print("TEST")
         loss_numerator = 0
         acc_numerator = 0
@@ -267,7 +268,8 @@ def learn(data_dict,
 
         # test
         test_batches = data_dict['test']
-        if debug: test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
+        if debug:
+            test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
         print("TEST")
         loss_numerator = 0
         acc_numerator = 0

@@ -5,6 +5,7 @@ import sklearn
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tqdm import tqdm
+import sklearn
 
 tfd = tfp.distributions
 
