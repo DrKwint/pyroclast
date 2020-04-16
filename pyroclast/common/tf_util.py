@@ -75,6 +75,7 @@ def calculate_accuracy(logits, label):
     accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
     return accuracy
 
+
 def correlation(a, b):
     mean_a = tf.math.reduce_mean(a)
     mean_b = tf.math.reduce_mean(b)
