@@ -1,5 +1,5 @@
 import tensorflow as tf
-from pyroclast.common.models import register
+from pyroclast.common.models import register, get_network_builder
 
 
 @register("ross_net")

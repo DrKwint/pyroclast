@@ -1,7 +1,7 @@
 import tensorflow as tf
 from absl.testing import parameterized
 
-from pyroclast.common.models import get_network_builder
+from pyroclast.features.networks import get_network_builder
 from pyroclast.common.tf_util import setup_tfds
 from pyroclast.features.features import build_savable_objects, run_minibatch
 
