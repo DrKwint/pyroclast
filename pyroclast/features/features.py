@@ -79,7 +79,7 @@ def run_minibatch(model,
     # log to TensorBoard
     prefix = 'train_' if is_train else 'validate_'
     with writer.as_default():
-        prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
+        prediction = tf.math.argmax(y_hat, axis=-1, output_type=tf.int32)
         classification_rate = tf.reduce_mean(
             tf.cast(tf.equal(prediction, labels), tf.float32))
         tf.summary.scalar(prefix + "classification_rate",
@@ -248,13 +248,6 @@ def learn(data_dict,
                                    max_epochs=max_epochs)
     train(train_data, model, optimizer, global_step, writer, early_stopping,
           (not is_preprocessed), lambd, alpha, checkpoint, ckpt_manager, debug)
-
-    usefulness = model.usefulness(train_data['test'].map(
-        lambda x: (tf.cast(x['image'], tf.float32), x['label'])),
-                                  train_data['num_classes'],
-                                  is_preprocessed=is_preprocessed)
-    heatmap(usefulness, output_dir + '/' + model_name + '_rho_usefulness.png',
-            'rho usefulness')
 
     return model
 

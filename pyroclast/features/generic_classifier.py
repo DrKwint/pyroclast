@@ -11,7 +11,10 @@ class GenericClassifier(tf.Module, VisualizableMixin, FeatureClassifierMixin):
         self.classifier = classifier
 
     def __call__(self, x):
-        return self.classifier(self.features(x))
+        embed = self.features(x)
+        if len(embed.shape) > 2:
+            embed = tf.squeeze(embed)
+        return self.classifier(embed)
 
     def features(self, x):
         return self.conv_stack(x)

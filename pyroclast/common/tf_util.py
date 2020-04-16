@@ -4,9 +4,13 @@ import os
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
 import tqdm
+
+import tensorflow_datasets as tfds
+
+tfd = tfp.distributions
+tfb = tfp.bijectors
 
 
 def setup_tfds(dataset,
@@ -119,8 +123,10 @@ def run_epoch_ops(session,
     Return:
         dict of str to np.array parallel to the verbose_ops_dict
     """
-    if verbose_ops_dict is None: verbose_ops_dict = dict()
-    if silent_ops is None: silent_ops = list()
+    if verbose_ops_dict is None:
+        verbose_ops_dict = dict()
+    if silent_ops is None:
+        silent_ops = list()
     verbose_vals = {k: [] for k, v in verbose_ops_dict.items()}
     if verbose:
         iterable = tqdm.tqdm(list(range(steps_per_epoch)))
@@ -143,105 +149,12 @@ def run_epoch_ops(session,
     }
 
 
-class DiscretizedLogistic(tfp.distributions.Distribution):
-
-    def __init__(self,
-                 loc,
-                 log_scale=None,
-                 event_dims=3,
-                 dtype=tf.float32,
-                 validate_args=True,
-                 allow_nan_stats=False,
-                 name="DiscretizedLogistic"):
-        super(DiscretizedLogistic,
-              self).__init__(dtype, tfp.distributions.NOT_REPARAMETERIZED,
-                             validate_args, allow_nan_stats)
-        self._dtype = dtype
-        self._loc = loc
-        self._event_dims = event_dims
-        self._batch_dims = loc.shape.ndims - event_dims
-        self._scale = tfp.util.DeferredTensor(
-            tf.math.exp,
-            tf.Variable(tf.zeros(self._loc.shape[-event_dims:]),
-                        name='LogScale'))
-
-    def _event_shape(self):
-        return tf.shape(self._loc)[-self._event_dims:]
-
-    def _batch_shape(self):
-        return tf.shape(self._loc)[:self._batch_dims]
-
-    def _mean(self):
-        return self._loc
-
-    def _log_prob(self, sample, binsize=1 / 256.0):
-        mean = self._loc
-        sample = (tf.floor(sample / binsize) * binsize - mean) / self._scale
-        logp = tf.math.log(
-            tf.sigmoid(sample + binsize / self._scale) - tf.sigmoid(sample) +
-            1e-7)
-        return tf.reduce_sum(
-            logp, range(self._batch_dims, self._batch_dims + self._event_dims))
-
-
 def log_sum_exp(x):
     """ numerically stable log_sum_exp implementation that prevents overflow """
     axis = len(x.get_shape()) - 1
     m = tf.reduce_max(x, axis)
     m2 = tf.reduce_max(x, axis, keepdims=True)
     return m + tf.math.log(tf.reduce_sum(tf.exp(x - m2), axis))
-
-
-def img_discretized_logistic_log_prob(mean,
-                                      sample,
-                                      log_scale,
-                                      binsize=1 / 256.0,
-                                      log_scale_min=-7.):
-    log_scale = tf.maximum(log_scale, log_scale_min)
-
-    centered_sample = sample - mean
-    inv_stdv = tf.exp(-log_scale)
-    plus_in = inv_stdv * (centered_sample + binsize)
-    cdf_plus = tf.nn.sigmoid(plus_in)
-    min_in = inv_stdv * (centered_sample - binsize)
-    cdf_min = tf.nn.sigmoid(min_in)
-
-    log_cdf_plus = plus_in - tf.nn.softplus(
-        plus_in)  # log probability for edge case of 0
-    log_one_minus_cdf_min = -tf.nn.softplus(
-        min_in)  # log probability for edge case of 1
-    cdf_delta = cdf_plus - cdf_min  # probability for all other cases
-
-    #log probability in the center of the bin, to be used in extreme cases
-    mid_in = inv_stdv * centered_sample
-    log_pdf_mid = mid_in - log_scale - 2. * tf.nn.softplus(mid_in)
-
-    logp = tf.where(
-        sample < -0.999, log_cdf_plus,
-        tf.where(
-            sample > 0.999, log_one_minus_cdf_min,
-            tf.where(cdf_delta > 1e-5,
-                     tf.math.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid)))
-
-    if not tf.reduce_all(tf.math.is_finite(mean)):
-        print("mean ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(log_scale)):
-        print("log_scale ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(inv_stdv)):
-        print("inv_stdv ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(sample)):
-        print("sample ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(cdf_plus)):
-        print("cdf_plus ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(cdf_min)):
-        print("cdf_min ISN'T FINITE")
-    if not tf.reduce_all(tf.math.is_finite(logp)):
-        print("LOGP ISN'T FINITE")
-
-    #sample = (tf.floor(sample / binsize) * binsize - mean) / scale
-    #logp = tf.math.log(
-    #    tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
-    return tf.reduce_sum(log_sum_exp(logp), [1, 2])
 
 
 def correlation(a, b):

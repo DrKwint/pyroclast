@@ -19,7 +19,7 @@ class CpVAETest(parameterized.TestCase):
         self.args['latent_dim'] = 10
         self.args['batch_size'] = 8
         self.args['data_limit'] = 80
-        self.args['output_dir'] = 'cpvae_learn_test'
+        self.args['output_dir'] = './tmp/cpvae_learn_test'
 
     def test_mnist(self):
         """Run one small epoch of MNIST just to make sure no errors are thrown"""

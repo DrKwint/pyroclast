@@ -20,7 +20,7 @@ class CpVAETest(parameterized.TestCase):
         self.args['data_limit'] = 80
         self.args['latent_dim'] = 10
         self.args['batch_size'] = 8
-        self.args['output_dir'] = 'cpvae_cpvae_test'
+        self.args['output_dir'] = './tmp/cpvae_cpvae_test'
 
         self.ds = setup_tfds(self.args['dataset'], self.args['batch_size'],
                              None, self.args['data_limit'])
