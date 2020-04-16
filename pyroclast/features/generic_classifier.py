@@ -1,4 +1,4 @@
-from pyroclast.common.feature_classifier import FeatureClassifierMixin
+from pyroclast.common.feature_classifier_mixin import FeatureClassifierMixin
 from pyroclast.common.visualizable import VisualizableMixin
 import tensorflow as tf
 

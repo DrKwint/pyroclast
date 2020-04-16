@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import sklearn
-from sklearn
 
 from pyroclast.cpvae.util import ensure_dir_exists
 
@@ -46,7 +45,9 @@ class DDT(tf.Module):
                                      rounded=True)
 
 
-def get_decision_tree_boundaries(tree, feature_num, class_num,
+def get_decision_tree_boundaries(tree,
+                                 feature_num,
+                                 class_num,
                                  boundary_val=100):
     """
     Args:

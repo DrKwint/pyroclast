@@ -1,8 +1,3 @@
-[MASTER]
-
-# Use multiple processes to speed up Pylint.
-jobs=4
-
 [MESSAGES CONTROL]
 
 # Enable the message, report, category or checker with the given id(s). You can

@@ -3,7 +3,7 @@ import os.path as osp
 import tensorflow as tf
 from absl.testing import parameterized
 
-from pyroclast.common.feature_classifier import FeatureClassifierMixin
+from pyroclast.common.feature_classifier_mixin import FeatureClassifierMixin
 from pyroclast.common.tf_util import setup_tfds
 
 
