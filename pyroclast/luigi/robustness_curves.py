@@ -114,7 +114,11 @@ class TopTask(luigi.Task):
 
     def output(self):
         config = robustness_curves()
-        return luigi.LocalTarget(Path(config.storage_dir) / 'curves.png')
+        return [
+            luigi.LocalTarget(
+                Path(config.storage_dir) / (f'curves-{class_idx}.png'))
+            for class_idx in range(get_num_classes())
+        ]
 
     def requires(self):
         return [
@@ -142,9 +146,13 @@ class TopTask(luigi.Task):
             lines[class_idx][feature_idx]['x'].append(eps)
             lines[class_idx][feature_idx]['y'].append(robustness)
 
-        with self.output().open('w') as out_file:
-            plt.savefig(out_file.path, format=format)
-            plt.close(fig)
+        for class_idx, out_target in zip(range(get_num_classes()),
+                                         self.output()):
+            with out_target().open('w') as out_file:
+                for feature_line in lines[class_idx]:
+                    plt.plot(feature_line['x'], feature_line['y'])
+                plt.savefig(out_file.path, format=format)
+                plt.close(fig)
 
         #     max_bpd_index = bpd.index(max_bpd)
         #     plt.plot([max_bpd_index, max_bpd_index], [max_bpd, 0], ':')
