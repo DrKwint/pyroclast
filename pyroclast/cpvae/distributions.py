@@ -5,11 +5,51 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 tfb = tfp.bijectors
 
-GAUSSIAN_PRIOR_FN = lambda latent_dimension: tfp.distributions.MultivariateNormalDiag(
-    loc=tf.zeros(latent_dimension), scale_diag=tf.ones(latent_dimension))
+mapping = {}
 
-GAUSSIAN_POSTERIOR_FN = lambda loc, scale_diag: tfp.distributions.MultivariateNormalDiag(
-    loc=loc, scale_diag=scale_diag)
+
+def register(name):
+
+    def _thunk(func):
+        mapping[name] = func
+        return func
+
+    return _thunk
+
+
+@register("iso_gaussian_prior")
+def iso_gaussian_prior(latent_dimension):
+    return tfp.distributions.MultivariateNormalDiag(
+        loc=tf.zeros(latent_dimension), scale_diag=tf.ones(latent_dimension))
+
+
+@register("iaf_prior")
+def iaf_prior(latent_dimension, ar_network=None):
+    if ar_network is None:
+        ar_network = tfb.AutoregressiveNetwork(params=2,
+                                               hidden_units=[512, 512])
+    return tfd.TransformedDistribution(
+        distribution=tfd.Normal(loc=0., scale=1.),
+        bijector=tfb.Invert(
+            tfb.MaskedAutoregressiveFlow(shift_and_log_scale_fn=ar_network)),
+        event_shape=[latent_dimension])
+
+
+@register("diag_gaussian_posterior")
+def diag_gaussian_posterior(loc, scale_diag):
+    return tfp.distributions.MultivariateNormalDiag(loc=loc,
+                                                    scale_diag=scale_diag)
+
+
+@register("disc_logistic_posterior")
+def disc_logistic_posterior(loc, scale):
+    return tfp.distributions.Independent(
+        tfd.QuantizedDistribution(distribution=tfd.TransformedDistribution(
+            distribution=tfd.Logistic(loc, scale),
+            bijector=tfb.Shift(-0.5 / 256)),
+                                  low=0.,
+                                  high=1.), 3)
+
 
 LEARNED_GAUSSIAN_CLASS_PRIOR_FN = lambda latent_dimension, class_num: [
     tfp.distributions.MultivariateNormalDiag(
@@ -30,15 +70,30 @@ MNIST_PIXELCNN = tfd.PixelCNN(
     dropout_p=.3,
 )
 
-DISCRETIZED_LOGISTIC_FN = lambda loc, scale: tfp.distributions.Independent(
-    tfd.QuantizedDistribution(distribution=tfd.TransformedDistribution(
-        distribution=tfd.Logistic(loc, scale), bijector=tfb.Shift(-0.5 / 256)),
-                              low=0.,
-                              high=1.), 3)
-
 MADE = lambda latent_dimension: tfb.AutoregressiveNetwork(params=2,
                                                           event_shape=
                                                           latent_dimension,
                                                           hidden_units=[20, 20],
                                                           activation=tf.nn.relu,
                                                           input_order='random')
+
+
+def get_distribution_builder(name):
+    """
+    If you want to register your own network outside models.py, you just need:
+
+    Usage Examplee:
+    -------------
+    from pyroclast.common.models import register
+    @register("your_network_name")
+    def your_network_define(**net_kwargs):
+        ...
+        return network_fn
+
+    """
+    if callable(name):
+        return name
+    elif name in mapping:
+        return mapping[name]
+    else:
+        raise ValueError('Unknown network type: {}'.format(name))

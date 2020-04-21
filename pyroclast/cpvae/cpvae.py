@@ -21,29 +21,31 @@ def setup(data_dict,
           decoder,
           learning_rate,
           latent_dim,
-          output_dist,
+          prior_name,
+          posterior_name,
+          output_distribution_name,
           max_tree_depth,
-          max_tree_leaf_nodes,
           output_dir,
           oversample,
           debug=False,
           expect_load=False):
-    num_classes = data_dict['num_classes']
     num_channels = data_dict['shape'][-1]
 
     # setup model vars
     model_dir = osp.join(output_dir, 'model')
-    objects = build_saveable_objects(optimizer_name=optimizer,
-                                     encoder_name=encoder,
-                                     decoder_name=decoder,
-                                     learning_rate=learning_rate,
-                                     num_classes=num_classes,
-                                     num_channels=num_channels,
-                                     latent_dim=latent_dim,
-                                     output_dist=output_dist,
-                                     max_tree_depth=max_tree_depth,
-                                     model_dir=model_dir,
-                                     model_name=encoder + decoder)
+    objects = build_saveable_objects(
+        optimizer_name=optimizer,
+        encoder_name=encoder,
+        decoder_name=decoder,
+        learning_rate=learning_rate,
+        num_channels=num_channels,
+        latent_dim=latent_dim,
+        prior_name=prior_name,
+        posterior_name=posterior_name,
+        output_distribution_name=output_distribution_name,
+        max_tree_depth=max_tree_depth,
+        model_dir=model_dir,
+        model_name=encoder + decoder)
 
     model = objects['model']
     optimizer = objects['optimizer']
@@ -55,7 +57,7 @@ def setup(data_dict,
 
     # load trained model, if available
     if tf.train.latest_checkpoint(model_dir):
-        status = checkpoint.restore(tf.train.latest_checkpoint(model_dir))
+        checkpoint.restore(tf.train.latest_checkpoint(model_dir))
         print("loaded a model from disk at",
               tf.train.latest_checkpoint(model_dir))
     elif expect_load:
@@ -312,14 +314,15 @@ def learn(
         tree_update_period=3,
         optimizer='rmsprop',  # adam or rmsprop
         learning_rate=3e-4,
-        output_dist='l2',  # disc_logistic or l2 or bernoulli
+        prior='iso_gaussian_prior',
+        posterior='diag_gaussian_posterior',
+        output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
         output_dir='./',
         num_samples=5,
         clip_norm=0.,
         alpha=1.,
         beta=1.,
         gamma=1.,
-        gamma_delay=0,
         patience=12,
         debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
@@ -329,9 +332,10 @@ def learn(
         decoder,
         learning_rate,
         latent_dim,
-        output_dist,
+        prior,
+        posterior,
+        output_distribution,
         max_tree_depth,
-        max_tree_leaf_nodes,
         output_dir=output_dir,
         oversample=oversample,
         debug=debug)

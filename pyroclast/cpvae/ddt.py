@@ -5,7 +5,7 @@ import sklearn
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tqdm import tqdm
-import sklearn
+from sklearn.tree import DecisionTreeClassifier
 
 tfd = tfp.distributions
 
@@ -14,8 +14,7 @@ class DDT(tf.Module):
     """Differentiable decision tree which classifies on the parameters of a Gaussian"""
 
     def __init__(self, max_depth):
-        self.decision_tree = sklearn.tree.DecisionTreeClassifier(
-            max_depth=max_depth)
+        self.decision_tree = DecisionTreeClassifier(max_depth=max_depth)
 
     def classify_analytic(self, loc, scale_diag):
         return transductive_box_inference(loc, scale_diag, self.dims,

@@ -1,31 +1,29 @@
-import os
-
 import numpy as np
-import sklearn
 import tensorflow as tf
 
-from pyroclast.common.util import ensure_dir_exists
 from pyroclast.cpvae.ddt import DDT
-from pyroclast.cpvae.distributions import (DISCRETIZED_LOGISTIC_FN,
-                                           GAUSSIAN_POSTERIOR_FN,
-                                           GAUSSIAN_PRIOR_FN)
+from pyroclast.cpvae.distributions import get_distribution_builder
 from pyroclast.cpvae.model import TreeVAE
 from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
 
 
 def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
-                           learning_rate, num_classes, num_channels, latent_dim,
-                           output_dist, max_tree_depth, model_dir, model_name):
+                           learning_rate, num_channels, latent_dim, prior_name,
+                           posterior_name, output_distribution_name,
+                           max_tree_depth, model_dir, model_name):
     # model
     encoder = VAEEncoder(encoder_name, latent_dim)
     decoder = VAEDecoder(decoder_name, num_channels)
     ddt = DDT(max_tree_depth)
+    prior = get_distribution_builder(prior_name)(latent_dim)
+    posterior_fn = get_distribution_builder(posterior_name)
+    output_distribution_fn = get_distribution_builder(output_distribution_name)
     model = TreeVAE(encoder=encoder,
-                    posterior_fn=GAUSSIAN_POSTERIOR_FN,
+                    posterior_fn=posterior_fn,
                     decoder=decoder,
                     classifier=ddt,
-                    prior=GAUSSIAN_PRIOR_FN(latent_dim),
-                    output_distribution_fn=DISCRETIZED_LOGISTIC_FN,
+                    prior=prior,
+                    output_distribution_fn=output_distribution_fn,
                     use_analytic_classifier=True)
 
     # optimizer
