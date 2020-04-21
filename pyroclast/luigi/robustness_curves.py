@@ -206,9 +206,13 @@ class RobustnessTask(luigi.Task):
             tf.train.latest_checkpoint(get_base_path(config.model_name)))
         data_map = data_dict['train'].map(
             lambda x: (tf.cast(x['image'], tf.float32), x['label']))
-        robustness = model.robustness(data_map, self.feature_idx,
-                                      self.class_idx, num_classes, self.eps,
-                                      get_norm(config.norm))
+        if self.eps == 0:
+            robustness = model.usefulness(data_map,
+                                          num_classes)[feature_idx][class_idx]
+        else:
+            robustness = model.robustness(data_map, self.feature_idx,
+                                          self.class_idx, num_classes, self.eps,
+                                          get_norm(config.norm))
         print('shape', robustness.shape)
         robustness = robustness.numpy().tolist()
 
