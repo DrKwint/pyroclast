@@ -116,9 +116,12 @@ class FeatureClassifierMixin(abc.ABC):
         a dataset D and a perturbation class defined by norm and eps.
 
         Args:
-           D (tf.data.Dataset): A dataset where `image' and `label' are valid keys for each datum
+           iterable (iterable(x, y)): Iterable of x, y pairs
+           feature_idx (int): Index of feature robustness corresponds to
+           class_idx (int): Index of class robustness corresponds to
+           num_classes (int): The number of total classes
            eps (float): numerical limit on the norm of the actual delta
-           norm (1, 2, or np.inf): Which class of delta to use
+           norm (1, 2, np.inf, or (x) => R): Which class of delta to use or a custom norm function
 
         Returns:
            gamma (tf.Tensor): The robustness of each feature for each class. Of shape [num_features, num_classes].
@@ -133,13 +136,16 @@ class FeatureClassifierMixin(abc.ABC):
             for x, y in D:
                 img = tf.cast(x, tf.float32)
                 labels = get_one_hot(y, num_classes)
-                forward_fn = lambda x: self.features(x)[:, feature_idx
-                                                       ] * labels[:, class_idx]
+
+                def forward_fn(x):
+                    return self.features(x)[:, feature_idx] * labels[:,
+                                                                     class_idx]
+
                 adv_img = img + fast_gradient_method(forward_fn, img, eps, norm)
                 yield adv_img, y
 
         adv_usefulness = self.usefulness(adv_generator(iterable), num_classes)
-        return adv_usefulness
+        return adv_usefulness[feature_idx][class_idx]
 
     def input_search(self,
                      x,
@@ -147,8 +153,11 @@ class FeatureClassifierMixin(abc.ABC):
                      early_stopping,
                      search_method='fgm'):
         if search_method == 'fgm':
-            forward_fn = lambda _x: tf.norm(feature_target - self.features(_x),
-                                            2)  # + 0.1 * tf.norm(x - _x, 2)
+
+            def forward_fn(_x):
+                return tf.norm(feature_target - self.features(_x),
+                               2)  # + 0.1 * tf.norm(x - _x, 2)
+
             for i in range(early_stopping.max_epochs):
                 delta = fast_gradient_method(forward_fn, x, 0.0001, 2)
                 x += delta

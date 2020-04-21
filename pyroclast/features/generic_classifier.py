@@ -29,4 +29,4 @@ class GenericClassifier(tf.Module, VisualizableMixin, FeatureClassifierMixin):
         return self(x)
 
     def conv_stack_submodel(self):
-        raise NotImplementedError()
+        return self.conv_stack

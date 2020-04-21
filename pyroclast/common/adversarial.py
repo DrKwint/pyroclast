@@ -75,6 +75,8 @@ def linear_optimization(jacobian, eps, norm):
             avoid_zero_div,
             tf.reduce_sum(tf.square(jacobian), axis, keepdims=True))
         optimal_perturbation = jacobian / tf.sqrt(square)
+    elif callable(norm):
+        optimal_perturbation = norm(jacobian)
     else:
         raise NotImplementedError()
 
