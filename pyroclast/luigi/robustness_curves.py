@@ -133,16 +133,15 @@ class TopTask(luigi.Task):
         ax1.set_xlabel('Epsilon')
         ax1.set_ylabel('Usefulness')
 
-        lines = []
+        lines = [[{
+            'x': [],
+            'y': []
+        } for _ in range(get_num_features())] for _ in range(get_num_classes())]
 
         for (class_idx, feature_idx,
              eps), input_target in zip(specs(), self.input()):
             with input_target.open('r') as in_file:
                 robustness = json.load(in_file)
-            if class_idx not in lines:
-                lines[class_idx] = []
-            if feature_idx not in lines[class_idx]:
-                lines[class_idx][feature_idx] = {'x': [], 'y': []}
             lines[class_idx][feature_idx]['x'].append(eps)
             lines[class_idx][feature_idx]['y'].append(robustness)
 
@@ -213,7 +212,6 @@ class RobustnessTask(luigi.Task):
             robustness = model.robustness(data_map, self.feature_idx,
                                           self.class_idx, num_classes, self.eps,
                                           get_norm(config.norm))
-        print('shape', robustness.shape)
         robustness = robustness.numpy().tolist()
 
         with self.output().open('w') as out_file:
