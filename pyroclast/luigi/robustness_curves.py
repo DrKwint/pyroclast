@@ -147,7 +147,7 @@ class TopTask(luigi.Task):
 
         for class_idx, out_target in zip(range(get_num_classes()),
                                          self.output()):
-            with out_target().open('w') as out_file:
+            with out_target.open('w') as out_file:
                 for feature_line in lines[class_idx]:
                     plt.plot(feature_line['x'], feature_line['y'])
                 plt.savefig(out_file.path, format=format)
