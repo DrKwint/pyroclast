@@ -115,12 +115,12 @@ def specs():
 
 
 class TopTask(luigi.Task):
-
     def output(self):
         config = robustness_curves()
         return [
             luigi.LocalTarget(
-                Path(config.storage_dir) / (f'curves-{class_idx}.png'))
+                Path(config.storage_dir) / 'images' /
+                (f'curves-{class_idx}.png'))
             for class_idx in range(get_num_classes())
         ]
 
@@ -140,7 +140,8 @@ class TopTask(luigi.Task):
         lines = [[{
             'x': [],
             'y': []
-        } for _ in range(get_num_features())] for _ in range(get_num_classes())]
+        } for _ in range(get_num_features())]
+                 for _ in range(get_num_classes())]
 
         for (class_idx, feature_idx,
              eps), input_target in zip(specs(), self.input()):
@@ -154,7 +155,7 @@ class TopTask(luigi.Task):
             with out_target.open('w') as out_file:
                 for feature_line in lines[class_idx]:
                     plt.plot(feature_line['x'], feature_line['y'])
-                plt.savefig(out_file.path, format='png')
+                plt.savefig(out_file.tmp_path, format='png')
                 plt.close(fig)
 
         #     max_bpd_index = bpd.index(max_bpd)
@@ -181,7 +182,7 @@ class RobustnessTask(luigi.Task):
         config = robustness_curves()
         storage_dir = Path(config.storage_dir)
         file_name = f'robustness_{self.class_idx}_{self.feature_idx}_{f_float(self.eps)}.json'
-        return luigi.LocalTarget(storage_dir / file_name)
+        return luigi.LocalTarget(storage_dir / 'values' / file_name)
 
     def run(self):
         config = robustness_curves()
@@ -214,8 +215,8 @@ class RobustnessTask(luigi.Task):
                 data_map, num_classes)[self.feature_idx][self.class_idx]
         else:
             robustness = model.robustness(data_map, self.feature_idx,
-                                          self.class_idx, num_classes, self.eps,
-                                          get_norm(config.norm))
+                                          self.class_idx, num_classes,
+                                          self.eps, get_norm(config.norm))
         robustness = robustness.numpy().tolist()
 
         with self.output().open('w') as out_file:
