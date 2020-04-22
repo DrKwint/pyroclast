@@ -1,11 +1,15 @@
-import json
+import os
 import itertools
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import luigi
 import tensorflow as tf
+import matplotlib
+if os.name == 'posix' and "DISPLAY" not in os.environ:
+    matplotlib.use('Agg')
+    import json
+import matplotlib.pyplot as plt
 
 from pyroclast.common.tf_util import setup_tfds
 from pyroclast.features.features import build_savable_objects
@@ -150,7 +154,7 @@ class TopTask(luigi.Task):
             with out_target.open('w') as out_file:
                 for feature_line in lines[class_idx]:
                     plt.plot(feature_line['x'], feature_line['y'])
-                plt.savefig(out_file.path, format=format)
+                plt.savefig(out_file.path, format='png')
                 plt.close(fig)
 
         #     max_bpd_index = bpd.index(max_bpd)
