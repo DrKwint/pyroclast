@@ -11,4 +11,4 @@ source activate tf2
 
 export LUIGI_CONFIG_PARSER=toml
 export LUIGI_CONFIG_PATH=$1
-python3 ./unluigi/sched.py ${@:2}
+python3 ${@:2}

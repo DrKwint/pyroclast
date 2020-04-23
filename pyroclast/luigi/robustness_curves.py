@@ -115,6 +115,7 @@ def specs():
 
 
 class TopTask(luigi.Task):
+
     def output(self):
         config = robustness_curves()
         return [
@@ -140,8 +141,7 @@ class TopTask(luigi.Task):
         lines = [[{
             'x': [],
             'y': []
-        } for _ in range(get_num_features())]
-                 for _ in range(get_num_classes())]
+        } for _ in range(get_num_features())] for _ in range(get_num_classes())]
 
         for (class_idx, feature_idx,
              eps), input_target in zip(specs(), self.input()):
@@ -157,16 +157,6 @@ class TopTask(luigi.Task):
                     plt.plot(feature_line['x'], feature_line['y'])
                 plt.savefig(out_file.tmp_path, format='png')
                 plt.close(fig)
-
-        #     max_bpd_index = bpd.index(max_bpd)
-        #     plt.plot([max_bpd_index, max_bpd_index], [max_bpd, 0], ':')
-        #     plt.annotate(f'({max_bpd_index:,}, {max_bpd:,})',
-        #                  [max_bpd_index, max_bpd])
-
-        # lines.append(ax1.plot(depth_iter, bpd, color='black', label='bpd')[0])
-        # ax1.tick_params(axis='y')
-        # if max(bpd) == 0:
-        #     ax1.set_ylim(top=1.0)
 
 
 class RobustnessTask(luigi.Task):
@@ -215,8 +205,8 @@ class RobustnessTask(luigi.Task):
                 data_map, num_classes)[self.feature_idx][self.class_idx]
         else:
             robustness = model.robustness(data_map, self.feature_idx,
-                                          self.class_idx, num_classes,
-                                          self.eps, get_norm(config.norm))
+                                          self.class_idx, num_classes, self.eps,
+                                          get_norm(config.norm))
         robustness = robustness.numpy().tolist()
 
         with self.output().open('w') as out_file:
@@ -224,4 +214,4 @@ class RobustnessTask(luigi.Task):
 
 
 if __name__ == '__main__':
-    luigi.build([TopTask()], local_scheduler=True)
+    luigi.build([TopTask()])
