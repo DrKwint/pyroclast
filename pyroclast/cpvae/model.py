@@ -30,12 +30,13 @@ class TreeVAE(tf.Module):
     def __call__(self, x):
         z_posterior = self.encode(x)
         if self.use_analytic_classifier:
-            y_hat = self.classifier.classify_analytic(
+            leaf_probs, y_hat = self.classifier.classify_analytic(
                 z_posterior.parameters['loc'],
                 z_posterior.parameters['scale_diag'])
         else:
-            y_hat = self.classifier.classify_numerical(z_posterior)
-        return z_posterior, y_hat
+            leaf_probs, y_hat = self.classifier.classify_numerical(
+                self.prior, z_posterior)
+        return z_posterior, leaf_probs, y_hat
 
     def vae_loss(self, x, z_posterior, y=None, training=True):
         z_sample = z_posterior.sample()
@@ -76,7 +77,8 @@ class TreeVAE(tf.Module):
             else:  # not using class prior
                 rate = tfp.vi.monte_carlo_variational_loss(self.prior.log_prob,
                                                            z_posterior,
-                                                           sample_size=100)
+                                                           sample_size=1000)
+        tf.print(tf.reduce_min(rate), tf.reduce_mean(rate), tf.reduce_max(rate))
         return -distortion, rate
 
     def encode(self, x):

@@ -24,15 +24,20 @@ def iso_gaussian_prior(latent_dimension):
 
 
 @register("iaf_prior")
-def iaf_prior(latent_dimension, ar_network=None):
-    if ar_network is None:
-        ar_network = tfb.AutoregressiveNetwork(params=2,
-                                               hidden_units=[512, 512])
+def iaf_prior(latent_dimension, ar_network):
     return tfd.TransformedDistribution(
         distribution=tfd.Normal(loc=0., scale=1.),
         bijector=tfb.Invert(
             tfb.MaskedAutoregressiveFlow(shift_and_log_scale_fn=ar_network)),
         event_shape=[latent_dimension])
+
+
+@register("iaf_posterior")
+def iaf_posterior(loc, scale, ar_network):
+    return tfd.TransformedDistribution(
+        distribution=tfd.MultivariateNormalDiag(loc, scale),
+        bijector=tfb.Invert(
+            tfb.MaskedAutoregressiveFlow(shift_and_log_scale_fn=ar_network)))
 
 
 @register("diag_gaussian_posterior")
