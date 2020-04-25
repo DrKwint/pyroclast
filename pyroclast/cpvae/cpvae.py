@@ -1,16 +1,18 @@
-import json
 import os
 import os.path as osp
 
+import joblib
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 from PIL import Image
 from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.cpvae.ddt import DDT
 from pyroclast.cpvae.util import build_saveable_objects
-from pyroclast.util import direct
+
+tfd = tfp.distributions
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -64,28 +66,29 @@ def setup(data_dict,
         raise Exception("Model not loaded")
 
     # train a ddt
-    classifier.update_model_tree(data_dict['train'],
-                                 model.encode,
-                                 oversample=oversample,
-                                 debug=debug)
-    classifier.save_dot(output_dir, 'initial')
+    if tf.train.latest_checkpoint(model_dir):
+        model.classifier = joblib.load(osp.join(output_dir, 'ddt.joblib'))
+    else:
+        classifier.update_model_tree(data_dict['train'],
+                                     model.posterior,
+                                     oversample=oversample,
+                                     debug=debug)
+        classifier.save_dot(output_dir, 'initial')
+        joblib.dump(classifier, osp.join(output_dir, 'ddt.joblib'))
     return model, optimizer, global_step, writer, checkpoint, ckpt_manager
 
 
-def outer_run_minibatch(
-    model,
-    optimizer,
-    global_step,
-    alpha,
-    beta,
-    gamma,
-    writer,
-    clip_norm=0.,
-    is_debug=False,
-):
+def outer_run_minibatch(model,
+                        optimizer,
+                        global_step,
+                        alpha,
+                        beta,
+                        gamma,
+                        omega,
+                        writer,
+                        clip_norm=0.):
 
-    def run_minibatch(epoch, data, labels, is_train=True, prefix='train'):
-        #print("Tracing! {} {} {} {}".format(epoch, data, labels, is_train))
+    def run_minibatch(data, labels, is_train=True, prefix='train'):
         x = tf.cast(data, tf.float32) / 255.
         labels = tf.cast(labels, tf.int32)
 
@@ -98,20 +101,30 @@ def outer_run_minibatch(
                                               z_posterior,
                                               y=labels,
                                               training=is_train)
-            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                labels=labels, logits=y_hat)
+            classification_loss = tf.losses.sparse_categorical_crossentropy(
+                y_true=labels, y_pred=y_hat)
+            # distance_loss = tf.nn.l2_loss(z_posterior.mean())
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
+            # omega * distance_loss)
 
         # calculate gradients for current loss
         if is_train:
+            #tf.print(model.decoder_trainable_variables())
             gradients = tape.gradient(loss, model.trainable_variables)
-
+            """
             tf.print(
                 list(
                     zip([tf.reduce_mean(g) for g in gradients],
                         [v.name for v in model.trainable_variables])))
-            exit()
+            tf.print("dist", tf.reduce_min(distortion),
+                     tf.reduce_mean(distortion), tf.reduce_max(distortion))
+            tf.print("rate", tf.reduce_min(rate), tf.reduce_mean(rate),
+                     tf.reduce_max(rate))
+            tf.print("class", tf.reduce_min(classification_loss),
+                     tf.reduce_mean(classification_loss),
+                     tf.reduce_max(classification_loss))
+            """
             if clip_norm:
                 clipped_gradients, _ = tf.clip_by_global_norm(
                     gradients, clip_norm)
@@ -140,6 +153,9 @@ def outer_run_minibatch(
             tf.summary.scalar(prefix + "classification_rate",
                               classification_rate,
                               step=global_step)
+            #tf.summary.scalar(prefix + "loss/distance_loss",
+            #                  omega * tf.reduce_mean(distance_loss),
+            #                  step=global_step)
             tf.summary.scalar(prefix + "leaf distribution entropy",
                               tf.reduce_mean(leaf_probs.entropy()),
                               step=global_step)
@@ -157,61 +173,9 @@ def outer_run_minibatch(
     return run_minibatch
 
 
-def eval(
-    data_dict,
-    model,
-    optimizer,
-    global_step,
-    writer,
-    alpha,
-    beta,
-    gamma,
-    clip_norm,
-    tree_update_period,
-    num_samples,
-    checkpoint,
-    ckpt_manager,
-    output_dir,
-    oversample,
-    debug,
-):
-    run_minibatch_fn = outer_run_minibatch(model,
-                                           optimizer,
-                                           global_step,
-                                           alpha,
-                                           beta,
-                                           gamma,
-                                           writer,
-                                           clip_norm,
-                                           is_debug=debug)
-    #run_minibatch_fn = tf.function(run_minibatch_fn)
-    # test
-    loss_numerator = 0
-    classification_rate_numerator = 0
-    loss_denominator = 0
-    test_batches = data_dict['test']
-    if debug:
-        test_batches = tqdm(test_batches)
-    for batch in test_batches:
-        loss_n, class_rate_n, loss_d = run_minibatch_fn(
-            epoch=tf.constant(0),
-            data=batch['image'],
-            labels=batch['label'],
-            is_train=tf.constant(False))
-        loss_numerator += loss_n
-        classification_rate_numerator += class_rate_n
-        loss_denominator += loss_d
-    return {
-        'loss':
-            float(loss_numerator) / float(loss_denominator),
-        'classification_rate':
-            float(classification_rate_numerator) / float(loss_denominator)
-    }
-
-
 def sample(model, num_samples, epoch, output_dir):
     for i in range(num_samples):
-        im = np.squeeze(model.sample_prior()[0])
+        im = np.squeeze(model.sample_prior())
         im = np.minimum(1., np.maximum(0., im))
         im = Image.fromarray((255. * im).astype(np.uint8))
         im.save(
@@ -219,19 +183,13 @@ def sample(model, num_samples, epoch, output_dir):
 
 
 def train(data_dict, model, optimizer, global_step, writer, early_stopping,
-          alpha, beta, gamma, clip_norm, tree_update_period, num_samples,
+          alpha, beta, gamma, omega, clip_norm, tree_update_period, num_samples,
           output_dir, oversample, debug):
     output_log_file = "file://" + osp.join(output_dir, 'train_log.txt')
-    run_minibatch_fn = outer_run_minibatch(model,
-                                           optimizer,
-                                           global_step,
-                                           alpha,
-                                           beta,
-                                           gamma,
-                                           writer,
-                                           clip_norm,
-                                           is_debug=debug)
-    #run_minibatch_fn = tf.function(run_minibatch_fn)
+    run_minibatch_fn = outer_run_minibatch(model, optimizer, global_step, alpha,
+                                           beta, gamma, omega, writer,
+                                           clip_norm)
+    run_minibatch_fn = tf.function(run_minibatch_fn)
     # run training loop
     train_batches = data_dict['train']
     if debug:
@@ -249,10 +207,10 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
         classification_rate_numerator = 0
         for batch in train_batches:
             loss_n, class_rate_n, loss_d = run_minibatch_fn(
-                epoch=tf.constant(epoch),
                 data=batch['image'],
                 labels=batch['label'],
-                is_train=tf.constant(True))
+                is_train=tf.constant(True),
+                prefix='train/')
             loss_numerator += loss_n
             classification_rate_numerator += class_rate_n
             loss_denominator += loss_d
@@ -270,10 +228,10 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
         tf.print("TEST", output_stream=output_log_file)
         for batch in test_batches:
             loss_n, class_rate_n, loss_d = run_minibatch_fn(
-                epoch=tf.constant(epoch),
                 data=batch['image'],
                 labels=batch['label'],
-                is_train=tf.constant(False))
+                is_train=tf.constant(False),
+                prefix='test/')
             loss_numerator += loss_n
             loss_denominator += loss_d
             classification_rate_numerator += class_rate_n
@@ -299,13 +257,15 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
             if debug:
                 tf.print('Updating decision tree')
             score = model.classifier.update_model_tree(data_dict['train'],
-                                                       model.encode,
+                                                       model.posterior,
                                                        oversample=oversample,
                                                        debug=debug)
             tf.print("Accuracy at DDT fit from sampling:",
                      score,
                      output_stream=output_log_file)
             model.classifier.save_dot(output_dir, epoch)
+            joblib.dump(model.classifier, osp.join(output_dir, 'ddt.joblib'))
+            model.prior = model.classifier.tree_distribution
 
     return model
 
@@ -319,7 +279,6 @@ def learn(
     epochs=1000,
     oversample=1,
     max_tree_depth=5,
-    max_tree_leaf_nodes=16,
     tree_update_period=3,
     optimizer='rmsprop',  # adam or rmsprop
     learning_rate=3e-4,
@@ -332,6 +291,7 @@ def learn(
     alpha=1.,
     beta=1.,
     gamma=1.,
+    omega=1.,
     patience=12,
     debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
@@ -354,33 +314,35 @@ def learn(
                                    eps=0.03,
                                    max_epochs=epochs)
     model = train(data_dict, model, optimizer, global_step, writer,
-                  early_stopping, alpha, beta, gamma, clip_norm,
+                  early_stopping, alpha, beta, gamma, omega, clip_norm,
                   tree_update_period, num_samples, output_dir, oversample,
                   debug)
     return model
 
 
-@direct
-def direct_eval(
+def walk(
     data_dict,
     encoder,
     decoder,
-    seed,
-    latent_dim,
-    oversample,
-    max_tree_depth,
-    max_tree_leaf_nodes,
-    tree_update_period,
-    optimizer,  # adam or rmsprop
-    learning_rate,
-    output_dist,  # disc_logistic or l2 or bernoulli
-    output_dir,
-    num_samples,
-    clip_norm,
-    alpha,
-    beta,
-    gamma,
-    gamma_delay=0,
+    seed=None,
+    latent_dim=64,
+    epochs=1000,
+    oversample=1,
+    max_tree_depth=5,
+    tree_update_period=3,
+    optimizer='rmsprop',  # adam or rmsprop
+    learning_rate=3e-4,
+    prior='iso_gaussian_prior',
+    posterior='diag_gaussian_posterior',
+    output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
+    output_dir='./',
+    num_samples=5,
+    clip_norm=0.,
+    alpha=1.,
+    beta=1.,
+    gamma=1.,
+    omega=1.,
+    patience=12,
     debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
         data_dict,
@@ -389,56 +351,10 @@ def direct_eval(
         decoder,
         learning_rate,
         latent_dim,
-        output_dist,
+        prior,
+        posterior,
+        output_distribution,
         max_tree_depth,
-        max_tree_leaf_nodes,
-        output_dir,
-        oversample,
-        debug,
-        expect_load=True)
-    loss = eval(data_dict, model, optimizer, global_step, writer, alpha, beta,
-                gamma, clip_norm, tree_update_period, num_samples, checkpoint,
-                ckpt_manager, output_dir, oversample, debug)
-    with open(osp.join(output_dir, 'final_loss.json'), 'w') as json_file:
-        json.dump(loss, json_file)
-
-
-@direct
-def direct_learn(
-    data_dict,
-    encoder,
-    decoder,
-    seed=None,
-    latent_dim=64,
-    epochs=1000,
-    oversample=10,
-    max_tree_depth=5,
-    max_tree_leaf_nodes=16,
-    tree_update_period=3,
-    optimizer='rmsprop',  # adam or rmsprop
-    learning_rate=3e-4,
-    output_dist='l2',  # disc_logistic or l2 or bernoulli
-    output_dir='./',
-    num_samples=5,
-    clip_norm=0.,
-    alpha=1.,
-    beta=1.,
-    gamma=1.,
-    patience=12,
-    batch_size=128,
-    debug=False):
-    tf.random.set_seed(seed)
-    model, optimizer, global_step, writer, _, ckpt_manager = setup(
-        data_dict, optimizer, encoder, decoder, learning_rate, latent_dim,
-        output_dist, max_tree_depth, max_tree_leaf_nodes, output_dir,
-        oversample, debug)
-
-    early_stopping = EarlyStopping(patience,
-                                   ckpt_manager,
-                                   eps=0.03,
-                                   max_epochs=epochs)
-    model = train(data_dict, model, optimizer, global_step, writer,
-                  early_stopping, alpha, beta, gamma, clip_norm,
-                  tree_update_period, num_samples, output_dir, oversample,
-                  debug)
-    return model
+        output_dir=output_dir,
+        oversample=oversample,
+        debug=debug)

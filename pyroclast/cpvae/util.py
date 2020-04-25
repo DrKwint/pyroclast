@@ -20,17 +20,18 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
     decoder = VAEDecoder(decoder_name, num_channels)
     ddt = DDT(max_tree_depth)
     prior = get_distribution_builder(prior_name)(latent_dim)
-    posterior_fn = get_distribution_builder(posterior_name)
+    posterior_fn = get_distribution_builder(posterior_name)()
     if posterior_name == 'iaf_posterior':
         ar_network = tfp.bijectors.AutoregressiveNetwork(
             params=2,
-            hidden_units=[20, 20],
+            hidden_units=[32, 32],
             activation='elu',
             name='posterior_ar_network')
         posterior_fn = functools.partial(posterior_fn, ar_network=ar_network)
     else:
         ar_network = None
-    output_distribution_fn = get_distribution_builder(output_distribution_name)
+    output_distribution_fn = get_distribution_builder(
+        output_distribution_name)()
     model = TreeVAE(encoder=encoder,
                     posterior_fn=posterior_fn,
                     decoder=decoder,

@@ -20,7 +20,7 @@ class FeaturesTopTask(luigi.WrapperTask):
         if not osp.exists(get_base_path('features')):
             raise Exception('base path {} not accessible'.format(
                 get_base_path('features')))
-        return self.train_tasks()
+        return self.one_channel_train_tasks() + self.three_channel_train_tasks()
 
     def one_channel_train_tasks(self):
         arg_dict = {
@@ -43,7 +43,7 @@ class FeaturesTopTask(luigi.WrapperTask):
             'batch_size': [128],
             'seed': [8549],
             'learning_rate': [1e-4],
-            'conv_stack_name': ['attack_net', 'vgg19'],
+            'conv_stack_name': ['vgg19'],
             'lambd': [0.]
         }
         args = [
@@ -51,9 +51,6 @@ class FeaturesTopTask(luigi.WrapperTask):
             for arg_vals in itertools.product(*arg_dict.values())
         ]
         return [TrainTask(**a) for a in args]
-
-    def train_tasks(self):
-        return self.one_channel_train_tasks() + self.three_channel_train_tasks()
 
 
 class TrainTask(luigi.Task):

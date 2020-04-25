@@ -112,8 +112,8 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
         num_classes = data_dict['num_classes']
         if debug:
             train_batches = tqdm(train_batches, total=data_dict['train_bpe'])
-        print("Epoch", epoch)
-        print("TRAIN")
+        tf.print("Epoch", epoch)
+        tf.print("TRAIN")
         loss_numerator = 0
         acc_numerator = 0
         denominator = 0
@@ -131,14 +131,14 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
             acc_numerator += a
             loss_numerator += l
             denominator += d
-        print("Train Accuracy:", float(acc_numerator) / float(denominator))
-        print("Train Loss:", float(loss_numerator) / float(denominator))
+        tf.print("Train Accuracy:", float(acc_numerator) / float(denominator))
+        tf.print("Train Loss:", float(loss_numerator) / float(denominator))
 
         # test
         test_batches = data_dict['test']
         if debug:
             test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
-        print("TEST")
+        tf.print("TEST")
         loss_numerator = 0
         acc_numerator = 0
         denominator = 0
@@ -156,8 +156,8 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
             acc_numerator += a
             loss_numerator += l
             denominator += d
-        print("Test Accuracy:", float(acc_numerator) / float(denominator))
-        print("Test Loss:", float(loss_numerator) / float(denominator))
+        tf.print("Test Accuracy:", float(acc_numerator) / float(denominator))
+        tf.print("Test Loss:", float(loss_numerator) / float(denominator))
 
         # checkpointing and early stopping
         if early_stopping(epoch, float(loss_numerator) / float(denominator)):

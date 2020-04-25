@@ -29,7 +29,10 @@ class EarlyStopping(object):
             self._best_score = score * self._score_sign
             self.counter = 0
             if self.ckpt_manager is not None:
-                self.ckpt_manager.save(checkpoint_number=epoch)
+                try:
+                    self.ckpt_manager.save(checkpoint_number=epoch)
+                except Exception:
+                    print("CANNOT SAVE THE MODEL!")
             return False
         else:
             self.counter += 1

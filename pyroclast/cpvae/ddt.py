@@ -43,23 +43,28 @@ class DDT(tf.Module):
         dist = tfd.Normal(tf.cast(built_mu, tf.float64),
                           tf.cast(built_sigma, tf.float64))
         leaf_probs = calculate_leaf_probs(dist, self.threshold, self.r_mask)
-        return tfd.Empirical(leaf_probs), calculate_class_likelihood(
-            leaf_probs, self.leaf_class_prob)
+        class_probs = calculate_class_likelihood(leaf_probs,
+                                                 self.leaf_class_prob)
+        return tfd.Categorical(leaf_probs), tfd.Categorical(
+            tf.cast(class_probs, tf.float32))
 
-    def classify_numerical(self, z_prior, z_posterior, num_samples=10):
+    def classify_numerical(self, z_posterior, num_samples=100):
         """
         Using logP(l | z) = logP(z | l) + logP(l) - logp(z)
         """
-        z = z_posterior.sample(num_samples)
-        print([c.sample() for c in self.tree_distribution.components])
-        print(z[0, 0])
-        logz_l = [
-            c.prob(z) for i, c in enumerate(self.tree_distribution.components)
-        ]
-        print(logz_l)
-        exit()
-        return tfd.Empirical(leaf_probs), calculate_class_likelihood(
-            leaf_probs, self.leaf_class_prob)
+        z = tf.cast(z_posterior.sample(num_samples), tf.float64)
+        z_l = tf.convert_to_tensor([
+            self.tree_distribution.cat.probs_parameter()[i] * c.prob(z)
+            for i, c in enumerate(self.tree_distribution.components)
+        ])
+
+        # mean over sample dim, transpose to get batch out front
+        sum_z_l = tf.reduce_sum(z_l, 0)
+        sample_l_z = z_l / (sum_z_l + 1e-127)
+        l_z = tf.reduce_mean(sample_l_z, 1)
+        l_z = tf.transpose(l_z)
+        return tfd.Categorical(l_z), calculate_class_likelihood(
+            l_z, self.leaf_class_prob)
 
     def update_model_tree(self, ds, posterior_fn, oversample, debug):
         repeated_ds = ds.repeat(oversample)
@@ -87,21 +92,23 @@ class DDT(tf.Module):
         leaves = np.where(children_left == -1)[0]
 
         node_indicator = np.transpose(self.decision_tree.decision_path(data))
-        node_samples = lambda node_id: np.nonzero(node_indicator[node_id, :])[0]
+        node_samples = lambda node_id: np.nonzero(node_indicator[node_id])[1]
         categorial_weights = []
         distributions = []
         for l in leaves:
             leaf_data = data[node_samples(l)]
             loc = tf.reduce_mean(leaf_data, 0)
-            cov = tf.reduce_sum(
+            cov = tf.reduce_mean(
                 tf.expand_dims(
                     (leaf_data - loc), 2) * tf.expand_dims(leaf_data - loc, 1),
                 0)
             leaf_dist = tfd.MultivariateNormalTriL(
-                loc=loc, scale_tril=compute_jitter_cholesky(cov))
+                loc=tf.cast(loc, tf.float64),
+                scale_tril=tf.cast(compute_jitter_cholesky(cov), tf.float64))
             distributions.append(leaf_dist)
             categorial_weights.append(leaf_data.shape[0] / num_data)
-        return tfd.Mixture(cat=tfd.Categorical(categorial_weights),
+        return tfd.Mixture(cat=tfd.Categorical(
+            tf.cast(categorial_weights, tf.float64)),
                            components=distributions)
 
     def save_dot(self, output_dir, epoch):
@@ -158,4 +165,4 @@ def calculate_leaf_probs(dist, split, r_mask):
 
 
 def calculate_class_likelihood(leaf_probs, leaf_values):
-    return tf.matmul(leaf_probs, leaf_values)
+    return tf.matmul(tf.cast(leaf_probs, tf.float64), leaf_values)
