@@ -154,7 +154,8 @@ class TopTask(luigi.Task):
                                          self.output()):
             with out_target.open('w') as out_file:
                 for feature_line in lines[class_idx]:
-                    plt.plot(feature_line['x'], feature_line['y'])
+                    if feature_line['y'][0] > 0:
+                        plt.plot(feature_line['x'], feature_line['y'])
                 plt.savefig(out_file.tmp_path, format='png')
                 plt.close(fig)
 
