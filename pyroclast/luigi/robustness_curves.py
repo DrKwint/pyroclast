@@ -136,6 +136,7 @@ class TopTask(luigi.Task):
     def run(self):
         fig, ax1 = plt.subplots()
         ax1.set_xlabel('Epsilon')
+        ax1.set_xscale('log')
         ax1.set_ylabel('Usefulness')
 
         lines = [[{

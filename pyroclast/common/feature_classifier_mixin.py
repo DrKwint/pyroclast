@@ -110,8 +110,14 @@ class FeatureClassifierMixin(abc.ABC):
 
         return corr_calc.finalize()
 
-    def robustness(self, iterable, feature_idx, class_idx, num_classes, eps,
-                   norm):
+    def robustness(self,
+                   iterable,
+                   feature_idx,
+                   class_idx,
+                   num_classes,
+                   eps,
+                   norm,
+                   correlation_sign=None):
         """Calculates the robustness of features in a network with respect to
         a dataset D and a perturbation class defined by norm and eps.
 
@@ -127,6 +133,13 @@ class FeatureClassifierMixin(abc.ABC):
            gamma (tf.Tensor): The robustness of each feature for each class. Of shape [num_features, num_classes].
         """
 
+        if correlation_sign is None:
+            usefulness = self.usefulness(iterable, num_classes)
+            if usefulness > 0:
+                correlation_sign = 1
+            else:
+                correlation_sign = -1
+
         def get_one_hot(x, num_classes):
             return tf.cast(tf.one_hot(x, num_classes, on_value=1, off_value=-1),
                            tf.float32)
@@ -138,8 +151,10 @@ class FeatureClassifierMixin(abc.ABC):
                 labels = get_one_hot(y, num_classes)
 
                 def forward_fn(x):
-                    return self.features(x)[:, feature_idx] * labels[:,
-                                                                     class_idx]
+                    return self.features(
+                        x)[:,
+                           feature_idx] * labels[:,
+                                                 class_idx] * correlation_sign
 
                 adv_img = img + fast_gradient_method(forward_fn, img, eps, norm)
                 yield adv_img, y
