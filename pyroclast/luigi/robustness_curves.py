@@ -1,5 +1,6 @@
 import os
 import itertools
+import json
 from pathlib import Path
 
 import numpy as np
@@ -134,11 +135,6 @@ class TopTask(luigi.Task):
         ]
 
     def run(self):
-        fig, ax1 = plt.subplots()
-        ax1.set_xlabel('Epsilon')
-        ax1.set_xscale('log')
-        ax1.set_ylabel('Usefulness')
-
         lines = [[{
             'x': [],
             'y': []
@@ -154,8 +150,20 @@ class TopTask(luigi.Task):
         for class_idx, out_target in zip(range(get_num_classes()),
                                          self.output()):
             with out_target.open('w') as out_file:
+                fig, ax1 = plt.subplots()
+                ax1.set_xlabel('Epsilon')
+                ax1.set_xscale('log')
+                ax1.set_ylabel('Usefulness')
+                min_x = min([
+                    min([x
+                         for x in feature_line['x']
+                         if x > 0])
+                    for feature_line in lines[class_idx]
+                ])
                 for feature_line in lines[class_idx]:
                     if feature_line['y'][0] > 0:
+                        if feature_line['x'][0] == 0:
+                            feature_line['x'][0] = min_x / 10
                         plt.plot(feature_line['x'], feature_line['y'])
                 plt.savefig(out_file.tmp_path, format='png')
                 plt.close(fig)
