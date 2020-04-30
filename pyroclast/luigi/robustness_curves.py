@@ -162,10 +162,9 @@ class TopTask(luigi.Task):
                     for feature_line in lines[class_idx]
                 ])
                 for feature_line in lines[class_idx]:
-                    if feature_line['y'][0] > 0:
-                        if feature_line['x'][0] == 0:
-                            feature_line['x'][0] = min_x / 10
-                        plt.plot(feature_line['x'], feature_line['y'])
+                    if feature_line['x'][0] == 0:
+                        feature_line['x'][0] = min_x / 10
+                    plt.plot(feature_line['x'], feature_line['y'])
                 plt.savefig(out_file.tmp_path, format='png')
                 plt.close(fig)
 
