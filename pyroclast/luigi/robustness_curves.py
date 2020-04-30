@@ -113,7 +113,6 @@ def get_num_classes():
 def get_num_features():
     global num_features_singleton
     if num_features_singleton is None:
-        config = robustness_curves()
         objects = get_model_objects()
         model = objects['model']
         checkpoint = objects['checkpoint']
@@ -128,70 +127,74 @@ def get_num_features():
 
 
 def specs():
-    classes_iter = range(get_num_classes())
     features_iter = range(get_num_features())
     epsilons = robustness_curves().epsilons
-    iterators = [classes_iter, features_iter, epsilons]
+    iterators = [features_iter, epsilons]
     return itertools.product(*iterators)
 
 
-class TopTask(luigi.Task):
+class TopTask(luigi.WrapperTask):
+
+    def requires(self):
+        return [CurveImageTask(class_idx=i) for i in range(get_num_classes())]
+
+
+class CurveImageTask(luigi.Task):
+    class_idx = luigi.IntParameter()
+
+    @property
+    def priority(self):
+        return 10 - self.class_idx
 
     def output(self):
         config = robustness_curves()
-        return [
-            luigi.LocalTarget(
-                Path(config.storage_dir) / 'images' /
-                (f'curves-{class_idx}.png'))
-            for class_idx in range(get_num_classes())
-        ]
+        return luigi.LocalTarget(
+            Path(config.storage_dir) / 'images' /
+            (f'curves-{self.class_idx}.png'))
 
     def requires(self):
         return [
-            RobustnessTask(class_idx=class_idx,
+            RobustnessTask(class_idx=self.class_idx,
                            feature_idx=feature_idx,
-                           eps=eps)
-            for (class_idx, feature_idx, eps) in specs()
+                           eps=eps) for (feature_idx, eps) in specs()
         ]
 
     def run(self):
-        lines = [[{
-            'x': [],
-            'y': []
-        } for _ in range(get_num_features())] for _ in range(get_num_classes())]
+        lines = [{'x': [], 'y': []} for _ in range(get_num_features())]
 
-        for (class_idx, feature_idx,
-             eps), input_target in zip(specs(), self.input()):
+        for (feature_idx, eps), input_target in zip(specs(), self.input()):
             with input_target.open('r') as in_file:
                 robustness = json.load(in_file)
-            lines[class_idx][feature_idx]['x'].append(eps)
-            lines[class_idx][feature_idx]['y'].append(robustness)
+            lines[feature_idx]['x'].append(eps)
+            lines[feature_idx]['y'].append(robustness)
 
-        for class_idx, out_target in zip(range(get_num_classes()),
-                                         self.output()):
-            with out_target.open('w') as out_file:
-                fig, ax1 = plt.subplots()
-                ax1.set_xlabel('Epsilon')
-                ax1.set_xscale('log')
-                ax1.set_ylabel('Usefulness')
-                min_x = min([
-                    min([x
-                         for x in feature_line['x']
-                         if x > 0])
-                    for feature_line in lines[class_idx]
-                ])
-                for feature_line in lines[class_idx]:
-                    if feature_line['x'][0] == 0:
-                        feature_line['x'][0] = min_x / 10
-                    plt.plot(feature_line['x'], feature_line['y'])
-                plt.savefig(out_file.tmp_path, format='png')
-                plt.close(fig)
+        with self.output().open('w') as out_file:
+            fig, ax1 = plt.subplots()
+            ax1.set_xlabel('Epsilon')
+            ax1.set_xscale('log')
+            ax1.set_ylabel('Usefulness')
+            min_x = min([
+                min([x
+                     for x in feature_line['x']
+                     if x > 0])
+                for feature_line in lines
+            ])
+            for feature_line in lines:
+                if feature_line['x'][0] == 0:
+                    feature_line['x'][0] = min_x / 10
+                plt.plot(feature_line['x'], feature_line['y'])
+            plt.savefig(out_file.tmp_path, format='png')
+            plt.close(fig)
 
 
 class RobustnessTask(luigi.Task):
     class_idx = luigi.IntParameter()
     feature_idx = luigi.IntParameter()
     eps = luigi.FloatParameter()
+
+    @property
+    def priority(self):
+        return 10 - self.class_idx
 
     def requires(self):
         config = robustness_curves()
