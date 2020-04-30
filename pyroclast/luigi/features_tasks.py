@@ -93,7 +93,10 @@ class TrainTask(luigi.Task):
         shutil.copytree(local_output_dir, remote_output_dir)
 
     def output(self):
+        print(self.get_output_dir())
         return {
             "success":
-                luigi.LocalTarget(osp.join(self.get_output_dir(), 'done'))
+                luigi.LocalTarget(osp.join(self.get_output_dir(), 'done')),
+            "output_dir":
+                luigi.LocalTarget(self.get_output_dir())
         }

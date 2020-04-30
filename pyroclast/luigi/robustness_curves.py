@@ -1,21 +1,22 @@
-import os
 import itertools
 import json
+import os
 from pathlib import Path
 
-import numpy as np
 import luigi
-import tensorflow as tf
 import matplotlib
-if os.name == 'posix' and "DISPLAY" not in os.environ:
-    matplotlib.use('Agg')
-    import json
 import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
 
 from pyroclast.common.tf_util import setup_tfds
 from pyroclast.features.features import build_savable_objects
 from pyroclast.luigi.features_tasks import TrainTask
 from pyroclast.luigi.util import get_base_path
+
+if os.name == 'posix' and "DISPLAY" not in os.environ:
+    matplotlib.use('Agg')
+    import json
 
 
 def f_float(f):
@@ -43,7 +44,7 @@ class robustness_curves(luigi.Config):
     norm = luigi.ChoiceParameter(choices=['jnd', 'l_2', 'l_1', 'l_inf'],
                                  default='l_2')
     epsilons = luigi.ListParameter(default=[0.0, 1.0])
-    model_name = luigi.Parameter(default='features')
+    model_name = luigi.Parameter(default='generic_classifier')
     model_params = luigi.DictParameter(
         default={
             'dataset': 'mnist',
@@ -80,9 +81,9 @@ def get_model_objects():
         config = robustness_curves()
         data_dict = get_data_dict()
         model_objects_singleton = build_savable_objects(
-            config.model_params['conv_stack_name'], data_dict,
-            config.model_params['learning_rate'],
-            get_base_path(config.model_name), config.model_name)
+            config.model_params['conv_stack_name'],
+            data_dict, config.model_params['learning_rate'],
+            get_base_path('features'), config.model_name)
     return model_objects_singleton
 
 
@@ -97,8 +98,8 @@ def get_num_features():
         objects = get_model_objects()
         model = objects['model']
         checkpoint = objects['checkpoint']
-        checkpoint.restore(
-            tf.train.latest_checkpoint(get_base_path(config.model_name)))
+        checkpoint.restore(tf.train.latest_checkpoint(
+            get_base_path('features')))
         data_dict = get_data_dict()
         for d in data_dict['train']:
             num_features_singleton = model.features(
@@ -194,20 +195,19 @@ class RobustnessTask(luigi.Task):
                                -1,
                                None,
                                shuffle_seed=config.model_params['seed'])
-
         num_classes = data_dict['num_classes']
 
         # load model
         objects = build_savable_objects(config.model_params['conv_stack_name'],
                                         data_dict,
                                         config.model_params['learning_rate'],
-                                        get_base_path(config.model_name),
+                                        self.input()['output_dir'].path,
                                         config.model_name)
 
         model = objects['model']
         checkpoint = objects['checkpoint']
-        checkpoint.restore(
-            tf.train.latest_checkpoint(get_base_path(config.model_name)))
+        ckpt_manager = objects['ckpt_manager']
+        checkpoint.restore(ckpt_manager.latest_checkpoint).expect_partial()
         data_map = data_dict['train'].map(
             lambda x: (tf.cast(x['image'], tf.float32), x['label']))
         if self.eps == 0:

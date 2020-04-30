@@ -135,7 +135,7 @@ class FeatureClassifierMixin(abc.ABC):
 
         if correlation_sign is None:
             usefulness = self.usefulness(iterable, num_classes)
-            if usefulness > 0:
+            if usefulness[feature_idx][class_idx] > 0:
                 correlation_sign = 1
             else:
                 correlation_sign = -1
@@ -152,9 +152,8 @@ class FeatureClassifierMixin(abc.ABC):
 
                 def forward_fn(x):
                     return self.features(
-                        x)[:,
-                           feature_idx] * labels[:,
-                                                 class_idx] * correlation_sign
+                        x
+                    )[:, feature_idx] * labels[:, class_idx] * correlation_sign
 
                 adv_img = img + fast_gradient_method(forward_fn, img, eps, norm)
                 yield adv_img, y
