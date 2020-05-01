@@ -182,6 +182,8 @@ class CurveImageTask(luigi.Task):
             for feature_line in lines:
                 if feature_line['x'][0] == 0:
                     feature_line['x'][0] = min_x / 10
+                if feature_line['y'][0] < 0:
+                    feature_line['y'] = [-y for y in feature_line]
                 plt.plot(feature_line['x'], feature_line['y'])
             plt.savefig(out_file.tmp_path, format='png')
             plt.close(fig)
