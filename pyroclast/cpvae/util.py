@@ -2,13 +2,12 @@ import functools
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from pyroclast.cpvae.ddt import DDT
 from pyroclast.cpvae.distributions import get_distribution_builder
 from pyroclast.cpvae.model import TreeVAE
 from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
-
-import tensorflow_probability as tfp
 
 
 def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
@@ -95,11 +94,13 @@ def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
     return class_locs, class_scales
 
 
-def get_node_members(ds, model, node_id):
-
-    def member_fn(batch):
-        loc, _ = model._encode(tf.dtypes.cast(batch['image'], tf.float32))
-        membership = model.decision_tree.decision_path(loc)
-        return membership[node_id]
-
-    return ds.filter(member_fn)
+def calculate_walk(origin, destination, steps=8, dim=None):
+    steps = tf.expand_dims(
+        tf.cast(tf.concat([tf.range(0., 1., delta=1. / float(steps)), [1.]], 0),
+                tf.float64), 1)
+    delta = destination - origin
+    if dim is None:
+        return origin + (delta * steps)
+    else:
+        delta = delta * tf.one_hot(dim, delta.shape[-1], dtype=tf.float64)
+        return origin + (delta * steps), destination - (delta * steps)

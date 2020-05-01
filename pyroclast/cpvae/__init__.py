@@ -1,1 +1,1 @@
-from pyroclast.cpvae.cpvae import learn
+from pyroclast.cpvae.cpvae import learn, walk

@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -10,7 +11,7 @@ from tqdm import tqdm
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.cpvae.ddt import DDT
-from pyroclast.cpvae.util import build_saveable_objects
+from pyroclast.cpvae.util import build_saveable_objects, calculate_walk
 
 tfd = tfp.distributions
 
@@ -67,6 +68,7 @@ def setup(data_dict,
 
     # train a ddt
     if tf.train.latest_checkpoint(model_dir):
+        print("loaded decision tree")
         model.classifier = joblib.load(osp.join(output_dir, 'ddt.joblib'))
     else:
         classifier.update_model_tree(data_dict['train'],
@@ -84,7 +86,6 @@ def outer_run_minibatch(model,
                         alpha,
                         beta,
                         gamma,
-                        omega,
                         writer,
                         clip_norm=0.):
 
@@ -103,27 +104,17 @@ def outer_run_minibatch(model,
                                               training=is_train)
             classification_loss = tf.losses.sparse_categorical_crossentropy(
                 y_true=labels, y_pred=y_hat)
-            # distance_loss = tf.nn.l2_loss(z_posterior.mean())
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
-            # omega * distance_loss)
 
         # calculate gradients for current loss
         if is_train:
-            #tf.print(model.decoder_trainable_variables())
             gradients = tape.gradient(loss, model.trainable_variables)
             """
             tf.print(
                 list(
                     zip([tf.reduce_mean(g) for g in gradients],
                         [v.name for v in model.trainable_variables])))
-            tf.print("dist", tf.reduce_min(distortion),
-                     tf.reduce_mean(distortion), tf.reduce_max(distortion))
-            tf.print("rate", tf.reduce_min(rate), tf.reduce_mean(rate),
-                     tf.reduce_max(rate))
-            tf.print("class", tf.reduce_min(classification_loss),
-                     tf.reduce_mean(classification_loss),
-                     tf.reduce_max(classification_loss))
             """
             if clip_norm:
                 clipped_gradients, _ = tf.clip_by_global_norm(
@@ -153,9 +144,6 @@ def outer_run_minibatch(model,
             tf.summary.scalar(prefix + "classification_rate",
                               classification_rate,
                               step=global_step)
-            #tf.summary.scalar(prefix + "loss/distance_loss",
-            #                  omega * tf.reduce_mean(distance_loss),
-            #                  step=global_step)
             tf.summary.scalar(prefix + "leaf distribution entropy",
                               tf.reduce_mean(leaf_probs.entropy()),
                               step=global_step)
@@ -187,8 +175,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
           output_dir, oversample, debug):
     output_log_file = "file://" + osp.join(output_dir, 'train_log.txt')
     run_minibatch_fn = outer_run_minibatch(model, optimizer, global_step, alpha,
-                                           beta, gamma, omega, writer,
-                                           clip_norm)
+                                           beta, gamma, writer, clip_norm)
     run_minibatch_fn = tf.function(run_minibatch_fn)
     # run training loop
     train_batches = data_dict['train']
@@ -358,3 +345,51 @@ def walk(
         output_dir=output_dir,
         oversample=oversample,
         debug=debug)
+    # axis of discrimination walks
+    all_features = model.classifier.decision_tree.tree_.feature
+    features = [
+        all_features[i]
+        for i in range(len(all_features) - 2)
+        if all_features[i + 1] < 0 and all_features[i] > 0
+    ]
+    for i in range(len(model.classifier.tree_distribution.components) // 2):
+        comp_a = model.classifier.tree_distribution.components[2 * i]
+        comp_b = model.classifier.tree_distribution.components[2 * i + 1]
+        feature = features[i]
+        forward_points, backward_points = calculate_walk(comp_a.loc,
+                                                         comp_b.loc,
+                                                         dim=feature)
+        Path(os.path.join(output_dir, "axis_walks",
+                          "leaf_pair_{}".format(i))).mkdir(parents=True,
+                                                           exist_ok=True)
+        for k, img in enumerate(model.decode(forward_points)):
+            im = np.minimum(1., np.maximum(0, np.squeeze(img)))
+            im = Image.fromarray((255. * im).astype(np.uint8))
+            im.save(
+                os.path.join(output_dir, "axis_walks", "leaf_pair_{}".format(i),
+                             "forward_img_{}.png".format(k)))
+        for k, img in enumerate(model.decode(backward_points)):
+            im = np.minimum(1., np.maximum(0, np.squeeze(img)))
+            im = Image.fromarray((255. * im).astype(np.uint8))
+            im.save(
+                os.path.join(output_dir, "axis_walks", "leaf_pair_{}".format(i),
+                             "backward_img_{}.png".format(k)))
+
+    # direct walks
+    for i, component in enumerate(
+            model.classifier.tree_distribution.components):
+        for j, other in enumerate(
+                model.classifier.tree_distribution.components):
+            points = calculate_walk(component.loc, other.loc)
+            Path(
+                os.path.join(output_dir, "direct_walks",
+                             "leaf_walk_{}_{}".format(i,
+                                                      j))).mkdir(parents=True,
+                                                                 exist_ok=True)
+            for k, img in enumerate(model.decode(points)):
+                im = np.minimum(1., np.maximum(0, np.squeeze(img)))
+                im = Image.fromarray((255. * im).astype(np.uint8))
+                im.save(
+                    os.path.join(output_dir, "direct_walks",
+                                 "leaf_walk_{}_{}".format(i, j),
+                                 "img_{}.png".format(k)))
