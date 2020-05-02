@@ -1,10 +1,7 @@
 import os
 import os.path as osp
-<<<<<<< HEAD
 from pathlib import Path
-=======
 import json
->>>>>>> b7caabdb566a4841448e6fecc2b06286e287ef15
 
 import joblib
 import numpy as np
@@ -297,29 +294,29 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
 
 
 def learn(
-        data_dict,
-        encoder,
-        decoder,
-        seed,
-        latent_dim,
-        epochs=1000,
-        oversample=1,
-        max_tree_depth=5,
-        tree_update_period=3,
-        optimizer='rmsprop',  # adam or rmsprop
-        learning_rate=3e-4,
-        prior='iso_gaussian_prior',
-        posterior='diag_gaussian_posterior',
-        output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
-        output_dir='./',
-        num_samples=5,
-        clip_norm=0.,
-        alpha=1.,
-        beta=1.,
-        gamma=1.,
-        omega=1.,
-        patience=12,
-        debug=False):
+    data_dict,
+    encoder,
+    decoder,
+    seed,
+    latent_dim,
+    epochs=1000,
+    oversample=1,
+    max_tree_depth=5,
+    tree_update_period=3,
+    optimizer='rmsprop',  # adam or rmsprop
+    learning_rate=3e-4,
+    prior='iso_gaussian_prior',
+    posterior='diag_gaussian_posterior',
+    output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
+    output_dir='./',
+    num_samples=5,
+    clip_norm=0.,
+    alpha=1.,
+    beta=1.,
+    gamma=1.,
+    omega=1.,
+    patience=12,
+    debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
         data_dict,
         optimizer,
@@ -344,7 +341,6 @@ def learn(
                   tree_update_period, num_samples, output_dir, oversample,
                   debug)
     return model
-<<<<<<< HEAD
 
 
 def walk(
@@ -433,5 +429,3 @@ def walk(
                     os.path.join(output_dir, "direct_walks",
                                  "leaf_walk_{}_{}".format(i, j),
                                  "img_{}.png".format(k)))
-=======
->>>>>>> b7caabdb566a4841448e6fecc2b06286e287ef15
