@@ -51,7 +51,8 @@ def parse_cmdline_kwargs(args):
 
 
 def get_module(module_name, submodule=None):
-    submodule = submodule or module_name
+    if submodule is not None:
+        module_name = module_name + '.' + submodule
     try:
         # first try to import the module from baselines
         module = import_module('.'.join(['pyroclast', module_name]))
@@ -71,7 +72,7 @@ def get_task_function_defaults(module_name, dataset):
     try:
         module_defaults = get_module(module_name, 'defaults')
         kwargs = getattr(module_defaults, dataset)()
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError) as e:
         kwargs = {}
     return kwargs
 
@@ -81,6 +82,11 @@ def run_task(args, extra_args):
     task_func = get_task_function(args.module, args.task, args.submodule)
     module_kwargs = get_task_function_defaults(args.module, args.dataset)
     module_kwargs.update(extra_args)
+    with open(os.path.join(args.output_dir, 'parameters.json'), 'w') as p_file:
+        json.dump({
+            'args': args.__dict__,
+            'module_kwargs': module_kwargs
+        }, p_file)
     if check_datasets(args.dataset):
         data_dict = get_dataset_builder(args.dataset)(args.batch_size,
                                                       args.resize_data_shape,
@@ -120,13 +126,6 @@ def main(args):
     # save the parameters
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
-    with open(os.path.join(args.output_dir, 'parameters.log'), 'w') as p_file:
-        json.dump(
-            {
-                'args': args.__dict__,
-                'unknown_args': unknown_args,
-                'extra_args': extra_args
-            }, p_file)
 
     model = run_task(args, extra_args)
 

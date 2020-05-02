@@ -1,6 +1,10 @@
 import os
 import os.path as osp
+<<<<<<< HEAD
 from pathlib import Path
+=======
+import json
+>>>>>>> b7caabdb566a4841448e6fecc2b06286e287ef15
 
 import joblib
 import numpy as np
@@ -78,6 +82,41 @@ def setup(data_dict,
         classifier.save_dot(output_dir, 'initial')
         joblib.dump(classifier, osp.join(output_dir, 'ddt.joblib'))
     return model, optimizer, global_step, writer, checkpoint, ckpt_manager
+
+
+def setup_from_dir(data_dict, seed, output_dir, fpath, debug=False, **kwargs):
+    with open(fpath) as param_json:
+        cmd_line_params = json.load(param_json)
+    args = cmd_line_params['args']
+    module_kwargs = cmd_line_params['module_kwargs']
+    retrieve = lambda name: module_kwargs[name] if name in args.keys(
+    ) else kwargs[name]
+    optimizer = retrieve('optimizer')
+    learning_rate = retrieve('learning_rate')
+    encoder = retrieve('encoder')
+    decoder = retrieve('decoder')
+    latent_dim = retrieve('latent_dim')
+    prior_name = retrieve('prior')
+    posterior_name = retrieve('posterior')
+    output_distribution_name = retrieve('output_distribution')
+    max_tree_depth = retrieve('max_tree_depth')
+    oversample = retrieve('oversample')
+
+    outs = setup(data_dict,
+                 optimizer,
+                 encoder,
+                 decoder,
+                 learning_rate,
+                 latent_dim,
+                 prior_name,
+                 posterior_name,
+                 output_distribution_name,
+                 max_tree_depth,
+                 output_dir,
+                 oversample,
+                 debug=False,
+                 expect_load=True)
+    print(outs)
 
 
 def outer_run_minibatch(model,
@@ -258,29 +297,29 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
 
 
 def learn(
-    data_dict,
-    encoder,
-    decoder,
-    seed=None,
-    latent_dim=64,
-    epochs=1000,
-    oversample=1,
-    max_tree_depth=5,
-    tree_update_period=3,
-    optimizer='rmsprop',  # adam or rmsprop
-    learning_rate=3e-4,
-    prior='iso_gaussian_prior',
-    posterior='diag_gaussian_posterior',
-    output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
-    output_dir='./',
-    num_samples=5,
-    clip_norm=0.,
-    alpha=1.,
-    beta=1.,
-    gamma=1.,
-    omega=1.,
-    patience=12,
-    debug=False):
+        data_dict,
+        encoder,
+        decoder,
+        seed,
+        latent_dim,
+        epochs=1000,
+        oversample=1,
+        max_tree_depth=5,
+        tree_update_period=3,
+        optimizer='rmsprop',  # adam or rmsprop
+        learning_rate=3e-4,
+        prior='iso_gaussian_prior',
+        posterior='diag_gaussian_posterior',
+        output_distribution='disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
+        output_dir='./',
+        num_samples=5,
+        clip_norm=0.,
+        alpha=1.,
+        beta=1.,
+        gamma=1.,
+        omega=1.,
+        patience=12,
+        debug=False):
     model, optimizer, global_step, writer, checkpoint, ckpt_manager = setup(
         data_dict,
         optimizer,
@@ -305,6 +344,7 @@ def learn(
                   tree_update_period, num_samples, output_dir, oversample,
                   debug)
     return model
+<<<<<<< HEAD
 
 
 def walk(
@@ -393,3 +433,5 @@ def walk(
                     os.path.join(output_dir, "direct_walks",
                                  "leaf_walk_{}_{}".format(i, j),
                                  "img_{}.png".format(k)))
+=======
+>>>>>>> b7caabdb566a4841448e6fecc2b06286e287ef15
