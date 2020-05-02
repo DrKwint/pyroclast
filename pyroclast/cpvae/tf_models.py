@@ -6,19 +6,18 @@ from pyroclast.common.models import get_network_builder
 class VAEEncoder(tf.keras.Model):
     """Network parameterized encoder which outputs the parameters of a loc/scale distribution"""
 
-    def __init__(self, network_name, latent_dim, name='enc'):
+    def __init__(self, network_name, name='enc'):
         super(VAEEncoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)()
-        self.loc = tf.keras.layers.Dense(latent_dim, name='encoder_loc')
-        self.scale = tf.keras.layers.Dense(latent_dim,
-                                           name='encoder_scale_diag_raw')
-        self.flatten = tf.keras.layers.Flatten()
+        self.loc = tf.keras.layers.Conv2D(1, 1, name='encoder_loc')
+        self.scale = tf.keras.layers.Conv2D(1, 1, name='encoder_scale_diag_raw')
 
     def call(self, x):
-        embed = self.flatten(self.net(x))
+        embed = self.net(x)
         inv_softplus_scale = self.scale(embed)
+        loc = self.loc(embed)
         scale = tf.nn.softplus(inv_softplus_scale) + 1e-6
-        return self.loc(embed), scale
+        return loc, scale
 
 
 class VAEDecoder(tf.keras.Model):
@@ -30,15 +29,13 @@ class VAEDecoder(tf.keras.Model):
     def __init__(self, network_name, output_channels, name='dec'):
         super(VAEDecoder, self).__init__(name=name)
         self.net = get_network_builder(network_name)()
-        self.loc = tf.keras.layers.Conv2D(
-            output_channels,
-            3,
-            padding="same",
-            #activation=tf.nn.relu,
-            name='decoder_loc')
+        self.loc = tf.keras.layers.Conv2D(output_channels,
+                                          1,
+                                          padding="same",
+                                          name='decoder_loc')
         self.inv_softplus_scale = tf.keras.layers.Conv2D(
             output_channels,
-            3,
+            1,
             padding="same",
             name='decoder_inv_softplus_scale')
 

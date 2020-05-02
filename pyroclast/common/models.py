@@ -95,8 +95,6 @@ def mnist_conv():
 @register("mnist_decoder")
 def mnist_deconv():
     layers = []
-    layers.append(tf.keras.layers.Dense(49 * 2, activation=tf.nn.leaky_relu))
-    layers.append(tf.keras.layers.Reshape(target_shape=[7, 7, 2]))
     layers.append(
         tf.keras.layers.Conv2DTranspose(filters=64,
                                         kernel_size=5,

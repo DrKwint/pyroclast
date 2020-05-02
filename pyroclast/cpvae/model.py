@@ -81,7 +81,10 @@ class TreeVAE(tf.Module):
 
     def posterior(self, x):
         loc, scale_diag = self.encoder(x)
-        z_posterior = self.posterior_fn(loc, scale_diag)
+        z_posterior = tfd.Independent(self.posterior_fn(loc, scale_diag),
+                                      len(loc.shape) - 2)
+        print(self.prior)
+        print(z_posterior)
         return z_posterior
 
     def encode(self, x):

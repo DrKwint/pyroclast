@@ -15,10 +15,10 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
                            posterior_name, output_distribution_name,
                            max_tree_depth, model_dir, model_name):
     # model
-    encoder = VAEEncoder(encoder_name, latent_dim)
+    encoder = VAEEncoder(encoder_name)
     decoder = VAEDecoder(decoder_name, num_channels)
     ddt = DDT(max_tree_depth)
-    prior = get_distribution_builder(prior_name)(latent_dim)
+    prior = get_distribution_builder(prior_name)([7, 7, 1])
     posterior_fn = get_distribution_builder(posterior_name)()
     if posterior_name == 'iaf_posterior':
         ar_network = tfp.bijectors.AutoregressiveNetwork(

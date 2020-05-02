@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from collections import Iterable
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
@@ -19,8 +20,11 @@ def register(name):
 
 @register("iso_gaussian_prior")
 def iso_gaussian_prior(latent_dimension):
-    return tfp.distributions.MultivariateNormalDiag(
-        loc=tf.zeros(latent_dimension), scale_diag=tf.ones(latent_dimension))
+    dist = tfd.MultivariateNormalDiag(loc=tf.zeros(latent_dimension),
+                                      scale_diag=tf.ones(latent_dimension))
+    if isinstance(latent_dimension, Iterable):
+        dist = tfd.Independent(dist, len(latent_dimension) - 1)
+    return dist
 
 
 @register("iaf_prior")

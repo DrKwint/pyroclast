@@ -12,6 +12,7 @@ tfd = tfp.distributions
 
 
 def compute_jitter_cholesky(x):
+    print(x.shape)
     try:
         cholesky = tf.linalg.cholesky(x)
         return cholesky
@@ -57,6 +58,7 @@ class DDT(tf.Module):
             self.tree_distribution.cat.probs_parameter()[i] * c.prob(z)
             for i, c in enumerate(self.tree_distribution.components)
         ])
+        print([c for c in self.tree_distribution.components])
 
         # mean over sample dim, transpose to get batch out front
         sum_z_l = tf.reduce_sum(z_l, 0)
@@ -77,10 +79,12 @@ class DDT(tf.Module):
                          255.).sample()) for batch in repeated_ds])
         labels = np.concatenate(labels).astype(np.int32)
         z_samples = np.concatenate(z_samples)
+        batch_size = z_samples.shape[0]
+        flat_z_samples = np.reshape(z_samples, [batch_size, -1])
 
         # train decision tree
-        self.decision_tree.fit(z_samples, labels)
-        score = self.decision_tree.score(z_samples, labels)
+        self.decision_tree.fit(flat_z_samples, labels)
+        score = self.decision_tree.score(flat_z_samples, labels)
         self.dims, self.threshold, self.leaf_class_prob, self.r_mask = get_decision_tree_boundaries(
             self.decision_tree)
         self.tree_distribution = self.learn_leaf_distributions(z_samples)
@@ -88,25 +92,29 @@ class DDT(tf.Module):
 
     def learn_leaf_distributions(self, data):
         num_data = data.shape[0]
+        flat_data = np.reshape(data, [num_data, -1])
         children_left = self.decision_tree.tree_.children_left
         leaves = np.where(children_left == -1)[0]
 
-        node_indicator = np.transpose(self.decision_tree.decision_path(data))
+        node_indicator = np.transpose(
+            self.decision_tree.decision_path(flat_data))
         node_samples = lambda node_id: np.nonzero(node_indicator[node_id])[1]
         categorial_weights = []
         distributions = []
         for l in leaves:
             leaf_data = data[node_samples(l)]
             loc = tf.reduce_mean(leaf_data, 0)
-            cov = tf.reduce_mean(
-                tf.expand_dims(
-                    (leaf_data - loc), 2) * tf.expand_dims(leaf_data - loc, 1),
-                0)
-            leaf_dist = tfd.MultivariateNormalTriL(
-                loc=tf.cast(loc, tf.float64),
-                scale_tril=tf.cast(compute_jitter_cholesky(cov), tf.float64))
+            std = tf.reduce_mean(leaf_data - loc, 0)
+            leaf_dist = tfd.MultivariateNormalDiag(loc=tf.cast(loc, tf.float64),
+                                                   scale_diag=tf.cast(
+                                                       std, tf.float64))
+            if len(loc.shape) > 2:
+                leaf_dist = tfd.Independent(leaf_dist,
+                                            len(leaf_dist.batch_shape))
             distributions.append(leaf_dist)
             categorial_weights.append(leaf_data.shape[0] / num_data)
+        print(distributions[0])
+        print(tfd.Categorical(categorial_weights))
         return tfd.Mixture(cat=tfd.Categorical(
             tf.cast(categorial_weights, tf.float64)),
                            components=distributions)
@@ -165,4 +173,5 @@ def calculate_leaf_probs(dist, split, r_mask):
 
 
 def calculate_class_likelihood(leaf_probs, leaf_values):
+    print(tf.matmul(tf.cast(leaf_probs, tf.float64), leaf_values).shape)
     return tf.matmul(tf.cast(leaf_probs, tf.float64), leaf_values)
