@@ -130,25 +130,17 @@ def cifar10_conv(is_train=True):
     # net_h0.outputs._shape = (b_size,32,32,64)
 
     layers.append(
-        tf.keras.layers.Conv2D(
-            32,
-            (3, 3),
-            (2, 2),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h1/conv2d'))
+        tf.keras.layers.Conv2D(32, (3, 3), (2, 2),
+                               padding='SAME',
+                               name='h1/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h1/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
-        tf.keras.layers.Conv2D(
-            32,
-            (3, 3),
-            (1, 1),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h1/conv2d'))
+        tf.keras.layers.Conv2D(32, (3, 3), (1, 1),
+                               padding='SAME',
+                               name='h1/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h1/batch_norm'))
@@ -156,25 +148,17 @@ def cifar10_conv(is_train=True):
     # net_h1.outputs._shape = (b_size,16,16,128)
 
     layers.append(
-        tf.keras.layers.Conv2D(
-            64,
-            (3, 3),
-            (2, 2),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h2/conv2d'))
+        tf.keras.layers.Conv2D(64, (3, 3), (2, 2),
+                               padding='SAME',
+                               name='h2/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h2/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
-        tf.keras.layers.Conv2D(
-            64,
-            (3, 3),
-            (1, 1),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h2/conv2d'))
+        tf.keras.layers.Conv2D(64, (3, 3), (1, 1),
+                               padding='SAME',
+                               name='h2/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h2/batch_norm'))
@@ -182,25 +166,17 @@ def cifar10_conv(is_train=True):
     # net_h2.outputs._shape = (b_size,8,8,256)
 
     layers.append(
-        tf.keras.layers.Conv2D(
-            128,
-            (3, 3),
-            (2, 2),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h3/conv2d'))
+        tf.keras.layers.Conv2D(128, (3, 3), (2, 2),
+                               padding='SAME',
+                               name='h3/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h3/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
-        tf.keras.layers.Conv2D(
-            128,
-            (3, 3),
-            (1, 1),
-            padding='SAME',
-            #kernel_initializer=w_init,
-            name='h3/conv2d'))
+        tf.keras.layers.Conv2D(128, (3, 3), (1, 1),
+                               padding='SAME',
+                               name='h3/conv2d'))
     layers.append(
         tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
                                            name='h3/batch_norm'))
@@ -223,9 +199,9 @@ def celeba_conv(is_train=True):
                                padding='SAME',
                                kernel_initializer=w_init,
                                name='h0/conv2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h0/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='h0/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     # net_h0.outputs._shape = (b_size,32,32,64)
 
@@ -234,9 +210,9 @@ def celeba_conv(is_train=True):
                                padding='SAME',
                                kernel_initializer=w_init,
                                name='h1/conv2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h1/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='h1/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     # net_h1.outputs._shape = (b_size,16,16,128)
 
@@ -245,9 +221,9 @@ def celeba_conv(is_train=True):
                                padding='SAME',
                                kernel_initializer=w_init,
                                name='h2/conv2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h2/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='h2/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     # net_h2.outputs._shape = (b_size,8,8,256)
 
@@ -256,13 +232,83 @@ def celeba_conv(is_train=True):
                                padding='SAME',
                                kernel_initializer=w_init,
                                name='h3/conv2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='h3/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='h3/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     # net_h2.outputs._shape = (b_size,4,4,512)
 
     layers.append(tf.keras.layers.Flatten(name='h4/flatten'))
+    return tf.keras.Sequential(layers)
+
+
+@register('min32_decoder')
+def min32_decoder():
+    layers = []
+    layers.append(tf.keras.layers.Dense(units=1 * 1 * 256, use_bias=False))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(tf.keras.layers.Reshape(target_shape=[1, 1, 256]))
+    layers.append(  # 2x2
+        tf.keras.layers.Conv2DTranspose(filters=256,
+                                        kernel_size=(3, 3),
+                                        strides=(2, 2),
+                                        padding='SAME'))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(
+        tf.keras.layers.Conv2D(filters=256,
+                               kernel_size=3,
+                               padding='SAME',
+                               activation=tf.nn.leaky_relu))
+    layers.append(  # 4x4
+        tf.keras.layers.Conv2DTranspose(filters=128,
+                                        kernel_size=(3, 3),
+                                        strides=(2, 2),
+                                        padding='SAME'))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(
+        tf.keras.layers.Conv2D(filters=128,
+                               kernel_size=3,
+                               padding='SAME',
+                               activation=tf.nn.leaky_relu))
+    layers.append(  # 8x8
+        tf.keras.layers.Conv2DTranspose(filters=64,
+                                        kernel_size=(3, 3),
+                                        strides=(2, 2),
+                                        padding='SAME'))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(
+        tf.keras.layers.Conv2D(filters=64,
+                               kernel_size=3,
+                               padding='SAME',
+                               activation=tf.nn.leaky_relu))
+    layers.append(  # 16x16
+        tf.keras.layers.Conv2DTranspose(filters=32,
+                                        kernel_size=(3, 3),
+                                        strides=(2, 2),
+                                        padding='SAME'))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(
+        tf.keras.layers.Conv2D(filters=32,
+                               kernel_size=3,
+                               padding='SAME',
+                               activation=tf.nn.leaky_relu))
+    layers.append(  # 32x32
+        tf.keras.layers.Conv2DTranspose(filters=32,
+                                        kernel_size=(3, 3),
+                                        strides=(2, 2),
+                                        padding='SAME'))
+    layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.LeakyReLU())
+    layers.append(
+        tf.keras.layers.Conv2D(filters=32,
+                               kernel_size=3,
+                               padding='SAME',
+                               activation=tf.nn.leaky_relu))
     return tf.keras.Sequential(layers)
 
 
@@ -289,14 +335,14 @@ def celeba_gen(is_train=True):
             padding='SAME',
             #kernel_initializer=w_init,
             name='o1/decon2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o1/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='o1/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
         tf.keras.layers.Conv2D(filters=32 * 8, kernel_size=3, padding='SAME'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
     layers.append(tf.keras.layers.LeakyReLU())
     # 4, 4 = s8
 
@@ -308,14 +354,14 @@ def celeba_gen(is_train=True):
             padding='SAME',
             #kernel_initializer=w_init,
             name='o2/decon2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o2/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='o2/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
         tf.keras.layers.Conv2D(filters=32 * 4, kernel_size=3, padding='SAME'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
     layers.append(tf.keras.layers.LeakyReLU())
     # 8, 8 = s4
 
@@ -327,14 +373,14 @@ def celeba_gen(is_train=True):
             padding='SAME',
             #kernel_initializer=w_init,
             name='o3/decon2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o3/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='o3/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
         tf.keras.layers.Conv2D(filters=32 * 2, kernel_size=3, padding='SAME'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
     layers.append(tf.keras.layers.LeakyReLU())
     # 16, 16
 
@@ -346,14 +392,14 @@ def celeba_gen(is_train=True):
             padding='SAME',
             #kernel_initializer=w_init,
             name='o4/decon2d'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
-                                           name='o4/batch_norm'))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init,
+    #                                       name='o4/batch_norm'))
     layers.append(tf.keras.layers.LeakyReLU())
     layers.append(
         tf.keras.layers.Conv2D(filters=32, kernel_size=3, padding='SAME'))
-    layers.append(
-        tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
+    #layers.append(
+    #    tf.keras.layers.BatchNormalization(gamma_initializer=gamma_init))
     layers.append(tf.keras.layers.LeakyReLU())
     # 32, 32
 

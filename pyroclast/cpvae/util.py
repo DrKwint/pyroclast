@@ -17,13 +17,23 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
     # model
     encoder = VAEEncoder(encoder_name, latent_dim)
     decoder = VAEDecoder(decoder_name, num_channels)
-    ddt = DDT(max_tree_depth)
-    prior = get_distribution_builder(prior_name)(latent_dim)
+    ddt = DDT(max_tree_depth, use_analytic=False)
+    classifier = tf.keras.layers.Dense(10)
+    if prior_name == 'iaf_prior':
+        prior_ar_network = tfp.bijectors.AutoregressiveNetwork(
+            params=2,
+            hidden_units=[512, 512, 512],
+            activation='elu',
+            name='prior_ar_network')
+        prior = get_distribution_builder(prior_name)(latent_dim,
+                                                     prior_ar_network)
+    else:
+        prior = get_distribution_builder(prior_name)(latent_dim)
     posterior_fn = get_distribution_builder(posterior_name)()
     if posterior_name == 'iaf_posterior':
         ar_network = tfp.bijectors.AutoregressiveNetwork(
             params=2,
-            hidden_units=[32, 32],
+            hidden_units=[512, 512, 512],
             activation='elu',
             name='posterior_ar_network')
         posterior_fn = functools.partial(posterior_fn, ar_network=ar_network)
@@ -34,12 +44,13 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
     model = TreeVAE(encoder=encoder,
                     posterior_fn=posterior_fn,
                     decoder=decoder,
-                    classifier=ddt,
+                    classifier=classifier,
                     prior=prior,
-                    output_distribution_fn=output_distribution_fn,
-                    use_analytic_classifier=False)
+                    output_distribution_fn=output_distribution_fn)
+    if prior_name == 'iaf_prior':
+        model.prior_ar_network = prior_ar_network
     if posterior_name == 'iaf_posterior':
-        model.ar_network = ar_network
+        model.posterior_ar_network = ar_network
 
     # optimizer
     if optimizer_name == 'adam':

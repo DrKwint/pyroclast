@@ -60,10 +60,10 @@ def setup_tfds(dataset,
         ]
 
     data_dict['train'] = data_dict['train'].shuffle(
-        1024, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
+        2048, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
             tf.data.experimental.AUTOTUNE)
     data_dict['test'] = data_dict['test'].shuffle(
-        1024, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
+        2048, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
             tf.data.experimental.AUTOTUNE)
     return data_dict
 

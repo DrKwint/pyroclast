@@ -68,16 +68,17 @@ def setup(data_dict,
         raise Exception("Model not loaded")
 
     # train a ddt
-    if tf.train.latest_checkpoint(model_dir):
-        print("loaded decision tree")
-        model.classifier = joblib.load(osp.join(output_dir, 'ddt.joblib'))
-    else:
-        classifier.update_model_tree(data_dict['train'],
-                                     model.posterior,
-                                     oversample=oversample,
-                                     debug=debug)
-        classifier.save_dot(output_dir, 'initial')
-        joblib.dump(classifier, osp.join(output_dir, 'ddt.joblib'))
+    if isinstance(model.classifier, DDT):
+        if tf.train.latest_checkpoint(model_dir):
+            print("loaded decision tree")
+            model.classifier = joblib.load(osp.join(output_dir, 'ddt.joblib'))
+        else:
+            classifier.update_model_tree(data_dict['train'],
+                                         model.posterior,
+                                         oversample=oversample,
+                                         debug=debug)
+            classifier.save_dot(output_dir, 'initial')
+            joblib.dump(classifier, osp.join(output_dir, 'ddt.joblib'))
     return model, optimizer, global_step, writer, checkpoint, ckpt_manager
 
 
@@ -131,15 +132,17 @@ def outer_run_minibatch(model,
 
         with tf.GradientTape() as tape:
             global_step.assign_add(1)
-            z_posterior, leaf_probs, y_hat = model(x)
+            z_posterior, y_hat = model(x)
             y_hat = tf.cast(y_hat, tf.float32)  # from double to single fp
 
             distortion, rate = model.vae_loss(x,
                                               z_posterior,
                                               y=labels,
                                               training=is_train)
-            classification_loss = tf.losses.sparse_categorical_crossentropy(
-                y_true=labels, y_pred=y_hat)
+            #classification_loss = tf.losses.sparse_categorical_crossentropy(
+            #    y_true=labels, y_pred=y_hat)
+            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=y_hat)
             loss = tf.reduce_mean(alpha * distortion + beta * rate +
                                   gamma * classification_loss)
 
@@ -180,12 +183,14 @@ def outer_run_minibatch(model,
             tf.summary.scalar(prefix + "classification_rate",
                               classification_rate,
                               step=global_step)
-            tf.summary.scalar(prefix + "leaf distribution entropy",
-                              tf.reduce_mean(leaf_probs.entropy()),
-                              step=global_step)
             tf.summary.scalar(prefix + "loss/total loss",
                               loss,
                               step=global_step)
+            tf.summary.image('data', x, step=global_step, max_outputs=1)
+            tf.summary.image('posterior_data',
+                             model.sample_posterior(x),
+                             step=global_step,
+                             max_outputs=1)
 
         loss_numerator = tf.reduce_sum(alpha * distortion + beta * rate +
                                        gamma * classification_loss)
@@ -221,6 +226,7 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
     if debug:
         test_batches = tqdm(test_batches, total=data_dict['test_bpe'])
     for epoch in range(early_stopping.max_epochs):
+
         # train
         tf.print("Epoch", epoch)
         tf.print("Epoch", epoch, output_stream=output_log_file)
@@ -276,7 +282,8 @@ def train(data_dict, model, optimizer, global_step, writer, early_stopping,
             break
 
         # update
-        if type(model.classifier) is DDT and epoch % tree_update_period == 0:
+        if isinstance(model.classifier,
+                      DDT) and epoch % tree_update_period == 0:
             if debug:
                 tf.print('Updating decision tree')
             score = model.classifier.update_model_tree(data_dict['train'],

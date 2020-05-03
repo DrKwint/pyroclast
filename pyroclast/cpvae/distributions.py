@@ -48,12 +48,11 @@ def diag_gaussian_posterior():
 
 @register("disc_logistic_posterior")
 def disc_logistic_posterior():
-    return lambda loc, scale: tfp.distributions.Independent(
-        tfd.QuantizedDistribution(distribution=tfd.TransformedDistribution(
-            distribution=tfd.Logistic(loc, scale),
-            bijector=tfb.Shift(-0.5 / 256)),
-                                  low=0.,
-                                  high=1.), 3)
+    return lambda loc, scale: tfd.QuantizedDistribution(
+        distribution=tfd.TransformedDistribution(
+            distribution=tfd.Logistic(loc, scale), bijector=tfb.Shift(-0.5)),
+        low=0.,
+        high=255.)
 
 
 LEARNED_GAUSSIAN_CLASS_PRIOR_FN = lambda latent_dimension, class_num: [

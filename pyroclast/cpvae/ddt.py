@@ -30,8 +30,18 @@ def compute_jitter_cholesky(x):
 class DDT(tf.Module):
     """Differentiable decision tree which classifies on the parameters of a Gaussian"""
 
-    def __init__(self, max_depth):
+    def __init__(self, max_depth, use_analytic):
         self.decision_tree = DecisionTreeClassifier(max_depth=max_depth)
+        self.use_analytic = use_analytic
+
+    def __call__(self, z_posterior):
+        if self.use_analytic:
+            leaf_probs, y_hat = self.classify_analytic(
+                z_posterior.parameters['loc'],
+                z_posterior.parameters['scale_diag'])
+        else:
+            leaf_probs, y_hat = self.classify_numerical(z_posterior)
+        return y_hat
 
     def classify_analytic(self, loc, scale_diag):
         built_mu = tf.transpose(

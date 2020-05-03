@@ -1,6 +1,6 @@
-import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from pyroclast.cpvae.ddt import DDT
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
@@ -29,24 +29,37 @@ class TreeVAE(tf.Module):
 
     def __call__(self, x):
         z_posterior = self.posterior(x)
-        if self.use_analytic_classifier:
-            leaf_probs, y_hat = self.classifier.classify_analytic(
-                z_posterior.parameters['loc'],
-                z_posterior.parameters['scale_diag'])
+        if isinstance(self.classifier, DDT):
+            y_hat = self.classifier(z_posterior)
         else:
-            leaf_probs, y_hat = self.classifier.classify_numerical(z_posterior)
-        return z_posterior, leaf_probs, y_hat
+            y_hat = tfp.monte_carlo.expectation(
+                f=self.classifier,
+                samples=z_posterior.sample(100),
+                log_prob=z_posterior.log_prob,
+                use_reparameterization=(
+                    z_posterior.reparameterization_type ==
+                    tfp.distributions.FULLY_REPARAMETERIZED))
+        return z_posterior, y_hat
 
     def vae_loss(self, x, z_posterior, y=None, training=True):
         z_sample = z_posterior.sample()
         loc, scale = self.decoder(z_sample)
+        """
+        tf.print("x", tf.reduce_min(x), tf.reduce_mean(x), tf.reduce_max(x))
+        tf.print("loc", tf.reduce_min(loc), tf.reduce_mean(loc),
+                 tf.reduce_max(loc))
+        tf.print("scale", tf.reduce_min(scale), tf.reduce_mean(scale),
+                 tf.reduce_max(scale))
+        """
 
         # calculate distortion
         if isinstance(self.output_distribution_fn, tfd.PixelCNN):
             distortion = self.output_distribution_fn.log_prob(
                 x, conditional_input=loc, training=training)
         else:
-            distortion = self.output_distribution_fn(loc, scale).log_prob(x)
+            distortion = tfp.distributions.Independent(
+                self.output_distribution_fn(loc * 255., scale * 255.),
+                3).log_prob(x * 255.)
 
         # calculate rate
         # use implmeneted KL if available
