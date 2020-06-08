@@ -8,7 +8,6 @@ class EarlyStopping(object):
                  patience,
                  ckpt_manager=None,
                  minimize_metric=True,
-                 eps=0.01,
                  max_epochs=None):
         # internally, always minimize
         self._best_score = sys.float_info.max
@@ -16,7 +15,6 @@ class EarlyStopping(object):
 
         self.counter = 0
         self.patience = patience
-        self.eps = eps
         self.max_epochs = max_epochs
 
         self.ckpt_manager = ckpt_manager
@@ -25,7 +23,8 @@ class EarlyStopping(object):
         # Returns True when training should stop
         if self.max_epochs is not None and epoch >= self.max_epochs:
             return True
-        if score * self._score_sign < self._best_score - self.eps:
+        if score * self._score_sign < self._best_score - (self._best_score /
+                                                          100.):
             self._best_score = score * self._score_sign
             self.counter = 0
             if self.ckpt_manager is not None:

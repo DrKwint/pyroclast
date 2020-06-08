@@ -2,21 +2,26 @@ def mnist():
     return dict(
         encoder='mnist_encoder',
         decoder='mnist_decoder',
-        latent_dim=64,
-        epochs=1000,
-        oversample=10,
-        max_tree_depth=5,
-        tree_update_period=3,
-        optimizer='rmsprop',  # adam or rmsprop
+        latent_dim=98,
+        max_epochs=1000,
+        optimizer='adam',
         learning_rate=3e-4,
         prior='iso_gaussian_prior',
         posterior='diag_gaussian_posterior',
         output_distribution=
         'disc_logistic_posterior',  # disc_logistic or l2 or bernoulli
-        num_samples=5,
-        clip_norm=0.,
-        alpha=1.,
         beta=1.,
-        gamma=1.,
-        omega=1.,
-        patience=12)
+        patience=12,
+        batch_size=32,
+        model_name='vae_mnist')
+
+
+def cifar10():
+    return dict(encoder='vqvae_cifar10_encoder',
+                decoder='vqvae_cifar10_decoder',
+                optimizer='adam',
+                learning_rate=3e-4,
+                batch_size=64,
+                max_epochs=100,
+                patience=12,
+                model_name='vqvae_cifar10')

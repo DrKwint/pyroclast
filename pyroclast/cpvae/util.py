@@ -1,57 +1,86 @@
 import functools
 
 import numpy as np
+import sonnet as snt
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from pyroclast.cpvae.ddt import DDT
+from pyroclast.common.models import get_network_builder
 from pyroclast.cpvae.distributions import get_distribution_builder
-from pyroclast.cpvae.model import TreeVAE
-from pyroclast.cpvae.tf_models import VAEDecoder, VAEEncoder
+from pyroclast.cpvae.vae import VAE
+from pyroclast.cpvae.vqvae import VQVAE
 
 
-def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
-                           learning_rate, num_channels, latent_dim, prior_name,
-                           posterior_name, output_distribution_name,
-                           max_tree_depth, model_dir, model_name):
-    # model
-    encoder = VAEEncoder(encoder_name, latent_dim)
-    decoder = VAEDecoder(decoder_name, num_channels)
-    ddt = DDT(max_tree_depth, use_analytic=False)
-    classifier = tf.keras.layers.Dense(10)
-    if prior_name == 'iaf_prior':
+def build_vqvae(encoder_name,
+                decoder_name,
+                data_variance,
+                embedding_dim,
+                num_embeddings,
+                commitment_cost,
+                decay=0.99,
+                vq_use_ema=True):
+    encoder = get_network_builder(encoder_name)()
+    decoder = get_network_builder(decoder_name)()
+
+    if vq_use_ema:
+        vector_quantizer = snt.nets.VectorQuantizerEMA(
+            embedding_dim=embedding_dim,
+            num_embeddings=num_embeddings,
+            commitment_cost=commitment_cost,
+            decay=decay)
+    else:
+        vector_quantizer = snt.nets.VectorQuantizer(
+            embedding_dim=embedding_dim,
+            num_embeddings=num_embeddings,
+            commitment_cost=commitment_cost)
+
+    model = VQVAE(encoder, decoder, vector_quantizer, embedding_dim,
+                  data_variance)
+    return model
+
+
+def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
+              output_distribution_name, latent_dim, data_channels, beta):
+    encoder = get_network_builder(encoder_name)()
+    decoder = get_network_builder(decoder_name)()
+    ### distributions
+    # prior
+    if 'ar_prior' in prior_name:
         prior_ar_network = tfp.bijectors.AutoregressiveNetwork(
             params=2,
-            hidden_units=[512, 512, 512],
+            hidden_units=[64, 64, 64],
             activation='elu',
             name='prior_ar_network')
-        prior = get_distribution_builder(prior_name)(latent_dim,
-                                                     prior_ar_network)
+        prior = get_distribution_builder(prior_name)(
+            latent_dim, prior_ar_network
+        )  # note, this needs to be called with an ar network which needs to be changed
     else:
         prior = get_distribution_builder(prior_name)(latent_dim)
+
+    # posterior
     posterior_fn = get_distribution_builder(posterior_name)()
-    if posterior_name == 'iaf_posterior':
-        ar_network = tfp.bijectors.AutoregressiveNetwork(
+    if 'ar_posterior' in posterior_name:
+        posterior_ar_network = tfp.bijectors.AutoregressiveNetwork(
             params=2,
-            hidden_units=[512, 512, 512],
+            hidden_units=[256, 256],
             activation='elu',
             name='posterior_ar_network')
-        posterior_fn = functools.partial(posterior_fn, ar_network=ar_network)
+        posterior_fn = functools.partial(posterior_fn,
+                                         ar_network=posterior_ar_network)
     else:
-        ar_network = None
+        posterior_ar_network = None
+
+    # output_distribution
     output_distribution_fn = get_distribution_builder(
         output_distribution_name)()
-    model = TreeVAE(encoder=encoder,
-                    posterior_fn=posterior_fn,
-                    decoder=decoder,
-                    classifier=classifier,
-                    prior=prior,
-                    output_distribution_fn=output_distribution_fn)
-    if prior_name == 'iaf_prior':
-        model.prior_ar_network = prior_ar_network
-    if posterior_name == 'iaf_posterior':
-        model.posterior_ar_network = ar_network
 
+    model = VAE(encoder, decoder, prior, posterior_fn, output_distribution_fn,
+                latent_dim, data_channels, beta)
+    return model
+
+
+def build_saveable_objects(optimizer_name, learning_rate, model_name, model,
+                           model_save_dir):
     # optimizer
     if optimizer_name == 'adam':
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
@@ -60,7 +89,7 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
     elif optimizer_name == 'rmsprop':
         optimizer = tf.keras.optimizers.RMSprop(learning_rate)
     else:
-        print("OPTIMIMIZER NOT PROPERLY SPECIFIED")
+        print("OPTIMIMIZER NOT AVAILABLE")
         exit()
 
     # global_step
@@ -76,16 +105,13 @@ def build_saveable_objects(optimizer_name, encoder_name, decoder_name,
 
     # checkpoint manager
     ckpt_manager = tf.train.CheckpointManager(checkpoint,
-                                              directory=model_dir,
+                                              directory=model_save_dir,
                                               max_to_keep=3)
-
     return {
-        'model': model,
         'optimizer': optimizer,
         'global_step': global_step,
         'checkpoint': checkpoint,
         'ckpt_manager': ckpt_manager,
-        'classifier': ddt
     }
 
 

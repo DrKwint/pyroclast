@@ -1,1 +1,1 @@
-from pyroclast.cpvae.cpvae import learn, walk, setup_from_dir
+from pyroclast.cpvae.train import learn_vqvae, learn_vae
