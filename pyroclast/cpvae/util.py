@@ -79,8 +79,8 @@ def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
     return model
 
 
-def build_saveable_objects(optimizer_name, learning_rate, model_name, model,
-                           model_save_dir):
+def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
+                           class_model, model_save_dir):
     # optimizer
     if optimizer_name == 'adam':
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
@@ -98,7 +98,8 @@ def build_saveable_objects(optimizer_name, learning_rate, model_name, model,
     # checkpoint
     save_dict = {
         model_name + '_optimizer': optimizer,
-        model_name + '_model': model,
+        model_name + '_gen_model': gen_model,
+        model_name + '_class_model': class_model,
         model_name + '_global_step': global_step
     }
     checkpoint = tf.train.Checkpoint(**save_dict)

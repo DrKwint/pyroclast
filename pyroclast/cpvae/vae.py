@@ -59,11 +59,12 @@ class VAE(AbstractVAE):
                 self._prior.log_prob, z_posterior, sample_size=mc_samples)
 
         loss = tf.reduce_mean(recon_loss + (self._beta * latent_loss))
-        return {
+        outputs.update({
             'loss': loss,
             'recon_loss': recon_loss,
             'latent_loss': latent_loss
-        }
+        })
+        return outputs
 
     def posterior(self, inputs):
         encoder_embed = self._encoder(inputs)

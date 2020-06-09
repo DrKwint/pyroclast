@@ -6,13 +6,25 @@ import numpy as np
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.cpvae.util import build_vqvae, build_vae, build_saveable_objects
+from pyroclast.cpvae.distribution_classifier import build_ddt_classifier, build_linear_classifier
 
 
 def write_tensorboard(writer, output_dict, global_step, prefix='train'):
     with writer.as_default():
-        #prediction = tf.math.argmax(y_hat, axis=1, output_type=tf.int32)
-        #classification_rate = tf.reduce_mean(
-        #    tf.cast(tf.equal(prediction, labels), tf.float32))
+        if 'y_hat' in output_dict and 'labels' in output_dict:
+            prediction = tf.math.argmax(output_dict['y_hat'],
+                                        axis=1,
+                                        output_type=tf.int32)
+            classification_rate = tf.reduce_mean(
+                tf.cast(tf.equal(prediction, output_dict['labels']),
+                        tf.float32))
+            tf.summary.scalar(prefix + "/classification_rate",
+                              classification_rate,
+                              step=global_step)
+        if 'class_loss' in output_dict:
+            tf.summary.scalar(prefix + "/mean classification loss",
+                              tf.reduce_mean(output_dict['class_loss']),
+                              step=global_step)
         if 'recon_loss' in output_dict:
             tf.summary.scalar(prefix + "/mean reconstruction loss",
                               tf.reduce_mean(output_dict['recon_loss']),
@@ -21,12 +33,6 @@ def write_tensorboard(writer, output_dict, global_step, prefix='train'):
             tf.summary.scalar(prefix + "/mean latent loss",
                               tf.reduce_mean(output_dict['latent_loss']),
                               step=global_step)
-        #tf.summary.scalar(prefix + "loss/mean classification loss",
-        #                  gamma * tf.reduce_mean(classification_loss),
-        #                  step=global_step)
-        #tf.summary.scalar(prefix + "classification_rate",
-        #                  classification_rate,
-        #                  step=global_step)
         if 'vq_output' in output_dict:
             tf.summary.scalar(prefix + "/mean codebook perplexity",
                               tf.reduce_mean(
@@ -40,13 +46,14 @@ def write_tensorboard(writer, output_dict, global_step, prefix='train'):
                               tf.reduce_mean(output_dict['loss']),
                               step=global_step)
         if 'recon' in output_dict:
-            tf.summary.image('posterior_sample',
+            tf.summary.image(prefix + '/posterior_sample',
                              output_dict['recon'],
                              step=global_step,
                              max_outputs=1)
 
 
-def outer_run_minibatch(vae_model,
+def outer_run_minibatch(gen_model,
+                        class_model,
                         optimizer,
                         global_step,
                         writer,
@@ -56,11 +63,15 @@ def outer_run_minibatch(vae_model,
         x = tf.cast(data, tf.float32) / 255.
         labels = tf.cast(labels, tf.int32)
         global_step.assign_add(1)
-        outputs = vae_model.forward_loss(x)
-        outputs['recon'] = tf.concat([x, vae_model.output_point_estimate(x)],
+        outputs = gen_model.forward_loss(x)
+        outputs.update(class_model.forward_loss(outputs['z'], labels))
+        outputs['labels'] = labels
+        outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
                                      -2)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['loss']
+        if 'class_loss' in outputs:
+            loss += outputs['class_loss']
         num_samples = x.shape[0]
         return loss, num_samples
 
@@ -71,9 +82,12 @@ def outer_run_minibatch(vae_model,
         # calculate gradients for current loss
         with tf.GradientTape() as tape:
             global_step.assign_add(1)
-            outputs = vae_model.forward_loss(x)
+            outputs = gen_model.forward_loss(x)
+            outputs.update(class_model.forward_loss(outputs['z'], labels))
             loss = outputs['loss']
-            gradients = tape.gradient(loss, vae_model.trainable_variables)
+            if 'class_loss' in outputs:
+                loss += outputs['class_loss']
+            gradients = tape.gradient(loss, gen_model.trainable_variables)
         if clip_norm:
             clipped_gradients, _ = tf.clip_by_global_norm(gradients, clip_norm)
         else:
@@ -81,28 +95,27 @@ def outer_run_minibatch(vae_model,
         optimizer.apply_gradients([
             (grad, var)
             for (grad,
-                 var) in zip(clipped_gradients, vae_model.trainable_variables)
+                 var) in zip(clipped_gradients, gen_model.trainable_variables)
             if grad is not None
         ])
 
-        outputs['recon'] = tf.concat([x, vae_model.output_point_estimate(x)],
+        outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
                                      -2)
+        outputs['labels'] = labels
         write_tensorboard(writer, outputs, global_step, prefix='train')
 
-        #classification_rate_numerator = tf.reduce_sum(
-        #    tf.cast(tf.equal(prediction, labels), tf.float32))
         num_samples = x.shape[0]
         return loss, num_samples
 
     return run_train_minibatch, run_eval_minibatch
 
 
-def train(data_dict, model, optimizer, global_step, ckpt_manager, max_epochs,
-          patience, clip_norm, output_dir, debug):
+def train(data_dict, gen_model, class_model, optimizer, global_step,
+          ckpt_manager, max_epochs, patience, clip_norm, output_dir, debug):
     output_log_file = "file://" + osp.join(output_dir, 'train_log.txt')
     writer = tf.summary.create_file_writer(output_dir)
     train_minibatch_fn, eval_minibatch_fn = outer_run_minibatch(
-        model, optimizer, global_step, writer, clip_norm)
+        gen_model, class_model, optimizer, global_step, writer, clip_norm)
     train_minibatch_fn = tf.function(train_minibatch_fn)
     eval_minibatch_fn = tf.function(eval_minibatch_fn)
     # run training loop
@@ -173,7 +186,7 @@ def train(data_dict, model, optimizer, global_step, ckpt_manager, max_epochs,
             model.prior = model.classifier.tree_distribution
         """
 
-    return model
+    return gen_model
 
 
 def learn_vae(data_dict,
@@ -193,20 +206,24 @@ def learn_vae(data_dict,
               output_dir,
               save_dir,
               beta=1.,
+              class_loss_coeff=1.,
               debug=False):
     for x in data_dict['train']:
         data_channels = x['image'].shape[-1]
+        num_classes = 10
         break
 
-    model = build_vae(encoder, decoder, prior, posterior, output_distribution,
-                      latent_dim, data_channels, beta)
+    gen_model = build_vae(encoder, decoder, prior, posterior,
+                          output_distribution, latent_dim, data_channels, beta)
+    class_model = build_linear_classifier(num_classes,
+                                          class_loss_coeff=class_loss_coeff)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
-                                     model, save_dir)
+                                     gen_model, class_model, save_dir)
     global_step = objects['global_step']
     ckpt_manager = objects['ckpt_manager']
     optimizer = objects['optimizer']
-    return train(data_dict, model, optimizer, global_step, ckpt_manager,
-                 max_epochs, patience, None, output_dir, debug)
+    return train(data_dict, gen_model, class_model, optimizer, global_step,
+                 ckpt_manager, max_epochs, patience, None, output_dir, debug)
 
 
 def learn_vqvae(data_dict, seed, encoder, decoder, optimizer, batch_size,
@@ -225,17 +242,19 @@ def learn_vqvae(data_dict, seed, encoder, decoder, optimizer, batch_size,
     # commitment_cost should also be multiplied with the same amount.
     commitment_cost = 2.5  #.25
 
+    num_classes = 10
     train_images = np.array(
         [d['image'] for d in data_dict['train'].unbatch().as_numpy_iterator()])
     train_data_variance = np.var(train_images / 255.0)
 
-    model = build_vqvae(encoder, decoder, train_data_variance, embedding_dim,
-                        num_embeddings, commitment_cost)
+    gen_model = build_vqvae(encoder, decoder, train_data_variance,
+                            embedding_dim, num_embeddings, commitment_cost)
+    class_model = build_linear_classifier(num_classes)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
-                                     model, save_dir)
+                                     gen_model, class_model, save_dir)
     global_step = objects['global_step']
     ckpt_manager = objects['ckpt_manager']
     optimizer = objects['optimizer']
 
-    return train(data_dict, model, optimizer, global_step, ckpt_manager,
-                 max_epochs, patience, None, output_dir, debug)
+    return train(data_dict, gen_model, class_model, optimizer, global_step,
+                 ckpt_manager, max_epochs, patience, None, output_dir, debug)
