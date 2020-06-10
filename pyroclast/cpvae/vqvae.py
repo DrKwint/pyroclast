@@ -57,6 +57,8 @@ class VQVAE(AbstractVAE):
             'vq_output': vq_output_bottom,
         }
         if self._vq_top:
+            outputs['z_sample'] = z_top
+            outputs['z'] = tfd.Deterministic(z_top)
             outputs['vq_output_bottom'] = vq_output_bottom
             outputs['vq_output_top'] = vq_output_top
             outputs['z_bottom'] = z_bottom
@@ -68,15 +70,19 @@ class VQVAE(AbstractVAE):
     def forward_loss(self, inputs):
         outputs = self(inputs, is_training=True)
         x_recon = outputs['x_recon']
-        vq_output = outputs['vq_output']
+        if 'vq_output_top' in outputs:
+            vq_loss = outputs['vq_output_top']['loss'] + outputs[
+                'vq_output_bottom']['loss']
+        else:
+            vq_loss = outputs['vq_output']['loss']
 
         recon_error = tf.reduce_mean(
             (x_recon - inputs)**2) / self._data_variance
-        loss = recon_error + vq_output['loss']
+        loss = recon_error + vq_loss
         outputs.update({
             'gen_loss': loss,
             'recon_loss': recon_error,
-            'vq_loss': vq_output['loss']
+            'vq_loss': vq_loss
         })
         return outputs
 
