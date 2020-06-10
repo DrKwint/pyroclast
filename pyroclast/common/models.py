@@ -286,11 +286,11 @@ class Encoder(snt.Module):
                                  kernel_shape=(4, 4),
                                  stride=(2, 2),
                                  name="enc_1")
-        if downscale == 4:
-            self._enc_2 = snt.Conv2D(output_channels=self._num_hiddens,
-                                     kernel_shape=(4, 4),
-                                     stride=(2, 2),
-                                     name="enc_2")
+        stride = (2, 2) if downscale == 4 else (1, 1)
+        self._enc_2 = snt.Conv2D(output_channels=self._num_hiddens,
+                                 kernel_shape=(4, 4),
+                                 stride=stride,
+                                 name="enc_2")
         self._enc_3 = snt.Conv2D(output_channels=self._num_hiddens,
                                  kernel_shape=(3, 3),
                                  stride=(1, 1),
@@ -307,13 +307,13 @@ class Encoder(snt.Module):
 
 
 @register('vqvae_cifar10_encoder')
-def vqvae_cifar10_enc():
-    return Encoder(128, 3, 64)
+def vqvae_cifar10_enc(downscale=4):
+    return Encoder(128, 3, 32, downscale)
 
 
 @register('vqvae_cifar10_decoder')
-def vqvae_cifar10_dec():
-    return Decoder(128, 3, 64)
+def vqvae_cifar10_dec(upscale=4):
+    return Decoder(128, 3, 32, upscale)
 
 
 class Decoder(snt.Module):
@@ -336,13 +336,21 @@ class Decoder(snt.Module):
         self._residual_stack = ResidualStack(self._num_hiddens,
                                              self._num_residual_layers,
                                              self._num_residual_hiddens)
-        if upscale == 4:
-            self._dec_2 = snt.Conv2DTranspose(
-                output_channels=self._num_hiddens // 2,
+        self._dec_2 = snt.Conv2DTranspose(output_channels=self._num_hiddens //
+                                          2,
+                                          output_shape=None,
+                                          kernel_shape=(4, 4),
+                                          stride=(2, 2),
+                                          name="dec_2")
+        if upscale >= 8:
+            self._dec_up = snt.Conv2DTranspose(
+                output_channels=self._num_hiddens // 4,
                 output_shape=None,
                 kernel_shape=(4, 4),
                 stride=(2, 2),
-                name="dec_2")
+                name="dec_up")
+        else:
+            self._dec_up = None
         self._dec_3 = snt.Conv2DTranspose(output_channels=3,
                                           output_shape=None,
                                           kernel_shape=(4, 4),
@@ -353,6 +361,8 @@ class Decoder(snt.Module):
         h = self._dec_1(x)
         h = self._residual_stack(h)
         h = tf.nn.relu(self._dec_2(h))
+        if self._dec_up is not None:
+            h = tf.nn.relu(self._dec_up(h))
         x_recon = self._dec_3(h)
         return x_recon
 

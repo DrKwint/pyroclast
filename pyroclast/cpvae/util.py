@@ -18,7 +18,8 @@ def build_vqvae(encoder_name,
                 num_embeddings,
                 commitment_cost,
                 decay=0.99,
-                vq_use_ema=True):
+                vq_use_ema=True,
+                layers=1):
     encoder = get_network_builder(encoder_name)()
     decoder = get_network_builder(decoder_name)()
 
@@ -34,8 +35,27 @@ def build_vqvae(encoder_name,
             num_embeddings=num_embeddings,
             commitment_cost=commitment_cost)
 
+    if layers == 2:
+        encoder_top = get_network_builder(encoder_name)(downscale=2)
+        decoder_top = get_network_builder(decoder_name)(upscale=8)
+        if vq_use_ema:
+            vector_quantizer_top = snt.nets.VectorQuantizerEMA(
+                embedding_dim=embedding_dim,
+                num_embeddings=num_embeddings,
+                commitment_cost=commitment_cost,
+                decay=decay)
+        else:
+            vector_quantizer_top = snt.nets.VectorQuantizer(
+                embedding_dim=embedding_dim,
+                num_embeddings=num_embeddings,
+                commitment_cost=commitment_cost)
+    else:
+        encoder_top = None
+        decoder_top = None
+        vector_quantizer_top = None
+
     model = VQVAE(encoder, decoder, vector_quantizer, embedding_dim,
-                  data_variance)
+                  data_variance, encoder_top, decoder_top, vector_quantizer_top)
     return model
 
 
