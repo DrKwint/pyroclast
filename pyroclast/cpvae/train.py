@@ -226,9 +226,20 @@ def learn_vae(data_dict,
                  ckpt_manager, max_epochs, patience, None, output_dir, debug)
 
 
-def learn_vqvae(data_dict, seed, encoder, decoder, optimizer, batch_size,
-                max_epochs, patience, learning_rate, model_name, output_dir,
-                save_dir, debug):
+def learn_vqvae(data_dict,
+                seed,
+                encoder,
+                decoder,
+                optimizer,
+                batch_size,
+                max_epochs,
+                patience,
+                learning_rate,
+                model_name,
+                output_dir,
+                save_dir,
+                class_loss_coeff=1.,
+                debug=False):
     # This value is not that important, usually 64 works.
     # This will not change the capacity in the information-bottleneck.
     embedding_dim = 64
@@ -249,7 +260,7 @@ def learn_vqvae(data_dict, seed, encoder, decoder, optimizer, batch_size,
 
     gen_model = build_vqvae(encoder, decoder, train_data_variance,
                             embedding_dim, num_embeddings, commitment_cost)
-    class_model = build_linear_classifier(num_classes)
+    class_model = build_linear_classifier(num_classes, class_loss_coeff)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
                                      gen_model, class_model, save_dir)
     global_step = objects['global_step']

@@ -47,7 +47,12 @@ class VAE(AbstractVAE):
 
     def forward_loss(self, inputs, mc_samples=100):
         outputs = self(inputs)
-        recon_loss = -1 * outputs['x'].log_prob(inputs)
+        if isinstance(outputs['x'], tfd.PixelCNN):
+            loc = self._output_loc(self._decoder(outputs['z_sample']))
+            recon_loss = -1 * outputs['x'].log_prob(inputs,
+                                                    conditional_input=loc)
+        else:
+            recon_loss = -1 * outputs['x'].log_prob(inputs)
 
         z_posterior = outputs['z']
         if isinstance(self._prior,
@@ -75,6 +80,8 @@ class VAE(AbstractVAE):
 
     def _output_distribution(self, z_sample):
         # Assumes that data is NHWC and that the decoder outputs the correct NHW dims
+        if isinstance(self._output_fn, tfd.PixelCNN):
+            return self._output_fn
         decoder_embed = self._decoder(z_sample)
         loc, scale = self._output_loc(decoder_embed), self._output_scale(
             decoder_embed)
@@ -82,9 +89,15 @@ class VAE(AbstractVAE):
 
     def output_distribution(self, inputs):
         posterior = self.posterior(inputs)
-        return self._output_distribution(posterior.sample())
+        posterior_sample = posterior.sample()
+        return self._output_distribution(posterior_sample)
 
     def output_point_estimate(self, inputs):
         posterior = self.posterior(inputs)
-        loc = self._output_loc(self._decoder(posterior.sample()))
+        posterior_sample = posterior.sample()
+        loc = self._output_loc(self._decoder(posterior_sample))
+        if isinstance(self._output_fn, tfd.PixelCNN):
+            loc = self._output_fn.sample(conditional_input=loc)
+            print(loc.shape)
+            exit()
         return loc

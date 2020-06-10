@@ -41,9 +41,9 @@ class DistributionClassifier(tf.Module):
         y_hat = self(distribution)
         return {
             'class_loss':
-                self._class_loss_coeff *
-                tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels,
-                                                               logits=y_hat),
+                self._class_loss_coeff * tf.reduce_mean(
+                    tf.nn.sparse_softmax_cross_entropy_with_logits(
+                        labels=labels, logits=y_hat)),
             'y_hat':
                 y_hat
         }
