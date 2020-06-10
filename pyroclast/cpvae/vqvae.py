@@ -9,8 +9,15 @@ tfd = tfp.distributions
 
 class VQVAE(AbstractVAE):
 
-    def __init__(self, encoder, decoder, vector_quantizer, embedding_dim,
-                 data_variance):
+    def __init__(self,
+                 encoder,
+                 decoder,
+                 vector_quantizer,
+                 embedding_dim,
+                 data_variance,
+                 top_encoder=None,
+                 top_decoder=None,
+                 top_vector_quantizer=None):
         super(VQVAE, self).__init__()
         self._encoder = encoder
         self._decoder = decoder
@@ -20,16 +27,29 @@ class VQVAE(AbstractVAE):
                                         kernel_shape=(1, 1),
                                         stride=(1, 1),
                                         name="to_vq")
+        if top_encoder and top_decoder and top_vector_quantizer:
+            self._encoder_top = top_encoder
+            self._decoder_top = top_decoder
+            self._vq_top = top_vector_quantizer
+            self._pre_vq_conv2 = snt.Conv2D(output_channels=embedding_dim // 2,
+                                            kernel_shape=(1, 1),
+                                            stride=(1, 1),
+                                            name="to_vq")
 
     def __call__(self, inputs, is_training=False):
-        z = self._pre_vq_conv1(self._encoder(inputs))
-        vq_output = self._vq(z, is_training=is_training)
-        x_recon = self._decoder(vq_output['quantize'])
+        z_bottom = self._encoder(inputs)
+        vq_output_bottom = self._vq(self._pre_vq_conv1(z_bottom),
+                                    is_training=is_training)
+        if self._vq_top:
+            z_top = self._encoder_top(z_bottom)
+            vq_output_top = self._vq_top(self._pre_vq_conv2(z_bottom),
+                                         is_training=is_training)
+        x_recon = self._decoder(vq_output_bottom['quantize'])
         return {
-            'z_sample': z,
-            'z': tfd.Deterministic(z),
+            'z_sample': z_bottom,
+            'z': tfd.Deterministic(z_bottom),
             'x_recon': x_recon,
-            'vq_output': vq_output,
+            'vq_output': vq_output_bottom,
         }
 
     def forward_loss(self, inputs):
