@@ -6,7 +6,7 @@ import numpy as np
 
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.cpvae.util import build_vqvae, build_vae, build_saveable_objects
-from pyroclast.cpvae.distribution_classifier import build_ddt_classifier, build_linear_classifier
+from pyroclast.cpvae.distribution_classifier import build_ddt_classifier, build_linear_classifier, build_nonlinear_classifier
 
 
 def write_tensorboard(writer, output_dict, global_step, prefix='train'):
@@ -260,7 +260,7 @@ def learn_vqvae(data_dict,
 
     gen_model = build_vqvae(encoder, decoder, train_data_variance,
                             embedding_dim, num_embeddings, commitment_cost)
-    class_model = build_linear_classifier(num_classes, class_loss_coeff)
+    class_model = build_nonlinear_classifier(num_classes, class_loss_coeff)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
                                      gen_model, class_model, save_dir)
     global_step = objects['global_step']
