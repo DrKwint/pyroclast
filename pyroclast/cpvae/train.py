@@ -41,9 +41,13 @@ def write_tensorboard(writer, output_dict, global_step, prefix='train'):
             tf.summary.scalar(prefix + "/mean codebook loss",
                               tf.reduce_mean(output_dict['vq_output']['loss']),
                               step=global_step)
-        if 'loss' in output_dict:
+        if 'gen_loss' in output_dict:
+            tf.summary.scalar(prefix + "/mean generative loss",
+                              tf.reduce_mean(output_dict['gen_loss']),
+                              step=global_step)
+        if 'total_loss' in output_dict:
             tf.summary.scalar(prefix + "/mean total loss",
-                              tf.reduce_mean(output_dict['loss']),
+                              tf.reduce_mean(output_dict['total_loss']),
                               step=global_step)
         if 'recon' in output_dict:
             tf.summary.image(prefix + '/posterior_sample',
@@ -69,9 +73,10 @@ def outer_run_minibatch(gen_model,
         outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
                                      -2)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
-        loss = outputs['loss']
+        loss = outputs['gen_loss']
         if 'class_loss' in outputs:
             loss += outputs['class_loss']
+            outputs['total_loss'] = loss
         num_samples = x.shape[0]
         return loss, num_samples
 
@@ -84,9 +89,10 @@ def outer_run_minibatch(gen_model,
             global_step.assign_add(1)
             outputs = gen_model.forward_loss(x)
             outputs.update(class_model.forward_loss(outputs['z'], labels))
-            loss = outputs['loss']
+            loss = outputs['gen_loss']
             if 'class_loss' in outputs:
                 loss += outputs['class_loss']
+                outputs['total_loss'] = loss
             gradients = tape.gradient(loss, gen_model.trainable_variables)
         if clip_norm:
             clipped_gradients, _ = tf.clip_by_global_norm(gradients, clip_norm)
@@ -260,7 +266,7 @@ def learn_vqvae(data_dict,
 
     gen_model = build_vqvae(encoder, decoder, train_data_variance,
                             embedding_dim, num_embeddings, commitment_cost)
-    class_model = build_nonlinear_classifier(num_classes, class_loss_coeff)
+    class_model = build_linear_classifier(num_classes, class_loss_coeff)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
                                      gen_model, class_model, save_dir)
     global_step = objects['global_step']

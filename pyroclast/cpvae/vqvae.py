@@ -41,7 +41,7 @@ class VQVAE(AbstractVAE):
             (x_recon - inputs)**2) / self._data_variance
         loss = recon_error + vq_output['loss']
         outputs.update({
-            'loss': loss,
+            'gen_loss': loss,
             'recon_loss': recon_error,
             'vq_loss': vq_output['loss']
         })

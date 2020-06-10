@@ -65,7 +65,7 @@ class VAE(AbstractVAE):
 
         loss = tf.reduce_mean(recon_loss + (self._beta * latent_loss))
         outputs.update({
-            'loss': loss,
+            'gen_loss': loss,
             'recon_loss': recon_loss,
             'latent_loss': latent_loss
         })

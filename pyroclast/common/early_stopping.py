@@ -24,7 +24,7 @@ class EarlyStopping(object):
         if self.max_epochs is not None and epoch >= self.max_epochs:
             return True
         if score * self._score_sign < self._best_score - (self._best_score /
-                                                          100.):
+                                                          200.):
             self._best_score = score * self._score_sign
             self.counter = 0
             if self.ckpt_manager is not None:

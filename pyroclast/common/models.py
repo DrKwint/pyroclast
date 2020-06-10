@@ -306,12 +306,12 @@ class Encoder(snt.Module):
 
 @register('vqvae_cifar10_encoder')
 def vqvae_cifar10_enc():
-    return Encoder(128, 2, 32)
+    return Encoder(128, 3, 32)
 
 
 @register('vqvae_cifar10_decoder')
 def vqvae_cifar10_dec():
-    return Decoder(128, 2, 32)
+    return Decoder(128, 3, 32)
 
 
 class Decoder(snt.Module):
