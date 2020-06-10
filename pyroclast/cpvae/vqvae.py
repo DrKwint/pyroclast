@@ -27,6 +27,7 @@ class VQVAE(AbstractVAE):
         x_recon = self._decoder(vq_output['quantize'])
         return {
             'z_sample': z,
+            'z': tfd.Deterministic(z),
             'x_recon': x_recon,
             'vq_output': vq_output,
         }

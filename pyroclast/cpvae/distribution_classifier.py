@@ -7,8 +7,10 @@ tfd = tfp.distributions
 
 
 def build_linear_classifier(num_classes, class_loss_coeff):
-    return DistributionClassifier(snt.Linear(num_classes, with_bias=True),
-                                  class_loss_coeff)
+    return DistributionClassifier(
+        snt.Sequential([snt.Flatten(),
+                        snt.Linear(num_classes, with_bias=True)]),
+        class_loss_coeff)
 
 
 def build_ddt_classifier(max_depth, class_loss_coeff):
