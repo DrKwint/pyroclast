@@ -257,7 +257,7 @@ def learn_vqvae(data_dict,
     # of values. It mostly depends on the scale of the reconstruction cost
     # (log p(x|z)). So if the reconstruction cost is 100x higher, the
     # commitment_cost should also be multiplied with the same amount.
-    commitment_cost = 2.5  #.25
+    commitment_cost = 1.  #.25
 
     num_classes = 10
     train_images = np.array(

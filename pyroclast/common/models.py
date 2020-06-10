@@ -351,11 +351,22 @@ class Decoder(snt.Module):
                 name="dec_up")
         else:
             self._dec_up = None
-        self._dec_3 = snt.Conv2DTranspose(output_channels=3,
+        self._dec_3 = snt.Conv2DTranspose(output_channels=self._num_hiddens //
+                                          4,
+                                          kernel_shape=(4, 4),
+                                          name='dec_3')
+        self._dec_4 = snt.Conv2DTranspose(output_channels=self._num_hiddens //
+                                          4,
                                           output_shape=None,
                                           kernel_shape=(4, 4),
                                           stride=(2, 2),
-                                          name="dec_3")
+                                          name="dec_4")
+        self._dec_5 = snt.Conv2D(output_channels=self._num_hiddens // 8,
+                                 kernel_shape=(3, 3),
+                                 name='dec_3')
+        self._dec_6 = snt.Conv2D(output_channels=3,
+                                 kernel_shape=(3, 3),
+                                 name='dec_3')
 
     def __call__(self, x):
         h = self._dec_1(x)
@@ -363,7 +374,10 @@ class Decoder(snt.Module):
         h = tf.nn.relu(self._dec_2(h))
         if self._dec_up is not None:
             h = tf.nn.relu(self._dec_up(h))
-        x_recon = self._dec_3(h)
+        h = tf.nn.relu(self._dec_3(h))
+        h = tf.nn.relu(self._dec_4(h))
+        h = tf.nn.relu(self._dec_5(h))
+        x_recon = self._dec_6(h)
         return x_recon
 
 
