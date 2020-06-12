@@ -282,14 +282,21 @@ class Encoder(snt.Module):
         self._num_residual_layers = num_residual_layers
         self._num_residual_hiddens = num_residual_hiddens
 
+        if downscale >= 2:
+            enc1_stride = (2, 2)
+        else:
+            enc1_stride = (1, 1)
         self._enc_1 = snt.Conv2D(output_channels=self._num_hiddens // 2,
                                  kernel_shape=(4, 4),
-                                 stride=(2, 2),
+                                 stride=enc1_stride,
                                  name="enc_1")
-        stride = (2, 2) if downscale == 4 else (1, 1)
+        if downscale >= 4:
+            enc2_stride = (2, 2)
+        else:
+            enc2_stride = (1, 1)
         self._enc_2 = snt.Conv2D(output_channels=self._num_hiddens,
                                  kernel_shape=(4, 4),
-                                 stride=stride,
+                                 stride=enc2_stride,
                                  name="enc_2")
         self._enc_3 = snt.Conv2D(output_channels=self._num_hiddens,
                                  kernel_shape=(3, 3),
@@ -307,7 +314,7 @@ class Encoder(snt.Module):
 
 
 @register('vqvae_cifar10_encoder')
-def vqvae_cifar10_enc(downscale=4):
+def vqvae_cifar10_enc(downscale):
     return Encoder(128, 3, 32, downscale)
 
 
@@ -365,7 +372,7 @@ class Decoder(snt.Module):
                                  kernel_shape=(3, 3),
                                  name='dec_3')
         self._dec_6 = snt.Conv2D(output_channels=3,
-                                 kernel_shape=(3, 3),
+                                 kernel_shape=(1, 1),
                                  name='dec_3')
 
     def __call__(self, x):

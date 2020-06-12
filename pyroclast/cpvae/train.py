@@ -264,13 +264,8 @@ def learn_vqvae(data_dict,
         [d['image'] for d in data_dict['train'].unbatch().as_numpy_iterator()])
     train_data_variance = np.var(train_images / 255.0)
 
-    gen_model = build_vqvae(encoder,
-                            decoder,
-                            train_data_variance,
-                            embedding_dim,
-                            num_embeddings,
-                            commitment_cost,
-                            layers=2)
+    gen_model = build_vqvae(encoder, decoder, train_data_variance,
+                            embedding_dim, num_embeddings, commitment_cost)
     class_model = build_linear_classifier(num_classes, class_loss_coeff)
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
                                      gen_model, class_model, save_dir)

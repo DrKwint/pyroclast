@@ -3,68 +3,55 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 from pyroclast.cpvae.abstract_vae import AbstractVAE
+from pyroclast.common.models import get_network_builder
 
 tfd = tfp.distributions
 
 
 class VQVAE(AbstractVAE):
 
-    def __init__(self,
-                 encoder,
-                 decoder,
-                 vector_quantizer,
-                 embedding_dim,
-                 data_variance,
-                 top_encoder=None,
-                 top_decoder=None,
-                 top_vector_quantizer=None):
+    def __init__(self, vq_bottom, vq_top, embedding_dim, data_variance):
         super(VQVAE, self).__init__()
-        self._encoder = encoder
-        self._decoder = decoder
-        self._vq = vector_quantizer
+        self._top_encoder4 = get_network_builder("vqvae_cifar10_encoder")(
+            downscale=4)
+        self._top_encoder2 = get_network_builder("vqvae_cifar10_encoder")(
+            downscale=2)
+        self._bottom_encoder4 = get_network_builder("vqvae_cifar10_encoder")(
+            downscale=4)
+        self._top_decoder = get_network_builder("vqvae_cifar10_decoder")(
+            upscale=8)
+        self._bottom_decoder = get_network_builder("vqvae_cifar10_decoder")(
+            upscale=4)
+        self._vq_bottom = vq_bottom
+        self._vq_top = vq_top
         self._data_variance = data_variance
         self._pre_vq_conv1 = snt.Conv2D(output_channels=embedding_dim,
                                         kernel_shape=(1, 1),
                                         stride=(1, 1),
                                         name="to_vq")
-        if top_encoder and top_decoder and top_vector_quantizer:
-            self._encoder_top = top_encoder
-            self._decoder_top = top_decoder
-            self._vq_top = top_vector_quantizer
-            self._pre_vq_conv2 = snt.Conv2D(output_channels=embedding_dim,
-                                            kernel_shape=(1, 1),
-                                            stride=(1, 1),
-                                            name="to_vq")
-        else:
-            self._vq_top = None
+        self._pre_vq_conv2 = snt.Conv2D(output_channels=embedding_dim,
+                                        kernel_shape=(1, 1),
+                                        stride=(1, 1),
+                                        name="to_vq2")
 
     def __call__(self, inputs, is_training=False):
-        z_bottom = self._encoder(inputs)
-        vq_output_bottom = self._vq(self._pre_vq_conv1(z_bottom),
-                                    is_training=is_training)
-        x_recon_bottom = self._decoder(vq_output_bottom['quantize'])
-        x_recon = x_recon_bottom
-        if self._vq_top:
-            z_top = self._encoder_top(z_bottom)
-            vq_output_top = self._vq_top(self._pre_vq_conv2(z_top),
-                                         is_training=is_training)
-            x_recon_top = self._decoder_top(vq_output_top['quantize'])
-            x_recon += x_recon_top
+        z_bottom = self._bottom_encoder4(inputs)
+        vq_output_bottom = self._vq_bottom(self._pre_vq_conv1(z_bottom),
+                                           is_training=is_training)
+        z_top = self._top_encoder2(
+            tf.concat(
+                [self._top_encoder4(inputs), vq_output_bottom['quantize']], -1))
+        vq_output_top = self._vq_top(self._pre_vq_conv2(z_top),
+                                     is_training=is_training)
+        x_recon = self._bottom_decoder(vq_output_bottom['quantize'])
+        x_recon += self._top_decoder(vq_output_top['quantize'])
         outputs = {
-            'z_sample': z_bottom,
-            'z': tfd.Deterministic(z_bottom),
+            'z_sample': z_top,
+            'z': tfd.Deterministic(z_top),
             'x_recon': x_recon,
-            'vq_output': vq_output_bottom,
+            'vq_output_bottom': vq_output_bottom,
+            'vq_output_top': vq_output_top,
         }
-        if self._vq_top:
-            outputs['z_sample'] = z_top
-            outputs['z'] = tfd.Deterministic(z_top)
-            outputs['vq_output_bottom'] = vq_output_bottom
-            outputs['vq_output_top'] = vq_output_top
-            outputs['z_bottom'] = z_bottom
-            outputs['z_top'] = z_top
-            outputs['x_recon_bottom'] = x_recon_bottom
-            outputs['x_recon_top'] = x_recon_top
         return outputs
 
     def forward_loss(self, inputs):
@@ -87,14 +74,11 @@ class VQVAE(AbstractVAE):
         return outputs
 
     def posterior(self, inputs):
-        z = self._pre_vq_conv1(self._encoder(inputs))
-        vq_output = self._vq(z, is_training=False)
-        return tfd.Deterministic(vq_output['quantize'])
+        pass
 
     def output_distribution(self, inputs):
-        vq = self.posterior(inputs).loc
-        x_recon = self._decoder(vq)
-        return tfd.Deterministic(x_recon)
+        outputs = self(inputs, is_training=False)
+        return tfd.Deterministic(outputs['x_recon'])
 
     def output_point_estimate(self, inputs):
         return self.output_distribution(inputs).loc
