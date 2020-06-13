@@ -21,7 +21,7 @@ def cifar10():
                 decoder='vqvae_cifar10_decoder',
                 optimizer='adam',
                 learning_rate=3e-4,
-                batch_size=64,
-                max_epochs=100,
-                patience=12,
+                batch_size=128,
+                max_epochs=400,
+                patience=80,
                 model_name='vqvae_cifar10')

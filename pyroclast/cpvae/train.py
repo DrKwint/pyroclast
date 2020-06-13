@@ -64,13 +64,13 @@ def outer_run_minibatch(gen_model,
                         clip_norm=0.):
 
     def run_eval_minibatch(data, labels):
-        x = tf.cast(data, tf.float32) / 255.
+        x = (tf.cast(data, tf.float32) / 255.) - 0.5
         labels = tf.cast(labels, tf.int32)
         global_step.assign_add(1)
         outputs = gen_model.forward_loss(x)
         outputs.update(class_model.forward_loss(outputs['z'], labels))
         outputs['labels'] = labels
-        outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
+        outputs['recon'] = tf.concat([x + 0.5, gen_model.output_point_estimate(x) + 0.5],
                                      -2)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['gen_loss']
@@ -81,7 +81,7 @@ def outer_run_minibatch(gen_model,
         return loss, num_samples
 
     def run_train_minibatch(data, labels):
-        x = tf.cast(data, tf.float32) / 255.
+        x = (tf.cast(data, tf.float32) / 255.) - 0.5
         labels = tf.cast(labels, tf.int32)
 
         # calculate gradients for current loss
@@ -98,12 +98,15 @@ def outer_run_minibatch(gen_model,
             clipped_gradients, _ = tf.clip_by_global_norm(gradients, clip_norm)
         else:
             clipped_gradients = gradients
+        """
         optimizer.apply_gradients([
             (grad, var)
             for (grad,
                  var) in zip(clipped_gradients, gen_model.trainable_variables)
             if grad is not None
         ])
+        """
+        optimizer.apply(clipped_gradients, gen_model.trainable_variables)
 
         outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
                                      -2)
@@ -251,13 +254,13 @@ def learn_vqvae(data_dict,
     embedding_dim = 64
 
     # The higher this value, the higher the capacity in the information bottleneck.
-    num_embeddings = 512
+    num_embeddings = 1024 # 512
 
     # commitment_cost should be set appropriately. It's often useful to try a couple
     # of values. It mostly depends on the scale of the reconstruction cost
     # (log p(x|z)). So if the reconstruction cost is 100x higher, the
     # commitment_cost should also be multiplied with the same amount.
-    commitment_cost = 1.  #.25
+    commitment_cost = .25
 
     num_classes = 10
     train_images = np.array(

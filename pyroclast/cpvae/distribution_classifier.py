@@ -47,13 +47,12 @@ class DistributionClassifier(tf.Module):
                     tfd.ReparameterizationType == tfd.FULLY_REPARAMETERIZED))
         return y_hat
 
-    def forward_loss(self, distribution, labels):
+    def forward_loss(self, distribution, labels, num_classes=10):
         y_hat = self(distribution)
+        loss = tf.keras.losses.hinge(y_true=tf.one_hot(labels, num_classes), y_pred=y_hat)
         return {
             'class_loss':
-                self._class_loss_coeff * tf.reduce_mean(
-                    tf.nn.sparse_softmax_cross_entropy_with_logits(
-                        labels=labels, logits=y_hat)),
+                self._class_loss_coeff * tf.reduce_mean(loss),
             'y_hat':
                 y_hat
         }
