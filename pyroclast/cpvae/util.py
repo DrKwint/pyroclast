@@ -90,9 +90,7 @@ def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
                            class_model, model_save_dir):
     # optimizer
     if optimizer_name == 'adam':
-        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate,
-                                             beta_1=0.5,
-                                             epsilon=0.01)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     elif optimizer_name == 'rmsprop':
         optimizer = tf.keras.optimizers.RMSprop(learning_rate)
     else:
