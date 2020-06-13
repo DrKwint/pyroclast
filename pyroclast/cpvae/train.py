@@ -70,8 +70,8 @@ def outer_run_minibatch(gen_model,
         outputs = gen_model.forward_loss(x)
         outputs.update(class_model.forward_loss(outputs['z'], labels))
         outputs['labels'] = labels
-        outputs['recon'] = tf.concat([x + 0.5, gen_model.output_point_estimate(x) + 0.5],
-                                     -2)
+        outputs['recon'] = tf.concat(
+            [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['gen_loss']
         if 'class_loss' in outputs:
@@ -88,7 +88,8 @@ def outer_run_minibatch(gen_model,
         with tf.GradientTape() as tape:
             global_step.assign_add(1)
             outputs = gen_model.forward_loss(x)
-            outputs.update(class_model.forward_loss(outputs['z'], labels))
+            if class_model is not None:
+                outputs.update(class_model.forward_loss(outputs['z'], labels))
             loss = outputs['gen_loss']
             if 'class_loss' in outputs:
                 loss += outputs['class_loss']
@@ -254,7 +255,7 @@ def learn_vqvae(data_dict,
     embedding_dim = 64
 
     # The higher this value, the higher the capacity in the information bottleneck.
-    num_embeddings = 1024 # 512
+    num_embeddings = 1024  # 512
 
     # commitment_cost should be set appropriately. It's often useful to try a couple
     # of values. It mostly depends on the scale of the reconstruction cost
@@ -269,7 +270,10 @@ def learn_vqvae(data_dict,
 
     gen_model = build_vqvae(encoder, decoder, train_data_variance,
                             embedding_dim, num_embeddings, commitment_cost)
-    class_model = build_linear_classifier(num_classes, class_loss_coeff)
+    if class_loss_coeff > 0.:
+        class_model = build_linear_classifier(num_classes, class_loss_coeff)
+    else:
+        class_model = None
     objects = build_saveable_objects(optimizer, learning_rate, model_name,
                                      gen_model, class_model, save_dir)
     global_step = objects['global_step']

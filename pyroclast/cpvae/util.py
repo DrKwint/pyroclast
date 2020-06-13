@@ -90,7 +90,7 @@ def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
                            class_model, model_save_dir):
     # optimizer
     if optimizer_name == 'adam':
-        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        optimizer = snt.optimizers.Adam(learning_rate=learning_rate)
     elif optimizer_name == 'rmsprop':
         optimizer = tf.keras.optimizers.RMSprop(learning_rate)
     else:
@@ -104,9 +104,10 @@ def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
     save_dict = {
         model_name + '_optimizer': optimizer,
         model_name + '_gen_model': gen_model,
-        model_name + '_class_model': class_model,
         model_name + '_global_step': global_step
     }
+    if class_model is not None:
+        save_dict[model_name + '_class_model'] = class_model
     checkpoint = tf.train.Checkpoint(**save_dict)
 
     # checkpoint manager
