@@ -352,7 +352,7 @@ def setup_vqvae(data_dict,
     num_classes = 10
     train_images = np.array(
         [d['image'] for d in data_dict['train'].unbatch().as_numpy_iterator()])
-    train_data_variance = np.var(train_images / 255.0)
+    train_data_variance = np.var(train_images)
 
     objects = dict()
     objects['gen_model'] = build_vqvae(encoder,
