@@ -66,7 +66,7 @@ def conv_only(output_channels=[32, 64, 64, 128],
 
 
 @register("mnist_encoder")
-def mnist_conv():
+def mnist_conv(**kwargs):
     layers = []
     layers.append(
         tf.keras.layers.Conv2D(32,
@@ -94,10 +94,10 @@ def mnist_conv():
 
 
 @register("mnist_decoder")
-def mnist_deconv():
+def mnist_deconv(**kwargs):
     # expects inputs of shape [N, 98]
     layers = []
-    layers.append(tf.keras.layers.Reshape([7, 7, 2]))
+    # layers.append(tf.keras.layers.Reshape([7, 7, 2]))
     layers.append(
         tf.keras.layers.Conv2DTranspose(filters=64,
                                         kernel_size=5,
@@ -120,6 +120,14 @@ def mnist_deconv():
                                kernel_size=3,
                                padding='SAME',
                                activation=tf.nn.leaky_relu))
+    if 'output_channels' in kwargs:
+        layers.append(
+            tf.keras.layers.Conv2D(filters=kwargs['output_channels'],
+                                   kernel_size=1,
+                                   name='dec_out'))
+    else:
+        print(kwargs)
+        exit()
     return tf.keras.Sequential(layers)
 
 
@@ -314,12 +322,12 @@ class Encoder(snt.Module):
 
 
 @register('vqvae_cifar10_encoder')
-def vqvae_cifar10_enc(downscale):
+def vqvae_cifar10_enc(downscale, **kwargs):
     return Encoder(128, 3, 32, downscale)
 
 
 @register('vqvae_cifar10_decoder')
-def vqvae_cifar10_dec(upscale=4):
+def vqvae_cifar10_dec(upscale=4, **kwargs):
     return Decoder(128, 3, 32, upscale)
 
 
@@ -370,10 +378,10 @@ class Decoder(snt.Module):
                                           name="dec_4")
         self._dec_5 = snt.Conv2D(output_channels=self._num_hiddens // 8,
                                  kernel_shape=(3, 3),
-                                 name='dec_3')
+                                 name='dec_5')
         self._dec_6 = snt.Conv2D(output_channels=3,
                                  kernel_shape=(1, 1),
-                                 name='dec_3')
+                                 name='dec_out')
 
     def __call__(self, x):
         h = self._dec_1(x)

@@ -59,11 +59,16 @@ def setup_tfds(dataset,
             info.features['image'].shape[-1]
         ]
 
-    data_dict['train'] = data_dict['train'].shuffle(
+    def prep_data(batch):
+        batch['image'] = (tf.cast(batch['image'], tf.float32) / 255.) - 0.5
+        batch['label'] = tf.cast(batch['label'], tf.int32)
+        return batch
+
+    data_dict['train'] = data_dict['train'].map(prep_data).shuffle(
         10000, seed=shuffle_seed).take(data_limit).batch(
             batch_size,
             drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
-    data_dict['test'] = data_dict['test'].shuffle(
+    data_dict['test'] = data_dict['test'].map(prep_data).shuffle(
         10000, seed=shuffle_seed).take(data_limit).batch(batch_size).prefetch(
             tf.data.experimental.AUTOTUNE)
     return data_dict

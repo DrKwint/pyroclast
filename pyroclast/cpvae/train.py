@@ -3,7 +3,10 @@ import os.path as osp
 import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
+import tensorflow_probability as tfp
 
+from pyroclast.cpvae.vqvae import AuxiliaryPrior
+from pyroclast.cpvae.util import load_args_from_dir, build_checkpoint
 from pyroclast.common.early_stopping import EarlyStopping
 from pyroclast.cpvae.util import build_vqvae, build_vae, build_saveable_objects
 from pyroclast.cpvae.distribution_classifier import build_ddt_classifier, build_linear_classifier, build_nonlinear_classifier
@@ -33,13 +36,23 @@ def write_tensorboard(writer, output_dict, global_step, prefix='train'):
             tf.summary.scalar(prefix + "/mean latent loss",
                               tf.reduce_mean(output_dict['latent_loss']),
                               step=global_step)
-        if 'vq_output' in output_dict:
-            tf.summary.scalar(prefix + "/mean codebook perplexity",
+        if 'vq_output_top' in output_dict:
+            tf.summary.scalar(prefix + "/mean top codebook perplexity",
                               tf.reduce_mean(
-                                  output_dict['vq_output']['perplexity']),
+                                  output_dict['vq_output_top']['perplexity']),
                               step=global_step)
-            tf.summary.scalar(prefix + "/mean codebook loss",
-                              tf.reduce_mean(output_dict['vq_output']['loss']),
+            tf.summary.scalar(prefix + "/mean top codebook loss",
+                              tf.reduce_mean(
+                                  output_dict['vq_output_top']['loss']),
+                              step=global_step)
+        if 'vq_output_bottom' in output_dict:
+            tf.summary.scalar(
+                prefix + "/mean bottom codebook perplexity",
+                tf.reduce_mean(output_dict['vq_output_bottom']['perplexity']),
+                step=global_step)
+            tf.summary.scalar(prefix + "/mean bottom codebook loss",
+                              tf.reduce_mean(
+                                  output_dict['vq_output_bottom']['loss']),
                               step=global_step)
         if 'gen_loss' in output_dict:
             tf.summary.scalar(prefix + "/mean generative loss",
@@ -63,15 +76,15 @@ def outer_run_minibatch(gen_model,
                         writer,
                         clip_norm=0.):
 
-    def run_eval_minibatch(data, labels):
-        x = (tf.cast(data, tf.float32) / 255.) - 0.5
-        labels = tf.cast(labels, tf.int32)
+    def run_eval_minibatch(x, labels):
         global_step.assign_add(1)
         outputs = gen_model.forward_loss(x)
-        outputs.update(class_model.forward_loss(outputs['z'], labels))
+        if class_model is not None:
+            outputs.update(class_model.forward_loss(outputs['z'], labels))
         outputs['labels'] = labels
-        outputs['recon'] = tf.concat(
-            [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+        if hasattr(gen_model, 'output_point_estimate'):
+            outputs['recon'] = tf.concat(
+                [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['gen_loss']
         if 'class_loss' in outputs:
@@ -80,10 +93,7 @@ def outer_run_minibatch(gen_model,
         num_samples = x.shape[0]
         return loss, num_samples
 
-    def run_train_minibatch(data, labels):
-        x = (tf.cast(data, tf.float32) / 255.) - 0.5
-        labels = tf.cast(labels, tf.int32)
-
+    def run_train_minibatch(x, labels):
         # calculate gradients for current loss
         with tf.GradientTape() as tape:
             global_step.assign_add(1)
@@ -99,18 +109,11 @@ def outer_run_minibatch(gen_model,
             clipped_gradients, _ = tf.clip_by_global_norm(gradients, clip_norm)
         else:
             clipped_gradients = gradients
-        """
-        optimizer.apply_gradients([
-            (grad, var)
-            for (grad,
-                 var) in zip(clipped_gradients, gen_model.trainable_variables)
-            if grad is not None
-        ])
-        """
         optimizer.apply(clipped_gradients, gen_model.trainable_variables)
 
-        outputs['recon'] = tf.concat([x, gen_model.output_point_estimate(x)],
-                                     -2)
+        if hasattr(gen_model, 'output_point_estimate'):
+            outputs['recon'] = tf.concat(
+                [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
         outputs['labels'] = labels
         write_tensorboard(writer, outputs, global_step, prefix='train')
 
@@ -147,7 +150,7 @@ def train(data_dict, gen_model, class_model, optimizer, global_step,
         sum_loss = 0
         sum_num_samples = 0
         for batch in train_batches:
-            loss, num_samples = train_minibatch_fn(data=batch['image'],
+            loss, num_samples = train_minibatch_fn(x=batch['image'],
                                                    labels=batch['label'])
             sum_loss += loss
             sum_num_samples += num_samples
@@ -160,7 +163,7 @@ def train(data_dict, gen_model, class_model, optimizer, global_step,
         sum_num_samples = 0
         tf.print("TEST", output_stream=output_log_file)
         for batch in test_batches:
-            loss, num_samples = eval_minibatch_fn(data=batch['image'],
+            loss, num_samples = eval_minibatch_fn(x=batch['image'],
                                                   labels=batch['label'])
             sum_loss += loss
             sum_num_samples += num_samples
@@ -240,45 +243,137 @@ def learn_vqvae(data_dict,
                 seed,
                 encoder,
                 decoder,
+                layers,
                 optimizer,
                 batch_size,
+                embedding_dim,
+                num_embeddings,
+                commitment_cost,
                 max_epochs,
                 patience,
                 learning_rate,
-                model_name,
                 output_dir,
                 save_dir,
-                class_loss_coeff=1.,
+                class_loss_coeff,
+                load_dir=None,
                 debug=False):
-    # This value is not that important, usually 64 works.
-    # This will not change the capacity in the information-bottleneck.
-    embedding_dim = 64
+    objects = setup_vqvae(data_dict, encoder, decoder, layers, optimizer,
+                          embedding_dim, num_embeddings, commitment_cost,
+                          learning_rate, save_dir, class_loss_coeff, load_dir)
+    gen_model = objects['gen_model']
+    class_model = objects['class_model']
+    optimizer = objects['optimizer']
+    global_step = objects['global_step']
+    ckpt_manager = objects['ckpt_manager']
 
-    # The higher this value, the higher the capacity in the information bottleneck.
-    num_embeddings = 1024  # 512
+    return train(data_dict, gen_model, class_model, optimizer, global_step,
+                 ckpt_manager, max_epochs, patience, None, output_dir, debug)
 
-    # commitment_cost should be set appropriately. It's often useful to try a couple
-    # of values. It mostly depends on the scale of the reconstruction cost
-    # (log p(x|z)). So if the reconstruction cost is 100x higher, the
-    # commitment_cost should also be multiplied with the same amount.
-    commitment_cost = .25
 
+def learn_vqvae_prior(data_dict,
+                      seed,
+                      param_dir,
+                      save_dir,
+                      load_model_dir,
+                      output_dir,
+                      max_epochs,
+                      patience,
+                      debug=False,
+                      **kwargs):
+    args = load_args_from_dir(param_dir)
+    objects = setup_vqvae(data_dict, args['encoder'], args['decoder'],
+                          args['layers'], args['optimizer'],
+                          args['embedding_dim'], args['num_embeddings'],
+                          args['commitment_cost'], args['learning_rate'],
+                          save_dir, args['class_loss_coeff'], load_model_dir)
+
+    optimizer = objects['optimizer']
+    global_step = objects['global_step']
+    gen_model = objects['gen_model']
+    ckpt_manager = objects['ckpt_manager']
+
+    # TODO update data dict with a map using the vqvae
+    def bottom_code(batch):
+        outs = gen_model(batch['image'])
+        code = tf.expand_dims(outs['vq_output_bottom']['encoding_indices'], -1)
+        code = tf.cast(code, tf.float32)
+        if code.shape[1] % 2 == 1:
+            code = tf.pad(code, [[0, 0], [0, 1], [0, 1], [0, 0]])
+        batch['image'] = code
+        return batch
+
+    def top_code(batch):
+        outs = gen_model(batch['image'])
+        code = tf.expand_dims(outs['vq_output_bottom']['encoding_indices'], -1)
+        code = tf.cast(code, tf.float32)
+        if code.shape[1] % 2 == 1:
+            code = tf.pad(code, [[0, 0], [0, 1], [0, 1], [0, 0]])
+        batch['image'] = code
+        return batch
+
+    # this does nothing except to initialize the model variables
+    for d in data_dict['train']:
+        gen_model(d['image'])
+        break
+
+    if gen_model.num_layers == 2:
+        code_fn = top_code
+        num_embeddings = gen_model._vq_top.num_embeddings
+    else:
+        code_fn = bottom_code
+        num_embeddings = gen_model._vq_bottom.num_embeddings
+    data_dict['train'] = data_dict['train'].map(code_fn)
+    data_dict['test'] = data_dict['test'].map(code_fn)
+
+    for d in data_dict['train']:
+        code_shape = d['image'].shape[1:]
+        break
+
+    aux_prior = AuxiliaryPrior(code_shape, num_embeddings)
+    train(data_dict, aux_prior, None, optimizer, global_step, ckpt_manager,
+          max_epochs, patience, None, output_dir, debug)
+
+
+def setup_vqvae(data_dict,
+                encoder,
+                decoder,
+                layers,
+                optimizer,
+                embedding_dim,
+                num_embeddings,
+                commitment_cost,
+                learning_rate,
+                save_dir,
+                class_loss_coeff,
+                load_model_dir=None):
+    for d in data_dict['train']:
+        output_channels = d['image'].shape[-1]
+        break
     num_classes = 10
     train_images = np.array(
         [d['image'] for d in data_dict['train'].unbatch().as_numpy_iterator()])
     train_data_variance = np.var(train_images / 255.0)
 
-    gen_model = build_vqvae(encoder, decoder, train_data_variance,
-                            embedding_dim, num_embeddings, commitment_cost)
+    objects = dict()
+    objects['gen_model'] = build_vqvae(encoder,
+                                       decoder,
+                                       layers,
+                                       output_channels,
+                                       train_data_variance,
+                                       embedding_dim,
+                                       num_embeddings,
+                                       commitment_cost,
+                                       output_channels=output_channels)
     if class_loss_coeff > 0.:
-        class_model = build_linear_classifier(num_classes, class_loss_coeff)
-    else:
-        class_model = None
-    objects = build_saveable_objects(optimizer, learning_rate, model_name,
-                                     gen_model, class_model, save_dir)
-    global_step = objects['global_step']
-    ckpt_manager = objects['ckpt_manager']
-    optimizer = objects['optimizer']
+        objects['class_model'] = build_linear_classifier(
+            num_classes, class_loss_coeff)
 
-    return train(data_dict, gen_model, class_model, optimizer, global_step,
-                 ckpt_manager, max_epochs, patience, None, output_dir, debug)
+    # load model
+    if load_model_dir is not None:
+        checkpoint, ckpt_manager = build_checkpoint(objects, load_model_dir)
+        status = checkpoint.restore(ckpt_manager.latest_checkpoint)
+
+    objects.update(
+        build_saveable_objects(optimizer, learning_rate, objects, save_dir))
+
+    return objects

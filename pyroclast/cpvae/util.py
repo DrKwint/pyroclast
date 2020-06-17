@@ -10,15 +10,20 @@ from pyroclast.cpvae.distributions import get_distribution_builder
 from pyroclast.cpvae.vae import VAE
 from pyroclast.cpvae.vqvae import VQVAE
 
+tfd = tfp.distributions
+
 
 def build_vqvae(encoder_name,
                 decoder_name,
+                layers,
+                data_channels,
                 data_variance,
                 embedding_dim,
                 num_embeddings,
                 commitment_cost,
                 decay=0.99,
-                vq_use_ema=True):
+                vq_use_ema=True,
+                output_channels=3):
 
     if vq_use_ema:
         vector_quantizer = snt.nets.VectorQuantizerEMA(
@@ -40,9 +45,16 @@ def build_vqvae(encoder_name,
             embedding_dim=embedding_dim,
             num_embeddings=num_embeddings,
             commitment_cost=commitment_cost)
+    if layers == 1:
+        vector_quantizer_top = None
 
-    model = VQVAE(vector_quantizer, vector_quantizer_top, embedding_dim,
-                  data_variance)
+    model = VQVAE(encoder_name,
+                  decoder_name,
+                  vector_quantizer,
+                  vq_top=vector_quantizer_top,
+                  embedding_dim=embedding_dim,
+                  data_variance=data_variance,
+                  output_channels=output_channels)
     return model
 
 
@@ -86,8 +98,18 @@ def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
     return model
 
 
-def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
-                           class_model, model_save_dir):
+def build_checkpoint(save_dict, dir_):
+    checkpoint = tf.train.Checkpoint(**save_dict)
+
+    # checkpoint manager
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=dir_,
+                                              max_to_keep=3)
+    return checkpoint, ckpt_manager
+
+
+def build_saveable_objects(optimizer_name, learning_rate, objects,
+                           model_save_dir):
     # optimizer
     if optimizer_name == 'adam':
         optimizer = snt.optimizers.Adam(learning_rate=learning_rate)
@@ -101,25 +123,25 @@ def build_saveable_objects(optimizer_name, learning_rate, model_name, gen_model,
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
     # checkpoint
-    save_dict = {
-        model_name + '_optimizer': optimizer,
-        model_name + '_gen_model': gen_model,
-        model_name + '_global_step': global_step
-    }
-    if class_model is not None:
-        save_dict[model_name + '_class_model'] = class_model
-    checkpoint = tf.train.Checkpoint(**save_dict)
+    objects['global_step'] = global_step
+    checkpoint, ckpt_manager = build_checkpoint(objects, model_save_dir)
 
-    # checkpoint manager
-    ckpt_manager = tf.train.CheckpointManager(checkpoint,
-                                              directory=model_save_dir,
-                                              max_to_keep=3)
     return {
         'optimizer': optimizer,
         'global_step': global_step,
         'checkpoint': checkpoint,
         'ckpt_manager': ckpt_manager,
     }
+
+
+def load_args_from_dir(dir_):
+    from pathlib import Path
+    import json
+    with open(Path(dir_) / 'parameters.json') as param_json:
+        loaded_args = json.load(param_json)
+    args = loaded_args['args']
+    args.update(loaded_args['module_kwargs'])
+    return args
 
 
 def calculate_latent_params_by_class(labels, loc, scale_diag, class_num,
