@@ -110,6 +110,11 @@ class AuxiliaryPrior(tf.Module):
 
     def __init__(self, code_shape, num_embeddings):
         self.pcnn = tfp.distributions.PixelCNN(image_shape=code_shape,
+                                               num_resnet=1,
+                                               num_hierarchies=2,
+                                               num_filters=32,
+                                               num_logistic_mix=5,
+                                               dropout_p=.3,
                                                high=num_embeddings)
 
     def __call__(self):

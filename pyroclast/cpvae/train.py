@@ -272,6 +272,7 @@ def learn_vqvae(data_dict,
 
 def learn_vqvae_prior(data_dict,
                       seed,
+                      code_shape,
                       param_dir,
                       save_dir,
                       load_model_dir,
@@ -281,18 +282,26 @@ def learn_vqvae_prior(data_dict,
                       debug=False,
                       **kwargs):
     args = load_args_from_dir(param_dir)
-    objects = setup_vqvae(data_dict, args['encoder'], args['decoder'],
-                          args['layers'], args['optimizer'],
-                          args['embedding_dim'], args['num_embeddings'],
-                          args['commitment_cost'], args['learning_rate'],
-                          save_dir, args['class_loss_coeff'], load_model_dir)
+    aux_prior = AuxiliaryPrior(code_shape, args['num_embeddings'])
+    objects = setup_vqvae(data_dict,
+                          args['encoder'],
+                          args['decoder'],
+                          args['layers'],
+                          args['optimizer'],
+                          args['embedding_dim'],
+                          args['num_embeddings'],
+                          args['commitment_cost'],
+                          args['learning_rate'],
+                          save_dir,
+                          args['class_loss_coeff'],
+                          prior=aux_prior,
+                          load_model_dir=load_model_dir)
 
     optimizer = objects['optimizer']
     global_step = objects['global_step']
     gen_model = objects['gen_model']
     ckpt_manager = objects['ckpt_manager']
 
-    # TODO update data dict with a map using the vqvae
     def bottom_code(batch):
         outs = gen_model(batch['image'])
         code = tf.expand_dims(outs['vq_output_bottom']['encoding_indices'], -1)
@@ -318,18 +327,11 @@ def learn_vqvae_prior(data_dict,
 
     if gen_model.num_layers == 2:
         code_fn = top_code
-        num_embeddings = gen_model._vq_top.num_embeddings
     else:
         code_fn = bottom_code
-        num_embeddings = gen_model._vq_bottom.num_embeddings
     data_dict['train'] = data_dict['train'].map(code_fn)
     data_dict['test'] = data_dict['test'].map(code_fn)
 
-    for d in data_dict['train']:
-        code_shape = d['image'].shape[1:]
-        break
-
-    aux_prior = AuxiliaryPrior(code_shape, num_embeddings)
     train(data_dict, aux_prior, None, optimizer, global_step, ckpt_manager,
           max_epochs, patience, None, output_dir, debug)
 
@@ -345,6 +347,7 @@ def setup_vqvae(data_dict,
                 learning_rate,
                 save_dir,
                 class_loss_coeff,
+                prior=None,
                 load_model_dir=None):
     for d in data_dict['train']:
         output_channels = d['image'].shape[-1]
@@ -367,6 +370,8 @@ def setup_vqvae(data_dict,
     if class_loss_coeff > 0.:
         objects['class_model'] = build_linear_classifier(
             num_classes, class_loss_coeff)
+    if prior is not None:
+        objects['prior'] = prior
 
     # load model
     if load_model_dir is not None:
