@@ -83,8 +83,11 @@ def outer_run_minibatch(gen_model,
             outputs.update(class_model.forward_loss(outputs['z'], labels))
         outputs['labels'] = labels
         if hasattr(gen_model, 'output_point_estimate'):
-            outputs['recon'] = tf.concat(
-                [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+            try:
+                outputs['recon'] = tf.concat(
+                    [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+            except:
+                outputs['recon'] = gen_model.output_point_estimate(x) + 0.5
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['gen_loss']
         if 'class_loss' in outputs:
@@ -112,8 +115,11 @@ def outer_run_minibatch(gen_model,
         optimizer.apply(clipped_gradients, gen_model.trainable_variables)
 
         if hasattr(gen_model, 'output_point_estimate'):
-            outputs['recon'] = tf.concat(
-                [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+            try:
+                outputs['recon'] = tf.concat(
+                    [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+            except:
+                outputs['recon'] = gen_model.output_point_estimate(x) + 0.5
         outputs['labels'] = labels
         write_tensorboard(writer, outputs, global_step, prefix='train')
 
@@ -300,6 +306,7 @@ def learn_vqvae_prior(data_dict,
     optimizer = objects['optimizer']
     global_step = objects['global_step']
     gen_model = objects['gen_model']
+    aux_prior.parent_vqvae = gen_model
     ckpt_manager = objects['ckpt_manager']
 
     def bottom_code(batch):
@@ -380,5 +387,6 @@ def setup_vqvae(data_dict,
 
     objects.update(
         build_saveable_objects(optimizer, learning_rate, objects, save_dir))
+    prior.vqvae = objects['gen_model']
 
     return objects

@@ -30,7 +30,8 @@ class EarlyStopping(object):
             if self.ckpt_manager is not None:
                 try:
                     self.ckpt_manager.save(checkpoint_number=epoch)
-                except Exception:
+                except Exception as e:
+                    print(e)
                     print("CANNOT SAVE THE MODEL!")
             return False
         else:

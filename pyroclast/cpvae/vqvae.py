@@ -105,17 +105,24 @@ class VQVAE(AbstractVAE):
     def output_point_estimate(self, inputs):
         return self.output_distribution(inputs).loc
 
+    def recon_from_codes(self, codes):
+        encodings = self._vq_bottom.quantize(tf.cast(codes[0], tf.int32))
+        encodings = tf.transpose(encodings, [2, 0, 1, 3])
+        x_recon = self._bottom_decoder(encodings)
+        return x_recon
+
 
 class AuxiliaryPrior(tf.Module):
 
-    def __init__(self, code_shape, num_embeddings):
+    def __init__(self, code_shape, num_embeddings, vqvae=None):
+        self.parent_vqvae = vqvae
         self.pcnn = tfp.distributions.PixelCNN(image_shape=code_shape,
                                                num_resnet=1,
                                                num_hierarchies=2,
                                                num_filters=32,
                                                num_logistic_mix=5,
                                                dropout_p=.3,
-                                               high=num_embeddings)
+                                               high=num_embeddings - 1)
 
     def __call__(self):
         pass
@@ -123,3 +130,8 @@ class AuxiliaryPrior(tf.Module):
     def forward_loss(self, inputs):
         log_prob = self.pcnn.log_prob(inputs)
         return {'gen_loss': -tf.reduce_mean(log_prob)}
+
+    def output_point_estimate(self, inputs):
+        code = self.pcnn.sample()
+        code = code[:7, :7]
+        return self.parent_vqvae.recon_from_codes([code])
