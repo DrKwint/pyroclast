@@ -311,7 +311,7 @@ def learn_vqvae_prior(data_dict,
 
     def bottom_code(batch):
         outs = gen_model(batch['image'])
-        code = tf.expand_dims(outs['vq_output_bottom']['encoding_indices'], -1)
+        code = outs['vq_output_bottom']['quantize']
         code = tf.cast(code, tf.float32)
         if code.shape[1] % 2 == 1:
             code = tf.pad(code, [[0, 0], [0, 1], [0, 1], [0, 0]])
@@ -320,7 +320,7 @@ def learn_vqvae_prior(data_dict,
 
     def top_code(batch):
         outs = gen_model(batch['image'])
-        code = tf.expand_dims(outs['vq_output_bottom']['encoding_indices'], -1)
+        code = tf.expand_dims(outs['vq_output_bottom']['quantize'], -1)
         code = tf.cast(code, tf.float32)
         if code.shape[1] % 2 == 1:
             code = tf.pad(code, [[0, 0], [0, 1], [0, 1], [0, 0]])

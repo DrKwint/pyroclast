@@ -26,7 +26,7 @@ class VQVAE(AbstractVAE):
                 upscale=8, output_channels=output_channels)
             self._pre_vq_conv2 = snt.Conv2D(output_channels=embedding_dim,
                                             kernel_shape=(1, 1),
-                                            stride=(1, 1),
+                                            stride=1,
                                             name="to_vq2")
         self._bottom_encoder4 = get_network_builder(encoder_name)(downscale=4)
         self._bottom_decoder = get_network_builder(decoder_name)(
@@ -36,7 +36,7 @@ class VQVAE(AbstractVAE):
         self._data_variance = data_variance
         self._pre_vq_conv1 = snt.Conv2D(output_channels=embedding_dim,
                                         kernel_shape=(1, 1),
-                                        stride=(1, 1),
+                                        stride=1,
                                         name="to_vq")
         self.prior = None
 
@@ -106,9 +106,9 @@ class VQVAE(AbstractVAE):
         return self.output_distribution(inputs).loc
 
     def recon_from_codes(self, codes):
-        encodings = self._vq_bottom.quantize(tf.cast(codes[0], tf.int32))
-        encodings = tf.transpose(encodings, [2, 0, 1, 3])
-        x_recon = self._bottom_decoder(encodings)
+        prior_z_bottom = codes[-1]
+        vq_output_bottom = self._vq_bottom(prior_z_bottom, is_training=False)
+        x_recon = self._bottom_decoder(vq_output_bottom['quantize'])
         return x_recon
 
 
@@ -134,4 +134,5 @@ class AuxiliaryPrior(tf.Module):
     def output_point_estimate(self, inputs):
         code = self.pcnn.sample()
         code = code[:7, :7]
+        code = tf.expand_dims(code, 0)
         return self.parent_vqvae.recon_from_codes([code])
