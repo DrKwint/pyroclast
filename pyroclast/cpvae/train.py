@@ -387,6 +387,7 @@ def setup_vqvae(data_dict,
 
     objects.update(
         build_saveable_objects(optimizer, learning_rate, objects, save_dir))
-    prior.vqvae = objects['gen_model']
+    if prior is not None:
+        prior.vqvae = objects['gen_model']
 
     return objects

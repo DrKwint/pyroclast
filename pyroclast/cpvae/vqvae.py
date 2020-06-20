@@ -107,7 +107,7 @@ class VQVAE(AbstractVAE):
 
     def recon_from_codes(self, codes):
         encodings = self._vq_bottom.quantize(tf.cast(codes[0], tf.int32))
-        encodings = tf.transpose(encodings, [2, 0, 1, 3])
+        # encodings = tf.transpose(encodings, [2, 0, 1, 3])
         x_recon = self._bottom_decoder(encodings)
         return x_recon
 
@@ -133,5 +133,10 @@ class AuxiliaryPrior(tf.Module):
 
     def output_point_estimate(self, inputs):
         code = self.pcnn.sample()
-        code = code[:7, :7]
-        return self.parent_vqvae.recon_from_codes([code])
+        inputs = tf.squeeze(inputs[0, :7, :7])
+        code = tf.squeeze(code[:7, :7])
+        code = tf.expand_dims(code, 0)
+        inputs = tf.expand_dims(inputs, 0)
+        x_recon_sample = self.parent_vqvae.recon_from_codes([code])
+        x_recon_true = self.parent_vqvae.recon_from_codes([inputs])
+        return tf.concat([x_recon_true, x_recon_sample], -2)
