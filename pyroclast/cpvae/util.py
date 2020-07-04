@@ -5,7 +5,7 @@ import sonnet as snt
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from pyroclast.common.models import get_network_builder
+from pyroclast.cpvae.networks import get_network_builder
 from pyroclast.cpvae.distributions import get_distribution_builder
 from pyroclast.cpvae.vae import VAE
 from pyroclast.cpvae.vqvae import VQVAE
@@ -59,9 +59,12 @@ def build_vqvae(encoder_name,
 
 
 def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
-              output_distribution_name, latent_dim, data_channels, beta):
-    encoder = get_network_builder(encoder_name)()
-    decoder = get_network_builder(decoder_name)()
+              output_distribution_name, latent_channels, data_channels, beta,
+              latent_shape_prefix, **kwargs):
+    encoder = get_network_builder(encoder_name)(
+        latent_shape_prefix=latent_shape_prefix, **kwargs)
+    decoder = get_network_builder(decoder_name)(
+        latent_shape_prefix=latent_shape_prefix, **kwargs)
     ### distributions
     # prior
     if 'ar_prior' in prior_name:
@@ -71,10 +74,11 @@ def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
             activation='elu',
             name='prior_ar_network')
         prior = get_distribution_builder(prior_name)(
-            latent_dim, prior_ar_network
+            latent_channels, prior_ar_network
         )  # note, this needs to be called with an ar network which needs to be changed
     else:
-        prior = get_distribution_builder(prior_name)(latent_dim)
+        prior = get_distribution_builder(prior_name)(latent_shape_prefix +
+                                                     [latent_channels])
 
     # posterior
     posterior_fn = get_distribution_builder(posterior_name)()
@@ -94,7 +98,7 @@ def build_vae(encoder_name, decoder_name, prior_name, posterior_name,
         output_distribution_name)()
 
     model = VAE(encoder, decoder, prior, posterior_fn, output_distribution_fn,
-                latent_dim, data_channels, beta)
+                latent_channels, data_channels, beta)
     return model
 
 

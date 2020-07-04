@@ -22,11 +22,11 @@ def register(name):
 # ar priors should have 'ar_prior' as the suffix of the name
 # called with get_distribution_builder(name)(latent_dimension) or get_distribution_builder(name)(latent_dimension, ar_network)
 @register("iso_gaussian_prior")
-def iso_gaussian_prior(latent_dimension):
-    dist = tfd.MultivariateNormalDiag(loc=tf.zeros([latent_dimension]),
-                                      scale_diag=tf.ones([latent_dimension]))
-    if isinstance(latent_dimension, Iterable):
-        dist = tfd.Independent(dist, len([latent_dimension]) - 1)
+def iso_gaussian_prior(latent_shape):
+    if isinstance(latent_shape, Iterable):
+        dist = tfd.MultivariateNormalDiag(loc=tf.zeros(latent_shape),
+                                          scale_diag=tf.ones(latent_shape))
+        dist = tfd.Independent(dist, len(latent_shape) - 1)
     return dist
 
 

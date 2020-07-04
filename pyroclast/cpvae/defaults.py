@@ -1,9 +1,9 @@
-"""
-def mnist():
+def learn_vae_mnist():
     return dict(
-        encoder='mnist_encoder',
-        decoder='mnist_decoder',
-        latent_dim=98,
+        model_name='vae_mnist',
+        encoder='mnist_conv_encoder',
+        decoder='mnist_conv_decoder',
+        latent_channels=1,
         max_epochs=1000,
         optimizer='adam',
         learning_rate=3e-4,
@@ -14,8 +14,8 @@ def mnist():
         beta=1.,
         patience=12,
         batch_size=32,
-        model_name='vae_mnist')
-"""
+        latent_shape_prefix=[7, 7],
+        base_filters=32)
 
 
 def mnist():

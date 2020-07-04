@@ -68,11 +68,15 @@ def get_task_function(module, func_name, submodule=None):
     return getattr(get_module(module, submodule), func_name)
 
 
-def get_task_function_defaults(module_name, dataset):
+def get_task_function_defaults(module_name, task_name, dataset):
     try:
         module_defaults = get_module(module_name, 'defaults')
-        kwargs = getattr(module_defaults, dataset)()
+        defaults_fn_name = task_name + '_' + dataset
+        kwargs = getattr(module_defaults, defaults_fn_name)()
     except (ImportError, AttributeError) as e:
+        print(
+            'Could not find defaults for task {} and dataset {} (searched in file {}/defaults.py for a function called {}).'
+            .format(task_name, dataset, module_name, defaults_fn_name))
         kwargs = {}
     return kwargs
 
@@ -80,7 +84,8 @@ def get_task_function_defaults(module_name, dataset):
 def run_task(args, extra_args):
     # load data
     task_func = get_task_function(args.module, args.task, args.submodule)
-    module_kwargs = get_task_function_defaults(args.module, args.dataset)
+    module_kwargs = get_task_function_defaults(args.module, args.task,
+                                               args.dataset)
     module_kwargs.update(extra_args)
     with open(os.path.join(args.output_dir, 'parameters.json'), 'w') as p_file:
         json.dump({

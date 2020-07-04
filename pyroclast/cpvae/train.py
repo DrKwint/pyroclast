@@ -215,7 +215,7 @@ def learn_vae(data_dict,
               prior,
               posterior,
               output_distribution,
-              latent_dim,
+              latent_channels,
               optimizer,
               batch_size,
               max_epochs,
@@ -223,21 +223,36 @@ def learn_vae(data_dict,
               learning_rate,
               model_name,
               output_dir,
-              save_dir,
+              model_save_dir,
               beta=1.,
               class_loss_coeff=1.,
-              debug=False):
+              latent_shape_prefix=[],
+              debug=False,
+              **kwargs):
     for x in data_dict['train']:
         data_channels = x['image'].shape[-1]
         num_classes = 10
         break
 
-    gen_model = build_vae(encoder, decoder, prior, posterior,
-                          output_distribution, latent_dim, data_channels, beta)
-    class_model = build_linear_classifier(num_classes,
-                                          class_loss_coeff=class_loss_coeff)
-    objects = build_saveable_objects(optimizer, learning_rate, model_name,
-                                     gen_model, class_model, save_dir)
+    objects = {}
+    objects['gen_model'] = build_vae(encoder,
+                                     decoder,
+                                     prior,
+                                     posterior,
+                                     output_distribution,
+                                     latent_channels,
+                                     data_channels,
+                                     beta=beta,
+                                     latent_shape_prefix=latent_shape_prefix,
+                                     **kwargs)
+    if class_loss_coeff > 0.:
+        objects['class_model'] = build_linear_classifier(
+            num_classes, class_loss_coeff)
+    objects.update(
+        build_saveable_objects(optimizer, learning_rate, objects,
+                               model_save_dir))
+    gen_model = objects['gen_model']
+    class_model = objects['class_model']
     global_step = objects['global_step']
     ckpt_manager = objects['ckpt_manager']
     optimizer = objects['optimizer']
