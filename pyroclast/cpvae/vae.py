@@ -48,8 +48,6 @@ class VAE(AbstractVAE):
             loc = self._output_loc(self._decoder(outputs['z_sample']))
             recon_loss = -1 * outputs['x'].log_prob(inputs,
                                                     conditional_input=loc)
-        elif 'Quantized' in outputs['x'].name:
-            recon_loss = -1 * outputs['x'].log_prob((inputs + 0.5) * 255)
         else:
             recon_loss = -1 * outputs['x'].log_prob(inputs)
 
@@ -93,10 +91,7 @@ class VAE(AbstractVAE):
 
     def output_point_estimate(self, inputs):
         dist = self.output_distribution(inputs)
-        if 'Quantized' in dist.name:
-            return (dist.sample() / 255.) - 0.5
-        else:
-            return dist.sample()
+        return dist.sample()
         """
         posterior = self.posterior(inputs)
         posterior_sample = posterior.sample()

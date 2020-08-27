@@ -85,9 +85,9 @@ def outer_run_minibatch(gen_model,
         if hasattr(gen_model, 'output_point_estimate'):
             try:
                 outputs['recon'] = tf.concat(
-                    [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+                    [x, gen_model.output_point_estimate(x)], -2)
             except:
-                outputs['recon'] = gen_model.output_point_estimate(x) + 0.5
+                outputs['recon'] = gen_model.output_point_estimate(x)
         write_tensorboard(writer, outputs, global_step, prefix='eval')
         loss = outputs['gen_loss']
         if 'class_loss' in outputs:
@@ -117,9 +117,9 @@ def outer_run_minibatch(gen_model,
         if hasattr(gen_model, 'output_point_estimate'):
             try:
                 outputs['recon'] = tf.concat(
-                    [x + 0.5, gen_model.output_point_estimate(x) + 0.5], -2)
+                    [x, gen_model.output_point_estimate(x)], -2)
             except:
-                outputs['recon'] = gen_model.output_point_estimate(x) + 0.5
+                outputs['recon'] = gen_model.output_point_estimate(x)
         outputs['labels'] = labels
         write_tensorboard(writer, outputs, global_step, prefix='train')
 
@@ -229,6 +229,15 @@ def learn_vae(data_dict,
               latent_shape_prefix=[],
               debug=False,
               **kwargs):
+    if 'disc_logistic_posterior' in output_distribution:
+
+        def correct_data(batch):
+            batch['image'] = batch['image'] * 255
+            return batch
+
+        data_dict['train'] = data_dict['train'].map(correct_data)
+        data_dict['test'] = data_dict['test'].map(correct_data)
+
     for x in data_dict['train']:
         data_channels = x['image'].shape[-1]
         num_classes = 10
@@ -252,7 +261,7 @@ def learn_vae(data_dict,
         build_saveable_objects(optimizer, learning_rate, objects,
                                model_save_dir))
     gen_model = objects['gen_model']
-    class_model = objects['class_model']
+    class_model = objects['class_model'] if 'class_model' in objects else None
     global_step = objects['global_step']
     ckpt_manager = objects['ckpt_manager']
     optimizer = objects['optimizer']

@@ -33,6 +33,7 @@ class DDT(tf.Module):
 
     def __init__(self, max_depth, use_analytic):
         self.decision_tree = DecisionTreeClassifier(max_depth=max_depth)
+        self.tree_distribution = tfd.Mixture()
         self.use_analytic = use_analytic
 
     def __call__(self, z_posterior):
@@ -68,14 +69,13 @@ class DDT(tf.Module):
             self.tree_distribution.cat.probs_parameter()[i] * c.prob(z)
             for i, c in enumerate(self.tree_distribution.components)
         ])
-        print([c for c in self.tree_distribution.components])
 
         # mean over sample dim, transpose to get batch out front
         sum_z_l = tf.reduce_sum(z_l, 0)
         sample_l_z = z_l / (sum_z_l + 1e-127)
         l_z = tf.reduce_mean(sample_l_z, 1)
         l_z = tf.transpose(l_z)
-        return tfd.Categorical(l_z), calculate_class_likelihood(
+        return tfd.Categorical(probs=l_z), calculate_class_likelihood(
             l_z, self.leaf_class_prob)
 
     def update_model_tree(self, ds, posterior_fn, oversample, debug):
@@ -123,8 +123,6 @@ class DDT(tf.Module):
                                             len(leaf_dist.batch_shape))
             distributions.append(leaf_dist)
             categorial_weights.append(leaf_data.shape[0] / num_data)
-        print(distributions[0])
-        print(tfd.Categorical(categorial_weights))
         return tfd.Mixture(cat=tfd.Categorical(
             tf.cast(categorial_weights, tf.float64)),
                            components=distributions)

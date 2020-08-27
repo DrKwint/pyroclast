@@ -6,6 +6,7 @@ from pyroclast.cpvae.abstract_vae import AbstractVAE
 from pyroclast.common.models import get_network_builder
 
 tfd = tfp.distributions
+tfb = tfp.bijectors
 
 
 class VQVAE(AbstractVAE):
@@ -116,23 +117,38 @@ class AuxiliaryPrior(tf.Module):
 
     def __init__(self, code_shape, num_embeddings, vqvae=None):
         self.parent_vqvae = vqvae
+        self.code_shape = code_shape
+        self.maf = tfd.TransformedDistribution(
+            distribution=tfd.Normal(loc=0., scale=1.),
+            bijector=tfb.MaskedAutoregressiveFlow(
+                shift_and_log_scale_fn=tfb.AutoregressiveNetwork(
+                    params=2, hidden_units=[512, 512])),
+            event_shape=[tf.reduce_prod(code_shape)])
+        self.quantized_maf = tfd.QuantizedDistribution(
+            distribution=tfd.TransformedDistribution(distribution=self.maf,
+                                                     bijector=tfb.Shift(-0.5)),
+            low=0.,
+            high=num_embeddings - 1)
+        """
         self.pcnn = tfp.distributions.PixelCNN(image_shape=code_shape,
                                                num_resnet=1,
-                                               num_hierarchies=2,
+                                               num_hierarchies=3,
                                                num_filters=32,
                                                num_logistic_mix=5,
                                                dropout_p=.3,
                                                high=num_embeddings - 1)
+        """
 
     def __call__(self):
         pass
 
     def forward_loss(self, inputs):
-        log_prob = self.pcnn.log_prob(inputs)
+        #log_prob = self.pcnn.log_prob(inputs)
+        log_prob = self.quantized_maf.log_prob(snt.Flatten()(inputs))
         return {'gen_loss': -tf.reduce_mean(log_prob)}
 
     def output_point_estimate(self, inputs):
-        code = self.pcnn.sample()
+        code = tf.reshape(self.quantized_maf.sample(), self.code_shape)
         inputs = tf.squeeze(inputs[0, :7, :7])
         code = tf.squeeze(code[:7, :7])
         code = tf.expand_dims(code, 0)

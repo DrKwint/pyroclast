@@ -60,7 +60,7 @@ def setup_tfds(dataset,
         ]
 
     def prep_data(batch):
-        batch['image'] = (tf.cast(batch['image'], tf.float32) / 255.) - 0.5
+        batch['image'] = (tf.cast(batch['image'], tf.float32) / 255.)
         batch['label'] = tf.cast(batch['label'], tf.int32)
         return batch
 
@@ -143,3 +143,13 @@ def load_model(module,
     else:
         print("Wrong directory?")
     return objects['model']
+
+
+def build_checkpoint(save_dict, dir_, max_to_keep=3):
+    checkpoint = tf.train.Checkpoint(**save_dict)
+
+    # checkpoint manager
+    ckpt_manager = tf.train.CheckpointManager(checkpoint,
+                                              directory=dir_,
+                                              max_to_keep=max_to_keep)
+    return checkpoint, ckpt_manager
